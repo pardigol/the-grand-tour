@@ -146,7 +146,8 @@ export class Minimap {
   }
 
   // progress = gefahrene Meter der aktuellen Runde (oder null vor dem Start)
-  draw(x, z, heading, progress) {
+  // rivals = Gegner mit x, z und Trikotfarbe
+  draw(x, z, heading, progress, rivals = []) {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -165,7 +166,18 @@ export class Minimap {
       ctx.shadowBlur = 0;
     }
 
-    // Fahrer: Pfeil in Fahrtrichtung
+    // Gegner als farbige Punkte
+    for (const r of rivals) {
+      ctx.beginPath();
+      ctx.arc(this.mx(r.x), this.mz(r.z), 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = r.jersey;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Fahrer: Pfeil in Fahrtrichtung (über den Gegnern)
     const px = this.mx(x);
     const pz = this.mz(z);
     const fx = Math.sin(heading);

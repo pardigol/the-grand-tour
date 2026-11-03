@@ -52,7 +52,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **X** | **□** | S / ↓ |
-| Lenken (stufenlos) | **LT / RT**, LB / RB oder linker Stick | **L2 / R2**, L1 / R1 oder linker Stick | A / D / ← / → |
+| Lenken (stufenlos, nur auf der Strecke) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
 | Kamera-Ansicht wechseln (hinten, Seite, oben, vorne) | rechten Stick drücken | rechten Stick drücken (R3) | C |
 | Pause | Menü-Taste | **Options** | Escape |
@@ -68,7 +68,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 2. **Übergang** – das Rad beschleunigt, Bewegungsunschärfe und Geschwindigkeitslinien, ein goldenes Kettenblatt dreht sich ins Menü. Dazu Freilaufklicken und Fahrtwind.
 3. **Hauptmenü** – alle Fahrer mit Name und Startnummer, darunter „Neuer Charakter +“.
 4. **Charaktererstellung** – Name über die Bildschirmtastatur, Startnummer (1–999) mit dem Stick. Das Startnummernschild in der Mitte zeigt alles sofort an. „Fertig“ speichert den Fahrer.
-5. **Teststrecke** – eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
+5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
 ---
 
@@ -110,6 +110,14 @@ exposure: 0.62,    // höher = helleres Bild
 - Schneller oder langsamer: `tempo: 78`.
 - Dein eigenes Lied: Leg eine MP3-Datei in den Ordner `public/musik` (Ordner anlegen) und schreib
   `file: 'musik/meinlied.mp3'`.
+
+**Rennen einstellen**
+
+```js
+raceLaps: 3,       // Anzahl Runden (in src/config.js)
+```
+
+Die Gegner änderst du in `src/rivals.js`: Name, Nummer, Trikotfarbe und Kraft (`power` in Watt). Mehr Watt = schwerer zu schlagen.
 
 **Schneller fahren**
 

@@ -44,4 +44,7 @@ export const CONFIG = {
 
   // Wie stark du in die Pedale trittst (Watt). Mehr = schneller!
   riderPower: 520,
+
+  // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
+  raceLaps: 3,
 };

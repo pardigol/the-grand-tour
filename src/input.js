@@ -46,7 +46,6 @@ export class Input {
     this.dirTime = { up: 0, down: 0, left: 0, right: 0 };
     this.dirRepeat = { up: 0, down: 0, left: 0, right: 0 };
     this.steer = 0;
-    this.shoulderSteer = 0;
     this.lookX = 0;
     this.lookY = 0;
     this.throttle = 0;
@@ -133,7 +132,6 @@ export class Input {
     let padSteer = 0;
     let padThrottle = 0;
     let padBrake = 0;
-    let shoulder = 0;
     let lookX = 0;
     let lookY = 0;
 
@@ -167,18 +165,13 @@ export class Input {
       held.right ||= btn(15);
       if (Math.abs(ax) > 0.3 || Math.abs(ay) > 0.3) this.usingPad = true;
 
-      padSteer = Math.abs(ax) > DEADZONE ? (ax - Math.sign(ax) * DEADZONE) / (1 - DEADZONE) : 0;
-      if (btn(14)) padSteer = -1;
-      if (btn(15)) padSteer = 1;
-      // Trigger LT/RT (L2/R2) lenken stufenlos: je fester, desto stärker
+      // Gelenkt wird nur mit den Triggern LT/RT (L2/R2): je fester, desto stärker.
+      // Linker Stick und Steuerkreuz bleiben fürs Menü.
       const val = (i) => (b[i] ? b[i].value : 0);
-      padSteer += val(7) - val(6);
+      padSteer = val(7) - val(6);
       // A (✕) tritt, X (□) bremst
       padThrottle = val(0);
       padBrake = val(2);
-      // Schultertasten LB/RB (L1/R1) lenken zusätzlich
-      if (btn(4)) shoulder -= 1;
-      if (btn(5)) shoulder += 1;
       // Rechter Stick: Kamera
       const rx = pad.axes[2] || 0;
       const ry = pad.axes[3] || 0;
@@ -213,10 +206,7 @@ export class Input {
     const keyThrottle = k.has('KeyW') || k.has('ArrowUp') || k.has('Space') ? 1 : 0;
     const keyBrake = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0;
 
-    // Tasten-Lenkung weich einblenden, damit das Rad nicht ruckartig einschlägt
-    const rate = shoulder !== 0 ? 4 : 8;
-    this.shoulderSteer += Math.max(-rate * dt, Math.min(rate * dt, shoulder - this.shoulderSteer));
-    this.steer = Math.max(-1, Math.min(1, padSteer + keySteer + this.shoulderSteer));
+    this.steer = Math.max(-1, Math.min(1, padSteer + keySteer));
 
     // Kamera auch per Tastatur: J/L drehen, I/K hoch/runter
     if (k.has('KeyJ')) lookX -= 1;

@@ -5,11 +5,13 @@ import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
 import { clamp, damp } from '../noise.js';
 import { Minimap } from '../minimap.js';
+import { Rivals } from '../rivals.js';
 
 const MASS = 78;
 const G = 9.81;
 const GEAR = 3.6; // Radumdrehungen pro Kurbelumdrehung
 const CHECKPOINTS = [0.25, 0.5, 0.75];
+const RACE_LAPS = CONFIG.raceLaps;
 
 // Kamera-Ansichten: yaw = Winkel um den Fahrer (0 = hinten), pitch = Höhe, dist = Abstand
 const VIEWS = [
@@ -30,6 +32,8 @@ export function createRideScene(app) {
   const tmp = {};
   let pauseIndex = 0;
   let minimap;
+  let rivals;
+  let resultIndex = 0;
   const cam = { view: 0, yawOff: 0, pitchOff: 0, idle: 0, yaw: 0, pitch: 0.32, dist: 4.4, heading: 0 };
 
   // Kamera kreist um den Fahrer: rechter Stick dreht, Klick auf den Stick wechselt die Ansicht
@@ -111,6 +115,47 @@ export function createRideScene(app) {
     root.querySelectorAll('.pause-item').forEach((e, i) => e.classList.toggle('selected', i === pauseIndex));
   }
 
+  // Zurückgelegte Meter ab der Startlinie (vor dem Start negativ)
+  function playerProgress() {
+    const L = app.world.length;
+    return st.lap === 0 ? st.lastS - L : (st.lap - 1) * L + st.lastS;
+  }
+
+  function currentPlace() {
+    if (st.place) return st.place;
+    const me = playerProgress();
+    let ahead = 0;
+    for (const r of rivals.list) if (r.finished != null || rivals.progress(r) > me) ahead++;
+    return ahead + 1;
+  }
+
+  function showResult() {
+    const L = app.world.length;
+    const rows = [
+      { name: char.name, number: char.number, color: char.jersey, me: true, t: st.finishTime, p: playerProgress() },
+      ...rivals.list.map((r) => ({ name: r.name, number: r.number, color: r.jersey, t: r.finished, p: rivals.progress(r) })),
+    ];
+    rows.sort((a, b) => (a.t != null && b.t != null ? a.t - b.t : a.t != null ? -1 : b.t != null ? 1 : b.p - a.p));
+    $('.result-list').innerHTML = rows
+      .map(
+        (r, i) => `<div class="result-row ${r.me ? 'me' : ''}">
+          <b>${i + 1}.</b><i style="background:${r.color}"></i><span class="mini-plate"><span>${r.number}</span></span>
+          <span class="result-name">${esc(r.name)}</span>
+          <span class="result-time">${r.t != null ? formatTime(r.t) : `noch ${Math.max(1, Math.ceil((RACE_LAPS * L - r.p) / 1000 * 10) / 10)} km`}</span>
+        </div>`,
+      )
+      .join('');
+    $('.result-title').textContent = st.place === 1 ? 'Sieg! Du bist Erster!' : `Ziel! Du bist ${st.place}.`;
+    resultIndex = 0;
+    renderResult();
+    $('.result').classList.add('show');
+    st.showResult = true;
+  }
+
+  function renderResult() {
+    root.querySelectorAll('.result-item').forEach((e, i) => e.classList.toggle('selected', i === resultIndex));
+  }
+
   function banner(text, sub = '') {
     const b = $('.banner');
     b.innerHTML = `<div>${text}</div>${sub ? `<small>${sub}</small>` : ''}`;
@@ -125,6 +170,7 @@ export function createRideScene(app) {
       root = el(`
         <div class="screen ride-screen">
           <div class="hud-top">
+            <div class="hud-box hud-place"><label>Platz</label><b class="place">–</b></div>
             <div class="hud-box"><label>Runde</label><b class="lap">–</b></div>
             <div class="hud-box"><label>Zeit</label><b class="time">0:00.0</b></div>
             <div class="hud-box"><label>Bestzeit</label><b class="best">${formatTime(char.bestLap)}</b></div>
@@ -149,12 +195,21 @@ export function createRideScene(app) {
             <div>${btn('A')} Treten</div>
             <div>${btn('B')} Dauertreten an/aus</div>
             <div>${btn('X')} Bremsen</div>
-            <div>${btn('LT')}${btn('RT')} oder <span class="btn btn-stick">L</span> Lenken</div>
+            <div>${btn('LT')}${btn('RT')} Lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
             <div><span class="btn btn-stick">R</span>drücken: Ansicht wechseln</div>
             <div><span class="btn btn-opt">☰</span> Pause</div>
           </div>
           <div class="banner"></div>
+          <div class="countdown"></div>
+          <div class="result">
+            <div class="pause-box result-box">
+              <h2 class="result-title"></h2>
+              <div class="result-list"></div>
+              <div class="pause-item result-item">Nochmal fahren</div>
+              <div class="pause-item result-item">Zurück zum Hauptmenü</div>
+            </div>
+          </div>
           <div class="pause">
             <div class="pause-box">
               <h2>Pause</h2>
@@ -188,14 +243,22 @@ export function createRideScene(app) {
         paused: false,
         shake: 0,
         cruise: false,
+        phase: 'countdown',
+        countdown: 3,
+        lastCount: 4,
+        raceTime: 0,
+        place: 0,
+        finishTime: null,
+        showResult: false,
       });
+      if (!rivals) rivals = new Rivals(app);
+      rivals.reset(p.s);
       this.placeBike();
       cam.view = 0;
       cam.yawOff = cam.pitchOff = 0;
       updateCamera(0, true);
       app.fx.uFade.value = 1;
       app.audio.setMusicLevel(0.45);
-      banner('Los geht’s!', `${btn('A')} drücken zum Treten`);
     },
 
     placeBike() {
@@ -227,9 +290,43 @@ export function createRideScene(app) {
         updateCamera(dt);
         return;
       }
-      if (inp.pressed('pause') || inp.pressed('start')) {
+      if (st.showResult) {
+        if (inp.pressed('up') || inp.pressed('down')) {
+          resultIndex = 1 - resultIndex;
+          renderResult();
+          app.audio.nav();
+        } else if (inp.pressed('confirm')) {
+          app.audio.select();
+          if (resultIndex === 0) app.go('ride', { character: char });
+          else app.go('menu', { selectId: char.id });
+          return;
+        }
+      } else if (inp.pressed('pause') || inp.pressed('start')) {
         setPaused(true);
         return;
+      }
+
+      // Countdown 3 – 2 – 1 – LOS!
+      if (st.phase === 'countdown') {
+        st.countdown -= dt;
+        const n = Math.ceil(st.countdown);
+        if (n !== st.lastCount) {
+          st.lastCount = n;
+          const cd = $('.countdown');
+          cd.textContent = n > 0 ? n : 'LOS!';
+          cd.classList.toggle('go', n <= 0);
+          cd.classList.remove('show');
+          void cd.offsetWidth;
+          cd.classList.add('show');
+          if (n > 0) app.audio.tone(520, 0.25, { type: 'square', vol: 0.08 });
+          else {
+            app.audio.tone(1040, 0.6, { type: 'square', vol: 0.09 });
+            app.input.rumble(0.6, 250);
+          }
+        }
+        if (n <= 0) st.phase = 'race';
+      } else {
+        st.raceTime += dt;
       }
       // ○ / B: Dauertreten ein- und ausschalten
       if (inp.pressed('cruise')) {
@@ -244,8 +341,14 @@ export function createRideScene(app) {
       const w = app.world;
       const steer = inp.steer;
       // Beim Bremsen wird nicht getreten, Dauertreten läuft danach weiter
-      const throttle = inp.brake > 0.1 ? 0 : st.cruise ? 1 : inp.throttle;
-      const brake = inp.brake;
+      let throttle = inp.brake > 0.1 ? 0 : st.cruise ? 1 : inp.throttle;
+      let brake = inp.brake;
+      if (st.phase === 'countdown') throttle = 0;
+      // Nach dem Ziel rollt man langsam aus
+      if (st.phase === 'finished') {
+        throttle = 0;
+        brake = st.speed > 4 ? 0.25 : 0;
+      }
 
       // Untergrund und Steigung
       w.groundAt(st.x, st.z, ground);
@@ -272,6 +375,18 @@ export function createRideScene(app) {
       st.heading -= steer * turn * dt;
       st.x += Math.sin(st.heading) * st.speed * dt;
       st.z += Math.cos(st.heading) * st.speed * dt;
+
+      // Nicht durch die anderen Fahrer hindurchfahren
+      for (const r of rivals.list) {
+        const dx = st.x - r.x;
+        const dz = st.z - r.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.9 && d > 0.001) {
+          st.x = r.x + (dx / d) * 0.9;
+          st.z = r.z + (dz / d) * 0.9;
+          st.speed *= 0.98;
+        }
+      }
 
       // Weltgrenze
       const r = Math.hypot(st.x, st.z);
@@ -324,9 +439,10 @@ export function createRideScene(app) {
             st.lap = 1;
             st.lapStart = st.time;
             st.cps.clear();
-            banner('Runde 1', 'Die Zeit läuft!');
+            banner(`Runde 1 von ${RACE_LAPS}`, 'Die Zeit läuft!');
             app.audio.lap();
           } else if (st.cps.size === CHECKPOINTS.length) {
+            st.lastS = s;
             const lapTime = st.time - st.lapStart;
             const best = char.bestLap == null || lapTime < char.bestLap;
             if (best) {
@@ -335,12 +451,26 @@ export function createRideScene(app) {
               updateCharacter(char);
               $('.best').textContent = formatTime(lapTime);
             }
-            banner(best ? 'Neue Bestzeit!' : `Runde ${st.lap} geschafft`, formatTime(lapTime));
-            app.audio.success();
-            app.input.rumble(0.5, 200);
             st.lap++;
             st.lapStart = st.time;
             st.cps.clear();
+            if (st.lap > RACE_LAPS && st.phase === 'race') {
+              // Im Ziel!
+              st.place = currentPlace();
+              st.finishTime = st.raceTime;
+              st.phase = 'finished';
+              st.cruise = false;
+              $('.cruise-badge').classList.remove('on');
+              banner(st.place === 1 ? 'Sieg!' : `Platz ${st.place}`, formatTime(st.finishTime));
+              app.audio.success();
+              app.input.rumble(0.8, 400);
+              setTimeout(() => root && st.phase === 'finished' && showResult(), 2200);
+            } else {
+              const last = st.lap === RACE_LAPS && st.phase === 'race';
+              banner(best ? 'Neue Bestzeit!' : last ? 'Letzte Runde!' : `Runde ${st.lap} von ${RACE_LAPS}`, formatTime(lapTime));
+              app.audio.lap();
+              app.input.rumble(0.5, 200);
+            }
           }
         }
         st.lastS = s;
@@ -349,12 +479,23 @@ export function createRideScene(app) {
       // Anzeige
       $('.speedo-val b').textContent = Math.round(kmh);
       $('.speedo-fill').style.strokeDasharray = `${clamp(kmh / 70, 0, 1) * 75} 100`;
-      $('.lap').textContent = st.lap ? st.lap : '–';
-      $('.time').textContent = st.lap ? formatTime(st.time - st.lapStart) : '0:00.0';
-      minimap.draw(st.x, st.z, st.heading, st.lap ? st.lastS : null);
+      // Gegner fahren lassen
+      rivals.update(
+        dt,
+        st.phase !== 'countdown',
+        { progress: playerProgress(), lateral: nr.found ? nr.lateral : 99 },
+        RACE_LAPS * w.length,
+        st.raceTime,
+      );
+
+      $('.place').textContent = st.phase === 'countdown' ? '–' : `${currentPlace()}/5`;
+      $('.lap').textContent = st.lap ? `${Math.min(st.lap, RACE_LAPS)}/${RACE_LAPS}` : '–';
+      $('.time').textContent = st.phase === 'finished' ? formatTime(st.finishTime) : formatTime(st.raceTime);
+      minimap.draw(st.x, st.z, st.heading, st.lap && st.phase !== 'finished' ? st.lastS : null, rivals.list);
     },
 
     exit() {
+      rivals.hide();
       root.remove();
       root = null;
       app.audio.setWind(0);
