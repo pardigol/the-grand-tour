@@ -52,7 +52,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **X** | **□** | S / ↓ |
-| Lenken (stufenlos, nur auf der Strecke) | **LT / RT** | **L2 / R2** | A / D / ← / → |
+| Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
 | Kamera-Ansicht wechseln (hinten, Seite, oben, vorne) | rechten Stick drücken | rechten Stick drücken (R3) | C |
 | Pause | Menü-Taste | **Options** | Escape |
@@ -127,6 +127,14 @@ Die Gegner änderst du in `src/rivals.js`: Name, Nummer, Trikotfarbe und Kraft (
 **Neue Farben**
 
 In `src/brands.js` steht die Farbliste für Helm, Trikot, Hose und Rahmen. Füge einfach eine Zeile hinzu, z. B. `{ hex: '#00ffcc', name: 'Mint' },`
+
+**Lenkung einstellen**
+
+```js
+steering: { start: 0.25, vollNach: 1.3 },
+```
+
+`start` = wie stark das Rad beim kurzen Antippen einlenkt (0.25 = ein Viertel). `vollNach` = nach wie vielen Sekunden Halten die volle Lenkung erreicht ist. Kleinere Zahlen = schnellere, schärfere Lenkung.
 
 **Schneller fahren**
 

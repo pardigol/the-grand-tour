@@ -45,6 +45,10 @@ export const CONFIG = {
   // Wie stark du in die Pedale trittst (Watt). Mehr = schneller!
   riderPower: 520,
 
+  // Lenkung: Beim kurzen Antippen lenkt das Rad nur leicht ein (start = Anteil der vollen Stärke).
+  // Je länger du L2/R2 hältst, desto stärker wird die Kurve – voll nach "vollNach" Sekunden.
+  steering: { start: 0.25, vollNach: 1.3 },
+
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,
 };
