@@ -47,7 +47,8 @@ export const CONFIG = {
 
   // Lenkung: Beim kurzen Antippen lenkt das Rad nur leicht ein (start = Anteil der vollen Stärke).
   // Je länger du L2/R2 hältst, desto stärker wird die Kurve – voll nach "vollNach" Sekunden.
-  steering: { start: 0.25, vollNach: 1.3 },
+  // stick = wie stark der linke Stick lenken darf (0.4 = 40 % der vollen Lenkung, 0 = gar nicht)
+  steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,

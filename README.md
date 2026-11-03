@@ -53,6 +53,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **X** | **□** | S / ↓ |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
+| Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
 | Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
 | Kamera-Ansicht wechseln (hinten, Seite, oben, vorne) | rechten Stick drücken | rechten Stick drücken (R3) | C |
 | Pause | Menü-Taste | **Options** | Escape |
@@ -133,10 +134,10 @@ Bei der Rahmenfarbe gibt es statt Grün ein glänzendes **Dunkelgrün**. Matte R
 **Lenkung einstellen**
 
 ```js
-steering: { start: 0.25, vollNach: 1.3 },
+steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 ```
 
-`start` = wie stark das Rad beim kurzen Antippen einlenkt (0.25 = ein Viertel). `vollNach` = nach wie vielen Sekunden Halten die volle Lenkung erreicht ist. Kleinere Zahlen = schnellere, schärfere Lenkung.
+`start` = wie stark das Rad beim kurzen Antippen einlenkt (0.25 = ein Viertel). `vollNach` = nach wie vielen Sekunden Halten die volle Lenkung erreicht ist. Kleinere Zahlen = schnellere, schärfere Lenkung. `stick` = wie stark der linke Stick lenken darf (0.4 = 40 %, 0 = gar nicht, 1 = so stark wie L2/R2).
 
 **Schneller fahren**
 

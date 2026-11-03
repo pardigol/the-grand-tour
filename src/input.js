@@ -136,6 +136,7 @@ export class Input {
 
     const held = { up: false, down: false, left: false, right: false };
     let padSteer = 0;
+    let stickSteer = 0;
     let padThrottle = 0;
     let padBrake = 0;
     let lookX = 0;
@@ -172,9 +173,11 @@ export class Input {
       if (Math.abs(ax) > 0.3 || Math.abs(ay) > 0.3) this.usingPad = true;
 
       // Gelenkt wird nur mit den Triggern LT/RT (L2/R2): je fester, desto stärker.
-      // Linker Stick und Steuerkreuz bleiben fürs Menü.
+      // Der linke Stick lenkt nur schwach mit (siehe unten).
       const val = (i) => (b[i] ? b[i].value : 0);
       padSteer = val(7) - val(6);
+      // Linker Stick lenkt zusätzlich, aber nur schwach (stufenlos)
+      stickSteer = Math.abs(ax) > DEADZONE ? (ax - Math.sign(ax) * DEADZONE) / (1 - DEADZONE) : 0;
       // A (✕) tritt, X (□) bremst
       padThrottle = val(0);
       padBrake = val(2);
@@ -218,10 +221,10 @@ export class Input {
     if (dir !== 0 && dir === this.steerDir) this.steerHold += dt;
     else this.steerHold = 0;
     this.steerDir = dir;
-    const { start, vollNach } = CONFIG.steering;
+    const { start, vollNach, stick = 0.4 } = CONFIG.steering;
     const t = Math.min(1, this.steerHold / vollNach);
     const ramp = start + (1 - start) * t * t * (3 - 2 * t);
-    const target = raw * ramp;
+    const target = Math.max(-1, Math.min(1, raw * ramp + stickSteer * stick));
     // weich nachführen: Einlenken etwas langsamer als Zurücklenken
     const rate = Math.abs(target) > Math.abs(this.steer) ? 3 : 7;
     this.steer += Math.max(-rate * dt, Math.min(rate * dt, target - this.steer));

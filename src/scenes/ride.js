@@ -196,6 +196,7 @@ export function createRideScene(app) {
             <div>${btn('B')} Dauertreten an/aus</div>
             <div>${btn('X')} Bremsen</div>
             <div>${btn('LT')}${btn('RT')} Lenken</div>
+            <div><span class="btn btn-stick">L</span> leicht lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
             <div><span class="btn btn-stick">R</span>drücken: Ansicht wechseln</div>
             <div><span class="btn btn-opt">☰</span> Pause</div>
