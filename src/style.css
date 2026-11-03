@@ -1144,6 +1144,63 @@ body {
   color: #d8cfbf;
   font-variant-numeric: tabular-nums;
 }
+.sprint-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  width: min(360px, 40vw);
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+}
+.sprint-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: linear-gradient(90deg, #3c8f4e, #6fd27f);
+  transition: background 0.3s;
+}
+.sprint-bar.active .sprint-fill {
+  background: linear-gradient(90deg, #ff7a1a, var(--gold));
+  box-shadow: 0 0 18px var(--gold);
+}
+.sprint-bar.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 24px rgba(255, 170, 60, 0.6);
+  animation: sprintPulse 0.6s ease-in-out infinite;
+}
+@keyframes sprintPulse {
+  50% { box-shadow: 0 0 34px rgba(255, 170, 60, 0.9); }
+}
+.sprint-bar.charging .sprint-fill {
+  background: linear-gradient(90deg, #555a66, #8a909c);
+}
+.sprint-label {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+.sprint-info {
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sprint-info .btn {
+  margin: 0;
+}
 .view-toast {
   position: absolute;
   top: 110px;

@@ -72,6 +72,7 @@ export class Input {
       if (a) this.queue.push(a);
       if (e.code === 'KeyC') this.queue.push('view');
       if (e.code === 'KeyT') this.queue.push('cruise');
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queue.push('sprint');
       if (e.key === 'Escape') this.queue.push('pause');
       if (e.key === 'Backspace') this.charQueue.push('\b');
       else if (e.key.length === 1) this.charQueue.push(e.key);
@@ -178,9 +179,9 @@ export class Input {
       padSteer = val(7) - val(6);
       // Linker Stick lenkt zusätzlich, aber nur schwach (stufenlos)
       stickSteer = Math.abs(ax) > DEADZONE ? (ax - Math.sign(ax) * DEADZONE) / (1 - DEADZONE) : 0;
-      // A (✕) tritt, X (□) bremst
+      // A (✕) tritt, Y (△) bremst – X (□) ist der Sprint
       padThrottle = val(0);
-      padBrake = val(2);
+      padBrake = val(3);
       // Rechter Stick: Kamera
       const rx = pad.axes[2] || 0;
       const ry = pad.axes[3] || 0;

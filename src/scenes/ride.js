@@ -80,7 +80,8 @@ export function createRideScene(app) {
     // Von hinten etwas nach vorne schauen, sonst direkt auf den Fahrer
     const ahead = 2.5 * Math.max(0, Math.cos(cam.yaw)) * (1 - cam.pitch / 1.5);
     c.lookAt(st.x + Math.sin(st.heading) * ahead, st.h + 0.9, st.z + Math.cos(st.heading) * ahead);
-    const fov = 58 + Math.min(st.speed, 20) * 0.9;
+    // Beim Sprint wird das Bild etwas weiter – fühlt sich schneller an
+    const fov = 58 + Math.min(st.speed, 20) * 0.9 + (st.sprint === 'active' ? 7 : 0);
     c.fov = snap ? fov : damp(c.fov, fov, 3, dt);
     c.updateProjectionMatrix();
 
@@ -184,6 +185,10 @@ export function createRideScene(app) {
           </div>
           <div class="view-toast"></div>
           <div class="cruise-badge">${btn('B')} Dauertreten an</div>
+          <div class="sprint-bar ready">
+            <div class="sprint-fill"></div>
+            <div class="sprint-label"><span class="sprint-text">SPRINT</span><span class="sprint-info"></span></div>
+          </div>
           <div class="speedo">
             <svg viewBox="0 0 200 200">
               <circle class="speedo-bg" cx="100" cy="100" r="80" pathLength="100"/>
@@ -194,7 +199,8 @@ export function createRideScene(app) {
           <div class="controls-help">
             <div>${btn('A')} Treten</div>
             <div>${btn('B')} Dauertreten an/aus</div>
-            <div>${btn('X')} Bremsen</div>
+            <div>${btn('Y')} Bremsen</div>
+            <div>${btn('X')} Sprint</div>
             <div>${btn('LT')}${btn('RT')} Lenken</div>
             <div><span class="btn btn-stick">L</span> leicht lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
@@ -244,6 +250,8 @@ export function createRideScene(app) {
         paused: false,
         shake: 0,
         cruise: false,
+        sprint: 'ready', // 'ready' | 'active' | 'charging'
+        sprintT: 0,
         phase: 'countdown',
         countdown: 3,
         lastCount: 4,
@@ -341,8 +349,33 @@ export function createRideScene(app) {
       st.time += dt;
       const w = app.world;
       const steer = inp.steer;
-      // Beim Bremsen wird nicht getreten, Dauertreten läuft danach weiter
-      let throttle = inp.brake > 0.1 ? 0 : st.cruise ? 1 : inp.throttle;
+      // Sprint: □ / X startet ihn, wenn der Balken voll ist
+      const sp = CONFIG.sprint;
+      if ((inp.pressed('x') || inp.pressed('sprint')) && st.sprint === 'ready' && st.phase === 'race') {
+        st.sprint = 'active';
+        st.sprintT = sp.dauer;
+        app.audio.whoosh(1.2);
+        app.audio.select();
+        app.input.rumble(0.7, 300);
+        banner('Sprint!');
+      }
+      if (st.sprint === 'active') {
+        st.sprintT -= dt;
+        if (st.sprintT <= 0) {
+          st.sprint = 'charging';
+          st.sprintT = 0;
+        }
+      } else if (st.sprint === 'charging') {
+        st.sprintT += dt;
+        if (st.sprintT >= sp.aufladen) {
+          st.sprint = 'ready';
+          app.audio.nav();
+        }
+      }
+      const sprinting = st.sprint === 'active';
+
+      // Beim Bremsen wird nicht getreten, Dauertreten und Sprint laufen danach weiter
+      let throttle = inp.brake > 0.1 ? 0 : st.cruise || sprinting ? 1 : inp.throttle;
       let brake = inp.brake;
       if (st.phase === 'countdown') throttle = 0;
       // Nach dem Ziel rollt man langsam aus
@@ -363,7 +396,8 @@ export function createRideScene(app) {
       // Kräfte: Treten, Luftwiderstand, Rollwiderstand, Hangabtrieb, Bremse
       const v = st.speed;
       const roll = ground.surface === 'road' ? 0.005 : ground.surface === 'gravel' ? 0.02 : 0.06;
-      const drive = Math.min(CONFIG.riderPower / Math.max(v, 2.5), 340) * throttle;
+      const boost = sprinting ? CONFIG.sprint.kraft : 1;
+      const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
       const drag = 0.5 * 1.2 * 0.36 * v * v;
       const brakeF = brake * 650;
       let a = (drive - drag - roll * MASS * G - MASS * G * Math.sin(st.pitch)) / MASS;
@@ -479,6 +513,16 @@ export function createRideScene(app) {
 
       // Anzeige
       $('.speedo-val b').textContent = Math.round(kmh);
+      // Sprint-Balken unten in der Mitte
+      const bar = $('.sprint-bar');
+      const fill = st.sprint === 'active' ? st.sprintT / sp.dauer : st.sprint === 'charging' ? st.sprintT / sp.aufladen : 1;
+      $('.sprint-fill').style.width = `${(fill * 100).toFixed(1)}%`;
+      bar.className = `sprint-bar ${st.sprint}`;
+      const info = st.sprint === 'active' ? `${Math.ceil(st.sprintT)} s` : st.sprint === 'charging' ? 'lädt …' : `bereit ${btn('X')}`;
+      if (info !== st.sprintInfo) {
+        st.sprintInfo = info;
+        $('.sprint-info').innerHTML = info;
+      }
       $('.speedo-fill').style.strokeDasharray = `${clamp(kmh / 70, 0, 1) * 75} 100`;
       // Gegner fahren lassen
       rivals.update(

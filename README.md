@@ -51,7 +51,8 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Charaktererstellung: Bereich wechseln (Name & Nummer · Aussehen · Rennrad) | **LB / RB** oder **LT / RT** | **L1 / R1** oder **L2 / R2** | Bild ↓ / Bild ↑ |
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
-| Bremsen | **X** | **□** | S / ↓ |
+| Bremsen | **Y** | **△** | S / ↓ |
+| Sprint (15 s Vollgas, danach 30 s Aufladen) | **X** | **□** | Shift |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
 | Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
@@ -74,7 +75,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
    - **Dein Rennrad:** Marke (Canyon, Rose, Colnago oder Cervélo), Lackierung, Rahmenfarbe und Farbe des Lenkerbands. Der Markenname steht groß auf dem Aero-Unterrohr. Lackierung **„Team-Design“**: hinten mattschwarz, vorne die Rahmenfarbe mit gezacktem Übergang, tiefe Felgen mit weißer Schrift, schwarzes Lenkerband – mit Colnago und Weiß sieht das Rad aus wie das Team-Rad aus Pauls Foto.
 
    Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
-5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
+5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, unten in der Mitte den Sprint-Balken (□ drücken, wenn „bereit“ dasteht), am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
 ---
 
@@ -138,6 +139,14 @@ steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 ```
 
 `start` = wie stark das Rad beim kurzen Antippen einlenkt (0.25 = ein Viertel). `vollNach` = nach wie vielen Sekunden Halten die volle Lenkung erreicht ist. Kleinere Zahlen = schnellere, schärfere Lenkung. `stick` = wie stark der linke Stick lenken darf (0.4 = 40 %, 0 = gar nicht, 1 = so stark wie L2/R2).
+
+**Sprint einstellen**
+
+```js
+sprint: { dauer: 15, aufladen: 30, kraft: 1.6 },
+```
+
+`dauer` = wie viele Sekunden der Sprint geht, `aufladen` = wie lange der Balken danach zum Aufladen braucht, `kraft` = wie viel stärker du im Sprint trittst (1.6 = 60 % mehr).
 
 **Schneller fahren**
 

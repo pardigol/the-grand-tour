@@ -50,6 +50,9 @@ export const CONFIG = {
   // stick = wie stark der linke Stick lenken darf (0.4 = 40 % der vollen Lenkung, 0 = gar nicht)
   steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 
+  // Sprint (□ / X): so viele Sekunden lang, danach so viele Sekunden Aufladen, und so viel stärker (1.6 = 60 % mehr Kraft)
+  sprint: { dauer: 15, aufladen: 30, kraft: 1.6 },
+
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,
 };
