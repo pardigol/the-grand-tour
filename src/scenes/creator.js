@@ -2,7 +2,7 @@
 // Aufgebaut aus "Schritten".
 // Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
 import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
-import { BRANDS, COLORS, FRAME_COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
+import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
 const NAME_MAX = 12;
@@ -456,7 +456,7 @@ const bikeStep = choiceStep({
     { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
     { key: 'paint', label: 'Lackierung', type: 'paint', options: PAINTS },
     { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: FRAME_COLORS },
-    { key: 'bar', label: 'Lenkerband', type: 'color', options: COLORS },
+    { key: 'bar', label: 'Lenkerband', type: 'color', options: BAR_COLORS },
   ],
 });
 

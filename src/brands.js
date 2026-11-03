@@ -27,6 +27,9 @@ export const COLORS = [
 // ✏️ Matte Farben: einfach "matte: true" an eine Farbe schreiben, z. B. { hex: '#145a32', name: 'Mattgrün', matte: true }
 export const FRAME_COLORS = COLORS.map((c) => (c.hex === '#2bb24c' ? { hex: '#145a32', name: 'Dunkelgrün' } : c));
 
+// Lenkerband-Farben: wie COLORS, aber mit einem etwas dunkleren Orange
+export const BAR_COLORS = COLORS.map((c) => (c.hex === '#f4a12a' ? { hex: '#d9731c', name: 'Orange' } : c));
+
 export function isMatte(hex) {
   return FRAME_COLORS.some((c) => c.matte && c.hex === hex);
 }
