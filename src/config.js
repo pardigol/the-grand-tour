@@ -3,7 +3,7 @@
 
 export const CONFIG = {
   // Der Name des Spiels (Startbildschirm und Menü)
-  gameName: 'Pedal Legends',
+  gameName: 'The Grand Tour',
   subtitle: 'Ein Rennrad-Abenteuer',
   startPrompt: 'Beliebige Taste drücken, um zu starten',
 

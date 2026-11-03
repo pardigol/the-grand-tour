@@ -1,4 +1,4 @@
-# 🚴 Pedal Legends
+# 🚴 The Grand Tour
 
 Ein 3D-Rennrad-Spiel für den Browser, gebaut mit [Three.js](https://threejs.org) und [Vite](https://vitejs.dev).
 Gemacht für Paul (11 Jahre). Spielbar mit einem Xbox-Controller oder mit der Tastatur.
@@ -9,7 +9,7 @@ Gemacht für Paul (11 Jahre). Spielbar mit einem Xbox-Controller oder mit der Ta
 
 ### Am einfachsten: Doppelklick
 
-Im Spielordner auf **„Pedal Legends starten.command“** doppelklicken. Ein Terminal-Fenster geht auf, das Spiel startet und öffnet sich automatisch in Chrome. Beim allerersten Mal werden noch die Bausteine installiert, das dauert etwas länger.
+Im Spielordner auf **„The Grand Tour starten.command“** doppelklicken. Ein Terminal-Fenster geht auf, das Spiel startet und öffnet sich automatisch in Chrome. Beim allerersten Mal werden noch die Bausteine installiert, das dauert etwas länger.
 
 - Solange das Terminal-Fenster offen ist, läuft das Spiel. **Fenster schließen = Spiel beenden.**
 - Für den Schreibtisch: Datei mit gedrückter **Cmd + Alt** auf den Schreibtisch ziehen. So entsteht eine Verknüpfung (Alias), und die Originaldatei bleibt im Spielordner.
@@ -85,7 +85,7 @@ Alles Wichtige steht in **einer einzigen Datei**: `src/config.js`.
 **Spielnamen ändern**
 
 ```js
-gameName: 'Pedal Legends',
+gameName: 'The Grand Tour',
 ```
 
 Schreib zwischen die Anführungszeichen deinen eigenen Namen, z. B. `'Paul Racing'`.

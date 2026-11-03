@@ -2,6 +2,7 @@
 import { CONFIG } from './config.js';
 import { DEFAULT_LOOK } from './brands.js';
 
+// Interner Speichername bleibt gleich, damit angelegte Fahrer erhalten bleiben
 const KEY = 'pedal-legends.characters.v1';
 
 export function loadCharacters() {

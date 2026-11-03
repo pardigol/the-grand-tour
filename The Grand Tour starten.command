@@ -1,5 +1,5 @@
 #!/bin/bash
-# Doppelklick-Starter fuer Pedal Legends.
+# Doppelklick-Starter fuer The Grand Tour.
 # Wechselt automatisch in den Ordner, in dem diese Datei liegt, installiert beim
 # ersten Mal alles Noetige, startet das Spiel und oeffnet es in Chrome.
 # Solange dieses Terminal-Fenster offen ist, laeuft das Spiel.
@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 URL="http://localhost:5173"
 
-echo "Starte Pedal Legends in: $(pwd)"
+echo "Starte The Grand Tour in: $(pwd)"
 echo ""
 
 if ! command -v npm >/dev/null 2>&1; then
