@@ -7,6 +7,15 @@ Gemacht für Paul (11 Jahre). Spielbar mit einem Xbox-Controller oder mit der Ta
 
 ## Starten
 
+### Am einfachsten: Doppelklick
+
+Im Spielordner auf **„Pedal Legends starten.command“** doppelklicken. Ein Terminal-Fenster geht auf, das Spiel startet und öffnet sich automatisch in Chrome. Beim allerersten Mal werden noch die Bausteine installiert, das dauert etwas länger.
+
+- Solange das Terminal-Fenster offen ist, läuft das Spiel. **Fenster schließen = Spiel beenden.**
+- Für den Schreibtisch: Datei mit gedrückter **Cmd + Alt** auf den Schreibtisch ziehen. So entsteht eine Verknüpfung (Alias), und die Originaldatei bleibt im Spielordner.
+
+### Von Hand im Terminal
+
 Voraussetzung: [Node.js](https://nodejs.org) (LTS) ist installiert.
 
 ```bash
