@@ -28,7 +28,8 @@ const rootStyle = document.documentElement.style;
 rootStyle.setProperty('--gold', CONFIG.colors.gold);
 rootStyle.setProperty('--accent', CONFIG.colors.accent);
 
-const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+// Kurz warten, damit der Ladebildschirm sichtbar wird (klappt auch in Hintergrund-Tabs)
+const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 
 async function boot() {
   const ui = document.getElementById('ui');
@@ -103,6 +104,7 @@ async function boot() {
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    if (!w || !h) return;
     renderer.setSize(w, h);
     composer.setSize(w, h);
     camera.aspect = w / h;
@@ -121,7 +123,7 @@ async function boot() {
 
   app.go('title');
   // Einmal rendern, bevor der Ladebildschirm verschwindet
-  composer.render(0);
+  if (window.innerWidth && window.innerHeight) composer.render(0);
   loading.classList.add('done');
   setTimeout(() => loading.remove(), 900);
 
@@ -139,7 +141,8 @@ async function boot() {
     app.current.update(dt);
     world.update(dt, app.focus, camera, app.time);
     fxPass.uniforms.uTime.value = app.time;
-    composer.render(dt);
+    // Nicht rendern, solange das Fenster keine Größe hat (z. B. minimiert)
+    if (window.innerWidth && window.innerHeight) composer.render(dt);
   }
   requestAnimationFrame(frame);
 }

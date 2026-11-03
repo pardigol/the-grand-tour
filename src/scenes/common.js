@@ -37,7 +37,7 @@ export function rideNpc(app, dt) {
 // Verfolgerkamera hinter dem Rad
 const _target = new THREE.Vector3();
 const _look = new THREE.Vector3();
-export function chaseCamera(app, dt, { dist = 5.2, height = 2.0, lag = 4, fovBase = 58, speed = 0, snap = false } = {}) {
+export function chaseCamera(app, dt, { dist = 4.4, height = 1.75, lag = 4, fovBase = 58, speed = 0, snap = false } = {}) {
   const cam = app.camera;
   const b = app.bike.root;
   const h = b.rotation.y;
@@ -59,22 +59,26 @@ export function chaseCamera(app, dt, { dist = 5.2, height = 2.0, lag = 4, fovBas
   cam.updateProjectionMatrix();
 }
 
-// Seitliche Kamerafahrt für Menü und Charaktererstellung: Rad steht rechts im Bild
+// Seitliche Kamerafahrt für Menü und Charaktererstellung: Rad steht rechts im Bild.
+// Die Kamera steht links vom Fahrer auf der Straße, so stört kein Leitpfosten.
 const _right = new THREE.Vector3();
 export function showcaseCamera(app, dt, p, snap = false) {
   const cam = app.camera;
-  const sx = -p.tz;
-  const sz = p.tx;
+  const sx = p.tz;
+  const sz = -p.tx;
   const t = app.time;
-  _target.set(p.x + sx * 4.6 + p.tx * 1.3, p.h + 1.25 + Math.sin(t * 0.2) * 0.1, p.z + sz * 4.6 + p.tz * 1.3);
+  const dist = 4.4;
+  _target.set(p.x + sx * dist + p.tx * 1.2, p.h + 1.2 + Math.sin(t * 0.2) * 0.1, p.z + sz * dist + p.tz * 1.2);
   if (snap) cam.position.copy(_target);
   else cam.position.lerp(_target, 1 - Math.exp(-5 * dt));
+  cam.fov = 40;
+  cam.updateProjectionMatrix();
+  // Halbe Bildbreite in Rad-Entfernung -> Rad landet bei etwa 70 % der Bildbreite
+  const halfW = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * dist * cam.aspect;
   _look.set(p.x, p.h + 0.85, p.z).sub(cam.position);
   _right.crossVectors(_look, cam.up).normalize();
-  _look.add(cam.position).addScaledVector(_right, -1.7);
+  _look.add(cam.position).addScaledVector(_right, -halfW * 0.42);
   cam.lookAt(_look);
-  cam.fov = snap ? 40 : damp(cam.fov, 40, 3, dt);
-  cam.updateProjectionMatrix();
 }
 
 export function formatTime(t) {

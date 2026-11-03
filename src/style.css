@@ -306,10 +306,10 @@ body {
 }
 .menu-panel {
   position: absolute;
-  left: 7vw;
+  left: max(24px, 6vw);
   top: 11vh;
   bottom: 14vh;
-  width: min(460px, 38vw);
+  width: clamp(330px, 34vw, 480px);
   display: flex;
   flex-direction: column;
 }
@@ -393,6 +393,7 @@ body {
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

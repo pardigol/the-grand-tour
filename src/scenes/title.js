@@ -47,9 +47,10 @@ export function createTitleScene(app) {
 
       // Kamera kreist langsam vom Vorderrad zur Seite
       const phi = 0.55 + t * 0.03 + Math.sin(t * 0.05) * 0.2;
-      const dist = 6.2 - Math.sin(t * 0.07) * 1.4;
-      const sx = -p.tz;
-      const sz = p.tx;
+      const dist = 5.0 - Math.sin(t * 0.07) * 1.0;
+      // links vom Fahrer, damit die Kamera nie durch Leitpfosten fährt
+      const sx = p.tz;
+      const sz = -p.tx;
       const fwd = Math.cos(phi) * dist;
       const side = Math.sin(phi) * dist;
       camPos.set(p.x + p.tx * fwd + sx * side, 0, p.z + p.tz * fwd + sz * side);

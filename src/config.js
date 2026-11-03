@@ -15,8 +15,8 @@ export const CONFIG = {
     bikeFrame: '#14365c', // Rahmenfarbe des Rennrads
   },
 
-  // Der Himmel: Höhe der Sonne in Grad (0 = Horizont, 4 = Sonnenaufgang, 40 = Mittag)
-  sunElevation: 4,
+  // Der Himmel: Höhe der Sonne in Grad (0 = Horizont, 5 = Sonnenaufgang, 40 = Mittag)
+  sunElevation: 5,
   // Helligkeit des ganzen Bildes (0.4 = dunkel, 0.9 = hell)
   exposure: 0.62,
 

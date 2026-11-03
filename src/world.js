@@ -79,7 +79,7 @@ export class World {
     const m = smoothstep(660, 880, r);
     if (m > 0) {
       const ridge = 1 - Math.abs(this.fbm(x * 0.0032 + 7, z * 0.0032 - 3));
-      h += m * (60 + ridge * ridge * 150);
+      h += m * (35 + ridge * ridge * 120);
     }
     return h;
   }
@@ -710,7 +710,7 @@ export class World {
         flag.position.set(0, 2.7, 0.35);
         flag.rotation.y = Math.PI / 2;
         f.add(pole, flag);
-        f.position.set(side * (SHOULDER_HALF + 1.5), 0, k * 7);
+        f.position.set(side * (SHOULDER_HALF + 3), 0, k * 7);
         arch.add(f);
       }
     }
