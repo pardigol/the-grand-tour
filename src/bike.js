@@ -49,7 +49,10 @@ function limb(len, r, mat) {
   return m;
 }
 
-function rimTexture() {
+const rimCache = {};
+function rimTexture(style = 'gold') {
+  if (rimCache[style]) return rimCache[style];
+  const team = style === 'team';
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const ctx = c.getContext('2d');
@@ -62,10 +65,11 @@ function rimTexture() {
   }
   ctx.translate(256, 256);
   const text = ` ${CONFIG.gameName.toUpperCase()} `;
-  ctx.font = '800 30px "Barlow Condensed", Arial, sans-serif';
+  // Team-Design: große, weiße Blockschrift auf der tiefen Felge
+  ctx.font = team ? '800 46px "Barlow Condensed", Arial, sans-serif' : '800 30px "Barlow Condensed", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const rad = 233;
+  const rad = team ? 226 : 233;
   for (let rep = 0; rep < 2; rep++) {
     let ang = rep * Math.PI;
     for (const ch of text) {
@@ -74,23 +78,70 @@ function rimTexture() {
       ctx.save();
       ctx.rotate(ang);
       ctx.translate(0, -rad);
-      ctx.fillStyle = CONFIG.colors.gold;
+      ctx.fillStyle = team ? '#f2f2ee' : CONFIG.colors.gold;
       ctx.fillText(ch, 0, 0);
       ctx.restore();
       ang += w / 2 / rad;
     }
   }
-  ctx.strokeStyle = CONFIG.colors.accent;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(0, 0, 214, 0.3, 1.4);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, 0, 214, 0.3 + Math.PI, 1.4 + Math.PI);
-  ctx.stroke();
+  if (!team) {
+    ctx.strokeStyle = CONFIG.colors.accent;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 214, 0.3, 1.4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 214, 0.3 + Math.PI, 1.4 + Math.PI);
+    ctx.stroke();
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
+  rimCache[style] = t;
+  return t;
+}
+
+// Maske für das Team-Design: oben Weiß (Rahmenfarbe), unten Schwarz, dazwischen ein gezackter Übergang.
+// from = ab welcher Höhe (0 = Rohranfang, 1 = Rohrende) die Farbe beginnt, flip = umgedreht.
+const maskCache = {};
+function fadeMask(from, flip = false) {
+  const key = `${from}-${flip}`;
+  if (maskCache[key]) return maskCache[key];
+  const W = 128;
+  const H = 512;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext('2d');
+  if (flip) {
+    ctx.translate(0, H);
+    ctx.scale(1, -1);
+  }
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  const y0 = (1 - from) * H; // Canvas-Oben = Rohrende
+  ctx.fillRect(0, 0, W, y0);
+  // Zacken, die nach unten immer kleiner und seltener werden
+  for (let row = 0; row < 7; row++) {
+    const n = 8;
+    const size = 26 - row * 3.2;
+    const y = y0 + row * 20;
+    for (let i = 0; i < n; i++) {
+      if (row > 2 && (i + row) % 2) continue;
+      const x = ((i + (row % 2) * 0.5) / n) * W;
+      ctx.beginPath();
+      ctx.moveTo(x - size / 2, y - 2);
+      ctx.lineTo(x + size / 2, y - 2);
+      ctx.lineTo(x, y + size * 1.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  maskCache[key] = t;
   return t;
 }
 
@@ -122,6 +173,17 @@ export class Bike {
       helmet: new THREE.MeshPhysicalMaterial({ color: '#f6f6f6', roughness: 0.3, clearcoat: 1 }),
       glasses: new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.05, metalness: 1, envMapIntensity: 2 }),
     });
+    // Vorderer, farbiger Teil beim Team-Design (mit gezacktem Übergang)
+    const paint = (map) =>
+      new THREE.MeshPhysicalMaterial({ map, roughness: 0.3, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 });
+    this.teamMats = {
+      down: paint(fadeMask(0.72)),
+      top: paint(fadeMask(0.4)),
+      fork: paint(fadeMask(0.45, true)),
+      solid: paint(null),
+    };
+    this.frameColor = CONFIG.colors.bikeFrame;
+    this.design = 'solid';
 
     this.buildFrame(m);
     this.buildWheels(m);
@@ -140,17 +202,26 @@ export class Bike {
     const HT = V(0, 0.86, 0.36);
     const HB = V(0, 0.7, 0.4);
     const f = this.root;
-    f.add(tube(BB, HB, 0.024, m.frame, 0.02));
-    f.add(tube(BB, ST, 0.017, m.frame));
-    f.add(tube(ST, HT, 0.016, m.frame, 0.015));
-    f.add(tube(HB, HT, 0.022, m.frame));
+    // Rohre, die beim Team-Design umgefärbt werden
+    this.tubes = {
+      down: tube(BB, HB, 0.032, m.frame, 0.027),
+      top: tube(ST, HT, 0.017, m.frame, 0.016),
+      head: tube(HB, HT, 0.026, m.frame),
+    };
+    // Aero-Form: von der Seite höher als von vorne
+    this.tubes.down.scale.z = 1.9;
+    this.tubes.top.scale.z = 1.4;
+    this.tubes.head.scale.z = 1.3;
+    f.add(this.tubes.down, this.tubes.top, this.tubes.head);
+    f.add(tube(BB, ST, 0.018, m.frame));
     for (const s of [-1, 1]) {
       f.add(tube(V(s * 0.012, BB.y, BB.z), V(s * 0.06, R.y, R.z), 0.01, m.frame));
-      f.add(tube(V(s * 0.012, 0.74, -0.25), V(s * 0.06, R.y, R.z), 0.009, m.frame));
+      // tief angesetzte Sitzstreben wie bei modernen Aero-Rädern
+      f.add(tube(V(s * 0.012, 0.62, -0.19), V(s * 0.06, R.y, R.z), 0.009, m.frame));
     }
     // Zierstreifen auf dem Oberrohr
-    const stripe = tube(V(0, 0.812, -0.15), V(0, 0.845, 0.2), 0.0165, m.accent, 0.0165);
-    f.add(stripe);
+    this.stripe = tube(V(0, 0.812, -0.15), V(0, 0.845, 0.2), 0.0175, m.accent, 0.0175);
+    f.add(this.stripe);
     // Sattelstütze und Sattel
     f.add(tube(ST, V(0, 0.92, -0.265), 0.0135, m.black));
     const saddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.18, 4, 8), m.black);
@@ -159,12 +230,12 @@ export class Bike {
     saddle.position.set(0, 0.935, -0.25);
     saddle.castShadow = true;
     f.add(saddle);
-    // Flaschenhalter
-    const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 12), m.accent);
-    bottle.position.copy(BB).lerp(HB, 0.45);
-    bottle.position.y += 0.05;
-    bottle.quaternion.setFromUnitVectors(UP, _d.copy(HB).sub(BB).normalize());
-    f.add(bottle);
+    // Trinkflasche am Sitzrohr, damit der Schriftzug auf dem Unterrohr frei bleibt
+    this.bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 12), m.accent);
+    this.bottle.position.copy(BB).lerp(ST, 0.5);
+    this.bottle.position.z += 0.06;
+    this.bottle.quaternion.setFromUnitVectors(UP, _d.copy(ST).sub(BB).normalize());
+    f.add(this.bottle);
   }
 
   makeWheel(m, rimMat) {
@@ -174,7 +245,7 @@ export class Bike {
     tire.castShadow = true;
     g.add(tire);
     for (const s of [-1, 1]) {
-      const rim = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.306, 56, 1), rimMat);
+      const rim = new THREE.Mesh(new THREE.RingGeometry(0.232, 0.306, 56, 1), rimMat);
       rim.rotation.y = (s * Math.PI) / 2;
       rim.position.x = s * 0.012;
       g.add(rim);
@@ -187,7 +258,7 @@ export class Bike {
       const a = (i / 20) * Math.PI * 2;
       const side = i % 2 ? 1 : -1;
       const start = V(side * 0.03, Math.cos(a) * 0.025, Math.sin(a) * 0.025);
-      const end = V(side * 0.006, Math.cos(a) * 0.252, Math.sin(a) * 0.252);
+      const end = V(side * 0.006, Math.cos(a) * 0.234, Math.sin(a) * 0.234);
       const len = start.distanceTo(end);
       const sg = new THREE.CylinderGeometry(0.0016, 0.0016, len, 3);
       sg.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, end.clone().sub(start).normalize()));
@@ -202,12 +273,12 @@ export class Bike {
   }
 
   buildWheels(m) {
-    const rimMat = new THREE.MeshStandardMaterial({
+    const rimMat = (this.rimMat = new THREE.MeshStandardMaterial({
       map: rimTexture(),
       roughness: 0.3,
       metalness: 0.3,
       side: THREE.DoubleSide,
-    });
+    }));
     this.rearWheel = this.makeWheel(m, rimMat);
     this.rearWheel.position.set(0, WHEEL_R, -0.5);
     this.root.add(this.rearWheel);
@@ -219,8 +290,9 @@ export class Bike {
     this.frontWheel = this.makeWheel(m, rimMat);
     this.frontWheel.position.set(0, WHEEL_R, 0.05);
     this.steer.add(this.frontWheel);
-    for (const s of [-1, 1]) this.steer.add(tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.014, m.frame, 0.018));
-    this.steer.add(tube(V(0, 0.7, -0.05), V(0, 0.72, -0.05), 0.03, m.frame));
+    this.forkTubes = [-1, 1].map((s) => tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.014, m.frame, 0.018));
+    this.forkCrown = tube(V(0, 0.7, -0.05), V(0, 0.72, -0.05), 0.03, m.frame);
+    this.steer.add(...this.forkTubes, this.forkCrown);
     // Kassette
     const cas = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16), m.alu);
     cas.rotation.z = Math.PI / 2;
@@ -383,7 +455,7 @@ export class Bike {
   buildDecals() {
     this.decalCanvas = document.createElement('canvas');
     this.decalCanvas.width = 512;
-    this.decalCanvas.height = 64;
+    this.decalCanvas.height = 128;
     this.decalTex = new THREE.CanvasTexture(this.decalCanvas);
     this.decalTex.colorSpace = THREE.SRGBColorSpace;
     this.decalTex.anisotropy = 8;
@@ -398,15 +470,16 @@ export class Bike {
     const dir = HB.clone().sub(BB);
     const len = dir.length();
     dir.normalize();
-    const mid = BB.clone().lerp(HB, 0.52);
+    const mid = BB.clone().lerp(HB, 0.36);
     for (const s of [-1, 1]) {
       const n = V(s, 0, 0);
       // Schrift so ausrichten, dass sie auf beiden Seiten aufrecht und nicht gespiegelt ist
       const u = s > 0 ? dir.clone().negate() : dir.clone();
       const v = new THREE.Vector3().crossVectors(n, u);
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.62, 0.04), mat);
+      // Seitenverhältnis wie die Zeichenfläche (512 x 128)
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.56, len * 0.56 * (128 / 512)), mat);
       plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
-      plane.position.copy(mid).addScaledVector(n, 0.0245);
+      plane.position.copy(mid).addScaledVector(n, 0.033);
       this.root.add(plane);
     }
   }
@@ -418,19 +491,22 @@ export class Bike {
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
     const family = b.serif ? '"Cinzel", Georgia, serif' : '"Barlow Condensed", Arial, sans-serif';
-    ctx.font = `${b.font} 54px ${family}`;
+    // breite Marken (z. B. Colnago) mit Abstand zwischen den Buchstaben
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = b.wide ? '6px' : '0px';
+    ctx.font = `${b.font} 104px ${family}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = contrastColor('#' + this.mats.frame.color.getHexString());
+    ctx.fillStyle = contrastColor(this.design === 'team' ? '#111114' : this.frameColor);
     const text = brandLabel(b);
     const w = ctx.measureText(text).width;
-    if (w > c.width * 0.95) ctx.font = `${b.font} ${Math.floor((54 * c.width * 0.95) / w)}px ${family}`;
+    if (w > c.width * 0.95) ctx.font = `${b.font} ${Math.floor((104 * c.width * 0.95) / w)}px ${family}`;
     ctx.fillText(text, c.width / 2, c.height / 2 + 2);
     this.decalTex.needsUpdate = true;
   }
 
   // Alle Farben und die Marke eines Charakters übernehmen
   applyLook(c = {}) {
+    this.design = c.paint || DEFAULT_LOOK.paint;
     this.setColors({
       jersey: c.jersey || CONFIG.colors.jersey,
       frame: c.frame || CONFIG.colors.bikeFrame,
@@ -438,6 +514,33 @@ export class Bike {
       shorts: c.shorts || DEFAULT_LOOK.shorts,
     });
     this.setBrand(c.brand || DEFAULT_LOOK.brand);
+  }
+
+  // Lackierung anwenden: 'solid' = einfarbig, 'team' = hinten mattschwarz, vorne Rahmenfarbe mit Zacken
+  applyPaint() {
+    const m = this.mats;
+    const team = this.design === 'team';
+    const t = this.teamMats;
+    if (team) {
+      m.frame.color.set('#111114');
+      m.frame.roughness = 0.55;
+      m.frame.clearcoat = 0.25;
+      for (const k of ['down', 'top', 'fork', 'solid']) t[k].color.set(this.frameColor);
+    } else {
+      m.frame.color.set(this.frameColor);
+      m.frame.roughness = 0.3;
+      m.frame.clearcoat = 1;
+    }
+    this.tubes.down.material = team ? t.down : m.frame;
+    this.tubes.top.material = team ? t.top : m.frame;
+    this.tubes.head.material = team ? t.solid : m.frame;
+    for (const f of this.forkTubes) f.material = team ? t.fork : m.frame;
+    this.forkCrown.material = team ? t.solid : m.frame;
+    this.stripe.visible = !team;
+    m.accent.color.set(team ? '#1b1b1e' : CONFIG.colors.gold);
+    m.tape.color.set(team ? '#1b1b1e' : '#f1f1ee');
+    this.rimMat.map = rimTexture(team ? 'team' : 'gold');
+    this.rimMat.needsUpdate = true;
   }
 
   setPlate(number, name) {
@@ -449,7 +552,8 @@ export class Bike {
 
   setColors({ jersey, frame, helmet, shorts } = {}) {
     if (jersey) this.mats.jersey.color.set(jersey);
-    if (frame) this.mats.frame.color.set(frame);
+    if (frame) this.frameColor = frame;
+    this.applyPaint();
     if (helmet) this.mats.helmet.color.set(helmet);
     if (shorts) this.mats.shorts.color.set(shorts);
     // Schriftfarbe an die Rahmenfarbe anpassen

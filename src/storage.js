@@ -32,6 +32,7 @@ export function newCharacterDraft() {
     helmet: DEFAULT_LOOK.helmet,
     shorts: DEFAULT_LOOK.shorts,
     brand: DEFAULT_LOOK.brand,
+    paint: DEFAULT_LOOK.paint,
     bestLap: null,
     createdAt: Date.now(),
     version: 1,

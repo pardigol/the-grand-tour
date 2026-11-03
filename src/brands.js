@@ -4,7 +4,7 @@
 export const BRANDS = [
   { id: 'canyon', name: 'Canyon', land: 'Deutschland', font: '800 italic', upper: true },
   { id: 'rose', name: 'Rose', land: 'Deutschland', font: '800', upper: true },
-  { id: 'colnago', name: 'Colnago', land: 'Italien', font: '700', upper: true, serif: true },
+  { id: 'colnago', name: 'Colnago', land: 'Italien', font: '800', upper: true, wide: true },
   { id: 'cervelo', name: 'Cervélo', land: 'Kanada', font: '700 italic', upper: false },
 ];
 
@@ -23,10 +23,16 @@ export const COLORS = [
   { hex: '#ff6fb5', name: 'Pink' },
 ];
 
+export const PAINTS = [
+  { id: 'solid', name: 'Einfarbig' },
+  { id: 'team', name: 'Team-Design' },
+];
+
 export const DEFAULT_LOOK = {
   helmet: '#f6f6f6',
   shorts: '#16161b',
   brand: 'canyon',
+  paint: 'solid',
 };
 
 export function brandById(id) {

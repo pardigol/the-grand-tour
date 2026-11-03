@@ -586,6 +586,26 @@ body {
   border-color: var(--gold);
   background: rgba(245, 199, 107, 0.18);
 }
+.paint-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.paint-preview {
+  width: 54px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--paint, #6f8fb5);
+}
+/* Team-Design: hinten schwarz, vorne weiß mit Zacken */
+.paint-preview.team {
+  background: linear-gradient(100deg, #111 0 45%, #f2f2ee 46% 100%);
+  -webkit-mask: none;
+  box-shadow: inset -8px 0 0 #f2f2ee;
+}
 .brand-logo {
   font-size: 28px;
   font-weight: 800;
