@@ -128,7 +128,7 @@ Die Gegner änderst du in `src/rivals.js`: Name, Nummer, Trikotfarbe und Kraft (
 
 In `src/brands.js` steht die Farbliste für Helm, Trikot, Hose und Rahmen. Füge einfach eine Zeile hinzu, z. B. `{ hex: '#00ffcc', name: 'Mint' },`
 
-Bei der Rahmenfarbe ist das Grün **matt** (Mattgrün). Weitere matte Rahmenfarben: In `src/brands.js` bei `FRAME_COLORS` einer Farbe `matte: true` geben.
+Bei der Rahmenfarbe gibt es statt Grün ein glänzendes **Dunkelgrün**. Matte Rahmenfarben gehen auch: In `src/brands.js` bei `FRAME_COLORS` einer Farbe `matte: true` geben.
 
 **Lenkung einstellen**
 

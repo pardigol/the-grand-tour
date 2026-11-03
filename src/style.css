@@ -523,8 +523,8 @@ body {
   width: clamp(330px, 40vw, 560px);
 }
 .choice-row {
-  padding: 12px 16px;
-  margin-bottom: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: var(--glass);
@@ -574,8 +574,8 @@ body {
   box-shadow: 0 0 0 3px #111, 0 0 0 6px var(--gold), 0 0 16px var(--gold);
 }
 .brand-opt {
-  flex: 1 1 45%;
-  padding: 8px 10px;
+  flex: 1 1 22%;
+  padding: 6px 4px;
   border-radius: 8px;
   text-align: center;
   background: rgba(255, 255, 255, 0.07);
@@ -614,7 +614,7 @@ body {
   box-shadow: inset -8px 0 0 #f2f2ee;
 }
 .brand-logo {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.04em;
 }
@@ -623,7 +623,11 @@ body {
 }
 .brand-logo.serif {
   font-family: var(--serif);
-  font-size: 24px;
+  font-size: 18px;
+}
+.brand-opt small {
+  font-size: 11px;
+  letter-spacing: 0.08em;
 }
 .done-row {
   background: none;
