@@ -66,6 +66,8 @@ export class Input {
       const a = KEY_ACTIONS[e.key];
       if (a) this.queue.push(a);
       if (e.code === 'KeyC') this.queue.push('view');
+      if (e.code === 'KeyT') this.queue.push('cruise');
+      if (e.key === 'Escape') this.queue.push('pause');
       if (e.key === 'Backspace') this.charQueue.push('\b');
       else if (e.key.length === 1) this.charQueue.push(e.key);
     });
@@ -145,6 +147,7 @@ export class Input {
           this.usingPad = true;
           const a = BUTTON_ACTIONS[i];
           if (a) this.frame.add(a);
+          if (i === 1) this.frame.add('cruise'); // B / ○: Dauertreten an/aus
         }
         this.prevButtons[i] = now;
       }
@@ -167,8 +170,12 @@ export class Input {
       padSteer = Math.abs(ax) > DEADZONE ? (ax - Math.sign(ax) * DEADZONE) / (1 - DEADZONE) : 0;
       if (btn(14)) padSteer = -1;
       if (btn(15)) padSteer = 1;
-      padThrottle = b[7] ? b[7].value : 0;
-      padBrake = b[6] ? b[6].value : 0;
+      // Trigger LT/RT (L2/R2) lenken stufenlos: je fester, desto stärker
+      const val = (i) => (b[i] ? b[i].value : 0);
+      padSteer += val(7) - val(6);
+      // A (✕) tritt, X (□) bremst
+      padThrottle = val(0);
+      padBrake = val(2);
       // Schultertasten LB/RB (L1/R1) lenken zusätzlich
       if (btn(4)) shoulder -= 1;
       if (btn(5)) shoulder += 1;

@@ -47,10 +47,12 @@ export class World {
     this._nr = { found: false, dist: 0, i: 0, f: 0, h: 0, s: 0, lateral: 0 };
     this.focus = new THREE.Vector3();
 
+    this.setupLakes();
     this.buildTrack();
     this.buildSky(renderer);
     this.buildLights();
     this.buildTerrain();
+    this.buildLakes();
     this.buildRoad();
     this.buildVegetation();
     this.buildProps();
@@ -73,7 +75,60 @@ export class World {
     return s / n;
   }
 
+  // ---------- Seen ----------
+  setupLakes() {
+    // Positionen so gewählt, dass die Seen mindestens 50 m von der Straße entfernt sind
+    this.lakes = [
+      { x: -40, z: -30, r: 120 },
+      { x: 180, z: 140, r: 60 },
+      { x: -200, z: 170, r: 60 },
+      { x: -560, z: 0, r: 70 },
+    ];
+    for (const l of this.lakes) {
+      // Wasserspiegel knapp unter dem tiefsten Punkt des Ufers, damit nichts überläuft
+      let lvl = Infinity;
+      for (let k = 0; k < 64; k++) {
+        const a = (k / 64) * Math.PI * 2;
+        const R = this.lakeRadius(l, a) * 1.3;
+        lvl = Math.min(lvl, this.rawHeight(l.x + Math.cos(a) * R, l.z + Math.sin(a) * R));
+      }
+      l.level = lvl - 0.4;
+    }
+  }
+
+  // Unregelmäßiges Ufer: Radius schwankt mit dem Winkel
+  lakeRadius(l, a) {
+    return l.r * (1 + 0.22 * this.n3(Math.cos(a) * 1.2 + l.x * 0.013, Math.sin(a) * 1.2 + l.z * 0.013));
+  }
+
+  // Liegt der Punkt in einem See (inklusive Ufer)? Gibt den See zurück oder null.
+  lakeAt(x, z, margin = 0) {
+    for (const l of this.lakes) {
+      const dx = x - l.x;
+      const dz = z - l.z;
+      const d = Math.hypot(dx, dz);
+      if (d > l.r * 1.6 + margin) continue;
+      if (d < this.lakeRadius(l, Math.atan2(dz, dx)) * 1.3 + margin) return l;
+    }
+    return null;
+  }
+
   baseHeight(x, z) {
+    let h = this.rawHeight(x, z);
+    for (const l of this.lakes) {
+      const dx = x - l.x;
+      const dz = z - l.z;
+      const d = Math.hypot(dx, dz);
+      if (d > l.r * 1.6) continue;
+      const R = this.lakeRadius(l, Math.atan2(dz, dx)) * 1.3;
+      if (d >= R) continue;
+      const bowl = l.level - 4.5 * (1 - (d / R) * (d / R));
+      h = lerp(bowl, h, smoothstep(R * 0.58, R, d));
+    }
+    return h;
+  }
+
+  rawHeight(x, z) {
     const r = Math.hypot(x, z);
     let h = this.fbm(x * 0.0035, z * 0.0035) * 16 + this.n2(x * 0.02, z * 0.02) * 1.2;
     const m = smoothstep(660, 880, r);
@@ -333,6 +388,7 @@ export class World {
     const cRock = new THREE.Color('#7d756b');
     const cSnow = new THREE.Color('#f4efe9');
     const cDirt = new THREE.Color('#8d7457');
+    const cSand = new THREE.Color('#cbb98b');
     const col = new Float32Array(count * 3);
     const c = new THREE.Color();
     for (let i = 0; i < count; i++) {
@@ -349,6 +405,9 @@ export class World {
       const snow = smoothstep(115, 150, h + this.n1(x * 0.02, z * 0.02) * 12);
       c.lerp(cSnow, snow);
       c.lerp(cDirt, roadW[i] * 0.85);
+      // Sandstrand am See
+      const lake = this.lakeAt(x, z, 4);
+      if (lake) c.lerp(cSand, smoothstep(lake.level + 1.4, lake.level - 0.2, h));
       col[i * 3] = c.r;
       col[i * 3 + 1] = c.g;
       col[i * 3 + 2] = c.b;
@@ -372,6 +431,33 @@ export class World {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
+  }
+
+  buildLakes() {
+    const mat = new THREE.MeshStandardMaterial({
+      color: '#2c6a8e',
+      roughness: 0.05,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.9,
+      envMapIntensity: 1.5,
+    });
+    for (const l of this.lakes) {
+      const geo = new THREE.CircleGeometry(1, 96);
+      const pos = geo.attributes.position;
+      for (let i = 1; i < pos.count; i++) {
+        const a = Math.atan2(pos.getY(i), pos.getX(i));
+        // Nach dem Hinlegen landet Winkel a bei -a in der Welt
+        const R = this.lakeRadius(l, -a) * 1.3;
+        pos.setXY(i, Math.cos(a) * R, Math.sin(a) * R);
+      }
+      // Kreis liegt in der x/y-Ebene -> flach hinlegen
+      geo.rotateX(-Math.PI / 2);
+      const water = new THREE.Mesh(geo, mat);
+      water.position.set(l.x, l.level, l.z);
+      water.receiveShadow = true;
+      this.scene.add(water);
+    }
   }
 
   // ---------- Straße ----------
@@ -517,6 +603,7 @@ export class World {
       if (dens < 0.05 && rand() > 0.08) continue;
       const nr = this.nearest(x, z);
       if (nr.found && nr.dist < 11) continue;
+      if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
       const s = 0.75 + rand() * 0.75;
@@ -558,6 +645,7 @@ export class World {
       const side = rand() < 0.5 ? -1 : 1;
       const lat = side * (SHOULDER_HALF + 0.3 + Math.pow(rand(), 1.6) * 45);
       this.poseAt(s, lat, pose);
+      if (this.lakeAt(pose.x, pose.z, 1)) continue;
       const h = this.terrainHeight(pose.x, pose.z);
       const sc = 0.7 + rand() * 0.9;
       grass.push(mtx(pose.x, h - 0.05, pose.z, sc, sc * (0.8 + rand() * 0.8)));
@@ -584,6 +672,7 @@ export class World {
       const z = (rand() * 2 - 1) * 800;
       const nr = this.nearest(x, z);
       if (nr.found && nr.dist < 7) continue;
+      if (this.lakeAt(x, z, 2)) continue;
       const s = 0.4 + rand() * 1.8;
       rocks.push(
         new THREE.Matrix4().compose(
@@ -606,7 +695,7 @@ export class World {
       const lat = (rand() < 0.5 ? -1 : 1) * (18 + rand() * 60);
       this.poseAt(s, lat, pose);
       const h = this.terrainHeight(pose.x, pose.z);
-      if (h > 30) continue;
+      if (h > 30 || this.lakeAt(pose.x, pose.z, 3)) continue;
       bales.push(
         new THREE.Matrix4().compose(
           new THREE.Vector3(pose.x, h + 0.7, pose.z),

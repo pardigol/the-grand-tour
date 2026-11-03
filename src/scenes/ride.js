@@ -137,6 +137,7 @@ export function createRideScene(app) {
             <canvas class="minimap"></canvas>
           </div>
           <div class="view-toast"></div>
+          <div class="cruise-badge">${btn('B')} Dauertreten an</div>
           <div class="speedo">
             <svg viewBox="0 0 200 200">
               <circle class="speedo-bg" cx="100" cy="100" r="80" pathLength="100"/>
@@ -145,12 +146,13 @@ export function createRideScene(app) {
             <div class="speedo-val"><b>0</b><span>km/h</span></div>
           </div>
           <div class="controls-help">
-            <div>${btn('RT')} Treten</div>
-            <div>${btn('LT')} Bremsen</div>
-            <div><span class="btn btn-stick">L</span> oder ${btn('LB')}${btn('RB')} Lenken</div>
+            <div>${btn('A')} Treten</div>
+            <div>${btn('B')} Dauertreten an/aus</div>
+            <div>${btn('X')} Bremsen</div>
+            <div>${btn('LT')}${btn('RT')} oder <span class="btn btn-stick">L</span> Lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
             <div><span class="btn btn-stick">R</span>drücken: Ansicht wechseln</div>
-            <div>${btn('B')} Pause</div>
+            <div><span class="btn btn-opt">☰</span> Pause</div>
           </div>
           <div class="banner"></div>
           <div class="pause">
@@ -185,6 +187,7 @@ export function createRideScene(app) {
         time: 0,
         paused: false,
         shake: 0,
+        cruise: false,
       });
       this.placeBike();
       cam.view = 0;
@@ -192,7 +195,7 @@ export function createRideScene(app) {
       updateCamera(0, true);
       app.fx.uFade.value = 1;
       app.audio.setMusicLevel(0.45);
-      banner('Los geht’s!', `${btn('RT')} drücken zum Treten`);
+      banner('Los geht’s!', `${btn('A')} drücken zum Treten`);
     },
 
     placeBike() {
@@ -224,15 +227,24 @@ export function createRideScene(app) {
         updateCamera(dt);
         return;
       }
-      if (inp.pressed('back') || inp.pressed('start')) {
+      if (inp.pressed('pause') || inp.pressed('start')) {
         setPaused(true);
         return;
+      }
+      // ○ / B: Dauertreten ein- und ausschalten
+      if (inp.pressed('cruise')) {
+        st.cruise = !st.cruise;
+        $('.cruise-badge').classList.toggle('on', st.cruise);
+        if (st.cruise) app.audio.select();
+        else app.audio.back();
+        app.input.rumble(0.25, 60);
       }
 
       st.time += dt;
       const w = app.world;
       const steer = inp.steer;
-      const throttle = inp.throttle;
+      // Beim Bremsen wird nicht getreten, Dauertreten läuft danach weiter
+      const throttle = inp.brake > 0.1 ? 0 : st.cruise ? 1 : inp.throttle;
       const brake = inp.brake;
 
       // Untergrund und Steigung

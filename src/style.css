@@ -840,6 +840,29 @@ body {
   display: block;
   margin-top: 4px;
 }
+.btn-opt {
+  border-radius: 6px;
+  background: #3a3f4c;
+}
+.cruise-badge {
+  position: absolute;
+  right: 36px;
+  bottom: 220px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 20px;
+  font-weight: 700;
+  background: rgba(20, 60, 30, 0.75);
+  border: 2px solid #5fd27a;
+  box-shadow: 0 0 18px rgba(95, 210, 122, 0.5);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+.cruise-badge.on {
+  opacity: 1;
+  transform: none;
+}
 .view-toast {
   position: absolute;
   top: 110px;
@@ -1000,6 +1023,7 @@ body {
 }
 
 @media (max-height: 760px) {
+  .cruise-badge { bottom: 175px; }
   .minimap { width: 150px !important; height: 150px !important; }
   .speedo { width: 150px; height: 150px; }
   .speedo-val b { font-size: 48px; }

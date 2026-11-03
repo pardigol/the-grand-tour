@@ -1,5 +1,10 @@
-// Streckenkarte für die linke untere Ecke: Strecke von oben, gefahrene Runde in Gold, Fahrer als Punkt.
+// Streckenkarte für die linke untere Ecke: Landschaft von oben (Wiesen, Wald, Berge, Seen),
+// die Strecke, die gefahrene Runde in Gold und der Fahrer als Pfeil.
 import { CONFIG } from './config.js';
+import { smoothstep, clamp } from './noise.js';
+
+const MARGIN = 110; // so viele Meter Landschaft rund um die Strecke zeigen
+const RES = 140; // Auflösung der Landschaftskarte
 
 const SIZE = 210; // Größe in CSS-Pixeln
 const PAD = 14;
@@ -23,6 +28,10 @@ export class Minimap {
       minZ = Math.min(minZ, world.pz[i]);
       maxZ = Math.max(maxZ, world.pz[i]);
     }
+    minX -= MARGIN;
+    maxX += MARGIN;
+    minZ -= MARGIN;
+    maxZ += MARGIN;
     this.scale = (SIZE - PAD * 2) / Math.max(maxX - minX, maxZ - minZ);
     this.ox = PAD + (SIZE - PAD * 2 - (maxX - minX) * this.scale) / 2 - minX * this.scale;
     this.oz = PAD + (SIZE - PAD * 2 - (maxZ - minZ) * this.scale) / 2 - minZ * this.scale;
@@ -32,6 +41,13 @@ export class Minimap {
     this.base.width = this.base.height = canvas.width;
     const b = this.base.getContext('2d');
     b.scale(this.dpr, this.dpr);
+    b.save();
+    b.beginPath();
+    b.roundRect(0, 0, SIZE, SIZE, 10);
+    b.clip();
+    b.imageSmoothingEnabled = true;
+    b.drawImage(this.renderTerrain(), 0, 0, SIZE, SIZE);
+    b.restore();
     b.lineJoin = b.lineCap = 'round';
     this.tracePath(b, 0, world.N);
     b.closePath();
@@ -53,6 +69,60 @@ export class Minimap {
     b.moveTo(sx - nx * 8, sz - nz * 8);
     b.lineTo(sx + nx * 8, sz + nz * 8);
     b.stroke();
+  }
+
+  // Landschaft Pixel für Pixel einfärben
+  renderTerrain() {
+    const w = this.world;
+    const c = document.createElement('canvas');
+    c.width = c.height = RES;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(RES, RES);
+    const px = SIZE / RES;
+    const col = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+    const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const grassA = col('#5f9140');
+    const grassB = col('#8db657');
+    const dry = col('#bfae63');
+    const forest = col('#2e5a2a');
+    const rock = col('#8c8279');
+    const snow = col('#f4f2ec');
+    const sand = col('#d8c896');
+    const deep = col('#245f92');
+    const shallow = col('#5aa0d4');
+
+    for (let j = 0; j < RES; j++) {
+      for (let i = 0; i < RES; i++) {
+        const x = ((i + 0.5) * px - this.ox) / this.scale;
+        const z = ((j + 0.5) * px - this.oz) / this.scale;
+        const h = w.baseHeight(x, z);
+        let c3;
+        const lake = w.lakeAt(x, z);
+        if (lake && h < lake.level) {
+          c3 = mix(shallow, deep, smoothstep(0, 3, lake.level - h));
+        } else {
+          c3 = mix(grassA, grassB, w.n3(x * 0.006, z * 0.006) * 0.35 + 0.5);
+          c3 = mix(c3, dry, smoothstep(0.25, 0.8, w.n2(x * 0.004 + 50, z * 0.004)) * 0.5);
+          // Wald: gleiche Regel wie beim Pflanzen der Bäume
+          if (h < 120) c3 = mix(c3, forest, smoothstep(0.0, 0.25, w.n3(x * 0.006 + 20, z * 0.006)) * 0.75);
+          c3 = mix(c3, rock, smoothstep(45, 95, h));
+          c3 = mix(c3, snow, smoothstep(110, 140, h));
+          if (lake) c3 = mix(c3, sand, smoothstep(lake.level + 1.4, lake.level, h));
+          // Hangschatten: Licht kommt von links oben
+          const dx = w.baseHeight(x + 6, z) - h;
+          const dz = w.baseHeight(x, z + 6) - h;
+          const shade = clamp(1 - (dx + dz) * 0.07, 0.55, 1.3);
+          c3 = [c3[0] * shade, c3[1] * shade, c3[2] * shade];
+        }
+        const k = (j * RES + i) * 4;
+        img.data[k] = c3[0];
+        img.data[k + 1] = c3[1];
+        img.data[k + 2] = c3[2];
+        img.data[k + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
   }
 
   mx(x) {
