@@ -400,6 +400,7 @@ function choiceStep({ id, title, tab, rows }) {
         rowEl.querySelector('.choice-name').textContent = o ? o.name : '';
       });
       this.root.querySelector('.done-btn').classList.toggle('focus', this.row === rows.length);
+      this.root.querySelector(`.choice-row[data-r="${this.row}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     },
 
     update(input) {
@@ -455,6 +456,7 @@ const bikeStep = choiceStep({
     { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
     { key: 'paint', label: 'Lackierung', type: 'paint', options: PAINTS },
     { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: FRAME_COLORS },
+    { key: 'bar', label: 'Lenkerband', type: 'color', options: COLORS },
   ],
 });
 

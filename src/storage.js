@@ -34,6 +34,7 @@ export function newCharacterDraft() {
     shorts: DEFAULT_LOOK.shorts,
     brand: DEFAULT_LOOK.brand,
     paint: DEFAULT_LOOK.paint,
+    bar: '#f6f6f6',
     bestLap: null,
     createdAt: Date.now(),
     version: 1,

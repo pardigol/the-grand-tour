@@ -507,6 +507,8 @@ export class Bike {
   // Alle Farben und die Marke eines Charakters übernehmen
   applyLook(c = {}) {
     this.design = c.paint || DEFAULT_LOOK.paint;
+    // Lenkerband: eigene Farbe, sonst passend zur Lackierung
+    this.barColor = c.bar || null;
     this.setColors({
       jersey: c.jersey || CONFIG.colors.jersey,
       frame: c.frame || CONFIG.colors.bikeFrame,
@@ -548,7 +550,7 @@ export class Bike {
     this.forkCrown.material = team ? t.solid : m.frame;
     this.stripe.visible = !team;
     m.accent.color.set(team ? '#1b1b1e' : CONFIG.colors.gold);
-    m.tape.color.set(team ? '#1b1b1e' : '#f1f1ee');
+    m.tape.color.set(this.barColor || (team ? '#1b1b1e' : '#f1f1ee'));
     this.rimMat.map = rimTexture(team ? 'team' : 'gold');
     this.rimMat.needsUpdate = true;
   }
