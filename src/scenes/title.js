@@ -72,7 +72,9 @@ export function createTitleScene(app) {
     },
 
     exit() {
-      // Der Titel wird von der Übergangsanimation ausgeblendet
+      // Der Übergang blendet den Titel aus; danach wird er sicher entfernt
+      const r = root;
+      setTimeout(() => r.remove(), 700);
     },
   };
 }

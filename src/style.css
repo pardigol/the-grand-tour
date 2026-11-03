@@ -102,6 +102,37 @@ body {
   background: #3a3f4c;
   font-size: 0.72em;
 }
+/* PlayStation-Darstellung */
+.btn .glyph-ps,
+.pad-ps .btn .glyph-xbox {
+  display: none;
+}
+.btn i {
+  font-style: normal;
+}
+.pad-ps .btn .glyph-ps {
+  display: inline;
+}
+.pad-ps .btn-a,
+.pad-ps .btn-b,
+.pad-ps .btn-x,
+.pad-ps .btn-y {
+  background: #23252c;
+  font-size: 0.95em;
+  font-weight: 700;
+}
+.pad-ps .btn-a { color: #7fb0ff; }
+.pad-ps .btn-b { color: #ff6b6b; }
+.pad-ps .btn-x { color: #f58bd0; }
+.pad-ps .btn-b .glyph-ps,
+.pad-ps .btn-x .glyph-ps {
+  font-size: 1.35em;
+  line-height: 1;
+}
+.pad-ps .btn-y { color: #4fd6a6; }
+.pad-ps .card.confirm-delete .card-sub::after {
+  content: 'Nochmal □ drücken zum Löschen';
+}
 .btn-stick {
   background: #2b2f3a;
   box-shadow: inset 0 0 0 3px #555;

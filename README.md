@@ -37,21 +37,25 @@ npm run preview  # zeigt die gebaute Version an
 
 ## Steuerung
 
-| Was | Xbox-Controller | Tastatur |
-| --- | --- | --- |
-| Spiel starten | beliebige Taste | beliebige Taste |
-| Im Menü bewegen | linker Stick / Steuerkreuz | Pfeiltasten |
-| Auswählen | **A** | Enter |
-| Zurück | **B** | Escape |
-| Charakter löschen (2× drücken) | **X** | Entf |
-| Buchstabe löschen (Namenseingabe) | **X** | Rücktaste |
-| Leerzeichen (Namenseingabe) | **Y** | Leertaste |
-| Startnummer ±10 | **LB / RB** | Bild ↓ / Bild ↑ |
-| Treten | rechter Trigger **RT** | W / ↑ / Leertaste |
-| Bremsen | linker Trigger **LT** | S / ↓ |
-| Lenken | linker Stick | A / D / ← / → |
-| Pause | **B** oder Menü-Taste | Escape |
-| Ton an/aus | – | M |
+Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlayStation-Controller zeigt das Spiel automatisch ✕ ○ □ △ statt A B X Y an.
+
+| Was | Xbox | PlayStation | Tastatur |
+| --- | --- | --- | --- |
+| Spiel starten | beliebige Taste | beliebige Taste | beliebige Taste |
+| Im Menü bewegen | linker Stick / Steuerkreuz | linker Stick / Steuerkreuz | Pfeiltasten |
+| Auswählen | **A** | **✕** | Enter |
+| Zurück | **B** | **○** | Escape |
+| Charakter löschen (2× drücken) | **X** | **□** | Entf |
+| Buchstabe löschen (Namenseingabe) | **X** | **□** | Rücktaste |
+| Leerzeichen (Namenseingabe) | **Y** | **△** | Leertaste |
+| Startnummer ±10 | **LB / RB** | **L1 / R1** | Bild ↓ / Bild ↑ |
+| Treten | **RT** | **R2** | W / ↑ / Leertaste |
+| Bremsen | **LT** | **L2** | S / ↓ |
+| Lenken | linker Stick | linker Stick | A / D / ← / → |
+| Pause | **B** oder Menü-Taste | **○** oder Options | Escape |
+| Ton an/aus | – | – | M |
+
+Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinden und auf dem Startbildschirm einmal eine Taste drücken, erst dann „sieht“ ihn der Browser.
 
 ---
 

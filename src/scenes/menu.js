@@ -1,7 +1,7 @@
 // 3. HAUPTMENÜ – Liste aller Charaktere plus "Neuer Charakter"
 import { CONFIG } from '../config.js';
 import { loadCharacters, deleteCharacter } from '../storage.js';
-import { el, esc, hintBar, rideNpc, showcaseCamera, formatTime } from './common.js';
+import { el, esc, btn, hintBar, rideNpc, showcaseCamera, formatTime } from './common.js';
 import { damp } from '../noise.js';
 
 export function createMenuScene(app) {
@@ -88,7 +88,7 @@ export function createMenuScene(app) {
             ['B', 'Zurück'],
           ])}
         </div>`);
-      root.querySelector('.hints').insertAdjacentHTML('beforeend', `<span class="hint hint-delete"><span class="btn btn-x">X</span>Löschen</span>`);
+      root.querySelector('.hints').insertAdjacentHTML('beforeend', `<span class="hint hint-delete">${btn('X')}Löschen</span>`);
       app.ui.append(root);
       list = root.querySelector('.menu-list');
       if (params.selectId) {

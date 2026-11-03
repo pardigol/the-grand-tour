@@ -25,6 +25,13 @@ const KEY_ACTIONS = {
   PageDown: 'lb',
 };
 const DEADZONE = 0.14;
+
+// Sony hat die Hersteller-Nummer 054c. Je nach Browser steht im Namen auch "DualSense" o. Ä.
+// Microsoft (045e) zuerst ausschließen, denn auch Xbox-Pads heißen "Wireless Controller".
+function isPlayStation(id = '') {
+  if (/xbox|045e/i.test(id)) return false;
+  return /054c|dualsense|dualshock|playstation|wireless controller/i.test(id);
+}
 const STICK_ON = 0.55;
 
 export class Input {
@@ -42,6 +49,7 @@ export class Input {
     this.brake = 0;
     this.pad = null;
     this.usingPad = false;
+    this.layout = 'xbox';
 
     window.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -108,6 +116,11 @@ export class Input {
       }
     }
     this.pad = pad;
+    const layout = pad && isPlayStation(pad.id) ? 'ps' : 'xbox';
+    if (layout !== this.layout) {
+      this.layout = layout;
+      document.body.classList.toggle('pad-ps', layout === 'ps');
+    }
 
     const held = { up: false, down: false, left: false, right: false };
     let padSteer = 0;

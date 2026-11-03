@@ -13,7 +13,10 @@ export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-export const btn = (b) => `<span class="btn btn-${b.toLowerCase()}">${b}</span>`;
+// PlayStation-Symbole zu den Xbox-Knöpfen. Angezeigt wird per CSS (body.pad-ps) die passende Variante.
+const PS = { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2' };
+export const btn = (b) =>
+  `<span class="btn btn-${b.toLowerCase()}"><i class="glyph-xbox">${b}</i><i class="glyph-ps">${PS[b] ?? b}</i></span>`;
 
 export function hintBar(items) {
   return `<footer class="hints">${items.map(([b, t]) => `<span class="hint">${btn(b)}${t}</span>`).join('')}</footer>`;
