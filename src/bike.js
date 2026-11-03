@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
-import { brandById, brandLabel, contrastColor, DEFAULT_LOOK } from './brands.js';
+import { brandById, brandLabel, contrastColor, isMatte, DEFAULT_LOOK } from './brands.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const V = (side, up, fwd) => new THREE.Vector3(side, up, fwd);
@@ -521,15 +521,25 @@ export class Bike {
     const m = this.mats;
     const team = this.design === 'team';
     const t = this.teamMats;
+    // Matte Farben: rau und ohne Klarlack, glänzende: glatt mit Klarlack
+    const matte = isMatte(this.frameColor);
+    const finish = (mat) => {
+      mat.roughness = matte ? 0.72 : 0.3;
+      mat.metalness = matte ? 0.05 : 0.3;
+      mat.clearcoat = matte ? 0 : 1;
+    };
     if (team) {
       m.frame.color.set('#111114');
       m.frame.roughness = 0.55;
+      m.frame.metalness = 0.2;
       m.frame.clearcoat = 0.25;
-      for (const k of ['down', 'top', 'fork', 'solid']) t[k].color.set(this.frameColor);
+      for (const k of ['down', 'top', 'fork', 'solid']) {
+        t[k].color.set(this.frameColor);
+        finish(t[k]);
+      }
     } else {
       m.frame.color.set(this.frameColor);
-      m.frame.roughness = 0.3;
-      m.frame.clearcoat = 1;
+      finish(m.frame);
     }
     this.tubes.down.material = team ? t.down : m.frame;
     this.tubes.top.material = team ? t.top : m.frame;

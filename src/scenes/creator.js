@@ -2,7 +2,7 @@
 // Aufgebaut aus "Schritten".
 // Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
 import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
-import { BRANDS, COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
+import { BRANDS, COLORS, FRAME_COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
 const NAME_MAX = 12;
@@ -340,7 +340,7 @@ function choiceStep({ id, title, tab, rows }) {
           return `<div class="brand-opt" data-o="${oi}"><span class="brand-logo ${o.serif ? 'serif' : ''} ${o.font.includes('italic') ? 'italic' : ''}">${esc(brandLabel(o))}</span><small>${esc(o.land)}</small></div>`;
         if (r.type === 'paint')
           return `<div class="brand-opt paint-opt" data-o="${oi}"><i class="paint-preview ${o.id}"></i><span>${esc(o.name)}</span></div>`;
-        return `<div class="swatch" data-o="${oi}" style="--c:${o.hex}"></div>`;
+        return `<div class="swatch ${o.matte ? 'matte' : ''}" data-o="${oi}" style="--c:${o.hex}"></div>`;
       };
       container.innerHTML = `
         <div class="choice-panel">
@@ -454,7 +454,7 @@ const bikeStep = choiceStep({
   rows: [
     { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
     { key: 'paint', label: 'Lackierung', type: 'paint', options: PAINTS },
-    { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: COLORS },
+    { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: FRAME_COLORS },
   ],
 });
 

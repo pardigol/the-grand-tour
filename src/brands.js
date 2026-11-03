@@ -23,6 +23,14 @@ export const COLORS = [
   { hex: '#ff6fb5', name: 'Pink' },
 ];
 
+// Rahmenfarben: wie COLORS, aber das Grün ist matt (ohne Glanz).
+// ✏️ Weitere matte Farben: einfach "matte: true" an eine Farbe schreiben.
+export const FRAME_COLORS = COLORS.map((c) => (c.hex === '#2bb24c' ? { ...c, name: 'Mattgrün', matte: true } : c));
+
+export function isMatte(hex) {
+  return FRAME_COLORS.some((c) => c.matte && c.hex === hex);
+}
+
 export const PAINTS = [
   { id: 'solid', name: 'Einfarbig' },
   { id: 'team', name: 'Team-Design' },
