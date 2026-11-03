@@ -102,10 +102,11 @@ function rimTexture(style = 'gold') {
 }
 
 // Maske für das Team-Design: oben Weiß (Rahmenfarbe), unten Schwarz, dazwischen ein gezackter Übergang.
-// from = ab welcher Höhe (0 = Rohranfang, 1 = Rohrende) die Farbe beginnt, flip = umgedreht.
+// from = ab welcher Höhe (0 = Rohranfang, 1 = Rohrende) die Farbe beginnt, flip = umgedreht,
+// rows/gap = wie viele Zackenreihen und wie weit auseinander (kleiner = kürzerer Übergang).
 const maskCache = {};
-function fadeMask(from, flip = false) {
-  const key = `${from}-${flip}`;
+function fadeMask(from, flip = false, rows = 7, gap = 20) {
+  const key = `${from}-${flip}-${rows}-${gap}`;
   if (maskCache[key]) return maskCache[key];
   const W = 128;
   const H = 512;
@@ -123,10 +124,10 @@ function fadeMask(from, flip = false) {
   const y0 = (1 - from) * H; // Canvas-Oben = Rohrende
   ctx.fillRect(0, 0, W, y0);
   // Zacken, die nach unten immer kleiner und seltener werden
-  for (let row = 0; row < 7; row++) {
+  for (let row = 0; row < rows; row++) {
     const n = 8;
     const size = 26 - row * 3.2;
-    const y = y0 + row * 20;
+    const y = y0 + row * gap;
     for (let i = 0; i < n; i++) {
       if (row > 2 && (i + row) % 2) continue;
       const x = ((i + (row % 2) * 0.5) / n) * W;
@@ -177,7 +178,8 @@ export class Bike {
     const paint = (map) =>
       new THREE.MeshPhysicalMaterial({ map, roughness: 0.3, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 });
     this.teamMats = {
-      down: paint(fadeMask(0.72)),
+      // Unterrohr: nur oben weiß, damit der Schriftzug in der Mitte auf Schwarz steht
+      down: paint(fadeMask(0.86, false, 4, 12)),
       top: paint(fadeMask(0.4)),
       fork: paint(fadeMask(0.45, true)),
       solid: paint(null),
@@ -470,14 +472,15 @@ export class Bike {
     const dir = HB.clone().sub(BB);
     const len = dir.length();
     dir.normalize();
-    const mid = BB.clone().lerp(HB, 0.36);
+    // genau in der Mitte des Unterrohrs
+    const mid = BB.clone().lerp(HB, 0.5);
     for (const s of [-1, 1]) {
       const n = V(s, 0, 0);
       // Schrift so ausrichten, dass sie auf beiden Seiten aufrecht und nicht gespiegelt ist
       const u = s > 0 ? dir.clone().negate() : dir.clone();
       const v = new THREE.Vector3().crossVectors(n, u);
       // Seitenverhältnis wie die Zeichenfläche (512 x 128)
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.56, len * 0.56 * (128 / 512)), mat);
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.48, len * 0.48 * (128 / 512)), mat);
       plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
       plane.position.copy(mid).addScaledVector(n, 0.033);
       this.root.add(plane);
