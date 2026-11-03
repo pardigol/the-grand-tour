@@ -622,6 +622,42 @@ body {
   text-align: center;
   margin-top: 3.2vh;
 }
+.step-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 18px;
+}
+.step-tabs .btn {
+  margin: 0;
+}
+.step-tab {
+  padding: 4px 14px;
+  border-radius: 999px;
+  color: #b9b1a3;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.step-tab.done {
+  color: #e6dccb;
+}
+.step-tab.active {
+  background: var(--gold);
+  color: #1b1307;
+  box-shadow: 0 0 14px rgba(245, 199, 107, 0.6);
+}
+.tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
 .step-label {
   font-family: var(--serif);
   text-transform: uppercase;

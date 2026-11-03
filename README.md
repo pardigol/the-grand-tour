@@ -48,7 +48,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Charakter löschen (2× drücken) | **X** | **□** | Entf |
 | Buchstabe löschen (Namenseingabe) | **X** | **□** | Rücktaste |
 | Leerzeichen (Namenseingabe) | **Y** | **△** | Leertaste |
-| Startnummer ±10 | **LB / RB** | **L1 / R1** | Bild ↓ / Bild ↑ |
+| Charaktererstellung: Bereich wechseln (Name & Nummer · Aussehen · Rennrad) | **LB / RB** oder **LT / RT** | **L1 / R1** oder **L2 / R2** | Bild ↓ / Bild ↑ |
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **X** | **□** | S / ↓ |
@@ -72,7 +72,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
    - **Dein Aussehen:** Farben für Helm, Trikot und Hose.
    - **Dein Rennrad:** Marke (Canyon, Rose, Colnago oder Cervélo) und Rahmenfarbe. Der Markenname steht dann auf dem Unterrohr.
 
-   Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
+   Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
 5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
 ---

@@ -31,6 +31,7 @@ function buildGrid() {
 const identityStep = {
   id: 'identity',
   title: 'Name & Startnummer',
+  tab: 'Name & Nummer',
   hints: [
     ['A', 'Taste drücken'],
     ['X', 'Buchstabe löschen'],
@@ -82,7 +83,7 @@ const identityStep = {
               <div class="number-value"></div>
               <div class="arrow down">▼</div>
             </div>
-            <div class="small-hint">Stick ↑↓ · ${btn('LB')} ${btn('RB')} ±10</div>
+            <div class="small-hint">Stick ↑↓ · halten = schneller</div>
           </div>
           <div class="panel done-panel" data-zone="done">
             <div class="done-btn">Fertig <span>✓</span></div>
@@ -250,8 +251,6 @@ const identityStep = {
     }
     if (input.pressed('left')) this.move(0, -1);
     if (input.pressed('right')) this.move(0, 1);
-    if (input.pressed('rb')) this.changeNumber(10);
-    if (input.pressed('lb')) this.changeNumber(-10);
     if (input.pressed('x')) {
       this.backspace();
       this.refresh();
@@ -321,10 +320,11 @@ const identityStep = {
 
 // ---------- Auswahl-Schritte (Farben, Marke) ----------
 // Stick ↑↓ wählt die Zeile, ←→ ändert sofort die Auswahl. Das Rad rechts zeigt alles live.
-function choiceStep({ id, title, rows }) {
+function choiceStep({ id, title, tab, rows }) {
   return {
     id,
     title,
+    tab,
     seeBike: true,
     hints: [
       ['A', 'Weiter'],
@@ -436,6 +436,7 @@ function choiceStep({ id, title, rows }) {
 const looksStep = choiceStep({
   id: 'looks',
   title: 'Dein Aussehen',
+  tab: 'Aussehen',
   rows: [
     { key: 'helmet', label: 'Helm', type: 'color', options: COLORS },
     { key: 'jersey', label: 'Trikot', type: 'color', options: COLORS },
@@ -446,6 +447,7 @@ const looksStep = choiceStep({
 const bikeStep = choiceStep({
   id: 'bike',
   title: 'Dein Rennrad',
+  tab: 'Rennrad',
   rows: [
     { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
     { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: COLORS },
@@ -469,6 +471,11 @@ export function createCreatorScene(app) {
     root.querySelector('.step-label').textContent =
       `${editing ? 'Fahrer bearbeiten' : 'Neuer Charakter'} · Schritt ${stepIndex + 1} von ${STEPS.length}`;
     root.querySelector('.step-title').textContent = step.title;
+    // Reiterleiste: L1/L2 zurück, R1/R2 weiter
+    root.querySelector('.step-tabs').innerHTML = `${btn('LB')}${STEPS.map(
+      (s, i) => `<span class="step-tab ${i === stepIndex ? 'active' : ''} ${i < stepIndex ? 'done' : ''}" data-i="${i}">${esc(s.tab)}</span>`,
+    ).join('<i class="tab-dot"></i>')}${btn('RB')}`;
+    root.querySelectorAll('.step-tab').forEach((t) => t.addEventListener('click', () => goTo(Number(t.dataset.i))));
     // Bei den Farb-Schritten soll man das Rad rechts gut sehen
     root.classList.toggle('see-bike', !!step.seeBike);
     const hints = stepIndex === 0 ? step.hints : step.hints.map(([b, t]) => [b, b === 'B' ? 'Zurück' : t]);
@@ -477,6 +484,22 @@ export function createCreatorScene(app) {
     ctx.preview(draft);
     const doneBtn = body.querySelector('.done-btn');
     if (doneBtn && stepIndex < STEPS.length - 1) doneBtn.firstChild.textContent = 'Weiter ';
+  }
+
+  // Zu einem anderen Bereich wechseln. Vorwärts nur, wenn der aktuelle Bereich fertig ist (z. B. Name).
+  function goTo(i) {
+    if (i < 0 || i >= STEPS.length || i === stepIndex || stepIndex < 0) return;
+    const step = STEPS[stepIndex];
+    if (i > stepIndex && !step.validate()) {
+      app.audio.error();
+      app.input.rumble(0.4, 120);
+      return;
+    }
+    step.unmount();
+    stepIndex = i;
+    app.audio.nav();
+    app.input.rumble(0.15, 40);
+    mountStep();
   }
 
   const ctx = {
@@ -524,6 +547,7 @@ export function createCreatorScene(app) {
       root = el(`
         <div class="screen creator-screen">
           <header class="creator-head">
+            <div class="step-tabs"></div>
             <div class="step-label"></div>
             <h2 class="step-title"></h2>
           </header>
@@ -543,6 +567,15 @@ export function createCreatorScene(app) {
       if (stepIndex < 0) return;
 
       cancelArmed = Math.max(0, cancelArmed - dt);
+      const inp = app.input;
+      if (inp.pressed('rb') || inp.pressed('rt')) {
+        goTo(stepIndex + 1);
+        return;
+      }
+      if (inp.pressed('lb') || inp.pressed('lt')) {
+        goTo(stepIndex - 1);
+        return;
+      }
       // B in einem späteren Schritt: einen Schritt zurück
       if (app.input.pressed('back') && stepIndex > 0) {
         STEPS[stepIndex].unmount();

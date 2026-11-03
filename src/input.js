@@ -9,6 +9,8 @@ const BUTTON_ACTIONS = {
   3: 'y', // Y
   4: 'lb',
   5: 'rb',
+  6: 'lt',
+  7: 'rt',
   8: 'select', // View
   9: 'start', // Menu
   11: 'view', // rechten Stick drücken (R3)
