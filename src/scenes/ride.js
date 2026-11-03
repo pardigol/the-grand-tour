@@ -1,14 +1,26 @@
 // 5. TESTSTRECKE – selbst fahren! (Platzhalter für das spätere Spiel)
 import { CONFIG } from '../config.js';
 import { updateCharacter, loadCharacters } from '../storage.js';
-import { el, esc, btn, chaseCamera, formatTime } from './common.js';
+import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
 import { clamp, damp } from '../noise.js';
+import { Minimap } from '../minimap.js';
 
 const MASS = 78;
 const G = 9.81;
 const GEAR = 3.6; // Radumdrehungen pro Kurbelumdrehung
 const CHECKPOINTS = [0.25, 0.5, 0.75];
+
+// Kamera-Ansichten: yaw = Winkel um den Fahrer (0 = hinten), pitch = Höhe, dist = Abstand
+const VIEWS = [
+  { name: 'Hinten', yaw: 0, pitch: 0.32, dist: 4.4 },
+  { name: 'Seite', yaw: Math.PI / 2, pitch: 0.12, dist: 4.6 },
+  { name: 'Von oben', yaw: 0, pitch: 1.3, dist: 12 },
+  { name: 'Von vorne', yaw: Math.PI, pitch: 0.16, dist: 4.2 },
+];
+
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const dampAngle = (a, b, rate, dt) => a + wrapAngle(b - a) * (1 - Math.exp(-rate * dt));
 
 export function createRideScene(app) {
   let root;
@@ -17,6 +29,69 @@ export function createRideScene(app) {
   const ground = {};
   const tmp = {};
   let pauseIndex = 0;
+  let minimap;
+  const cam = { view: 0, yawOff: 0, pitchOff: 0, idle: 0, yaw: 0, pitch: 0.32, dist: 4.4, heading: 0 };
+
+  // Kamera kreist um den Fahrer: rechter Stick dreht, Klick auf den Stick wechselt die Ansicht
+  function updateCamera(dt, snap = false) {
+    const inp = app.input;
+    const v = VIEWS[cam.view];
+    if (inp.lookX || inp.lookY) {
+      cam.idle = 0;
+      cam.yawOff += inp.lookX * 2.6 * dt;
+      cam.pitchOff -= inp.lookY * 1.5 * dt;
+    } else {
+      cam.idle += dt;
+      // Nach kurzer Pause schwenkt die Kamera zurück in die gewählte Ansicht
+      if (cam.idle > 1.5) {
+        cam.yawOff = damp(cam.yawOff, 0, 2, dt);
+        cam.pitchOff = damp(cam.pitchOff, 0, 2, dt);
+      }
+    }
+    cam.yawOff = wrapAngle(cam.yawOff);
+    const pitch = clamp(v.pitch + cam.pitchOff, 0.04, 1.45);
+    cam.pitchOff = pitch - v.pitch;
+    if (snap) {
+      cam.yaw = v.yaw + cam.yawOff;
+      cam.pitch = pitch;
+      cam.dist = v.dist;
+      cam.heading = st.heading;
+    } else {
+      cam.yaw = dampAngle(cam.yaw, v.yaw + cam.yawOff, 6, dt);
+      cam.pitch = damp(cam.pitch, pitch, 6, dt);
+      cam.dist = damp(cam.dist, v.dist, 4, dt);
+      cam.heading = dampAngle(cam.heading, st.heading, 5, dt);
+    }
+
+    const c = app.camera;
+    const ang = cam.heading + Math.PI + cam.yaw;
+    const flat = Math.cos(cam.pitch) * cam.dist;
+    c.position.set(
+      st.x + Math.sin(ang) * flat,
+      st.h + 0.9 + Math.sin(cam.pitch) * cam.dist,
+      st.z + Math.cos(ang) * flat,
+    );
+    const ground = app.world.terrainHeight(c.position.x, c.position.z) + 0.6;
+    if (c.position.y < ground) c.position.y = ground;
+    // Von hinten etwas nach vorne schauen, sonst direkt auf den Fahrer
+    const ahead = 2.5 * Math.max(0, Math.cos(cam.yaw)) * (1 - cam.pitch / 1.5);
+    c.lookAt(st.x + Math.sin(st.heading) * ahead, st.h + 0.9, st.z + Math.cos(st.heading) * ahead);
+    const fov = 58 + Math.min(st.speed, 20) * 0.9;
+    c.fov = snap ? fov : damp(c.fov, fov, 3, dt);
+    c.updateProjectionMatrix();
+
+    if (inp.pressed('view')) {
+      cam.view = (cam.view + 1) % VIEWS.length;
+      cam.yawOff = 0;
+      cam.pitchOff = 0;
+      app.audio.nav();
+      const t = $('.view-toast');
+      t.textContent = `Kamera: ${VIEWS[cam.view].name}`;
+      t.classList.remove('show');
+      void t.offsetWidth;
+      t.classList.add('show');
+    }
+  }
 
   function $(s) {
     return root.querySelector(s);
@@ -54,10 +129,14 @@ export function createRideScene(app) {
             <div class="hud-box"><label>Zeit</label><b class="time">0:00.0</b></div>
             <div class="hud-box"><label>Bestzeit</label><b class="best">${formatTime(char.bestLap)}</b></div>
           </div>
-          <div class="hud-rider">
-            <div class="mini-plate"><span>${char.number}</span></div>
-            <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke</div></div>
+          <div class="hud-map">
+            <div class="hud-rider">
+              <div class="mini-plate"><span>${char.number}</span></div>
+              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke</div></div>
+            </div>
+            <canvas class="minimap"></canvas>
           </div>
+          <div class="view-toast"></div>
           <div class="speedo">
             <svg viewBox="0 0 200 200">
               <circle class="speedo-bg" cx="100" cy="100" r="80" pathLength="100"/>
@@ -68,7 +147,9 @@ export function createRideScene(app) {
           <div class="controls-help">
             <div>${btn('RT')} Treten</div>
             <div>${btn('LT')} Bremsen</div>
-            <div><span class="btn btn-stick">L</span> Lenken</div>
+            <div><span class="btn btn-stick">L</span> oder ${btn('LB')}${btn('RB')} Lenken</div>
+            <div><span class="btn btn-stick">R</span> Kamera drehen</div>
+            <div><span class="btn btn-stick">R</span>drücken: Ansicht wechseln</div>
             <div>${btn('B')} Pause</div>
           </div>
           <div class="banner"></div>
@@ -81,7 +162,8 @@ export function createRideScene(app) {
           </div>
         </div>`);
       app.ui.append(root);
-      setTimeout(() => root?.querySelector('.controls-help')?.classList.add('fade'), 9000);
+      setTimeout(() => root?.querySelector('.controls-help')?.classList.add('fade'), 12000);
+      minimap = new Minimap(app.world, $('.minimap'));
 
       app.bike.setPlate(char.number, char.name);
       app.bike.setColors({ jersey: char.jersey, frame: char.frame });
@@ -105,7 +187,9 @@ export function createRideScene(app) {
         shake: 0,
       });
       this.placeBike();
-      chaseCamera(app, 0, { snap: true });
+      cam.view = 0;
+      cam.yawOff = cam.pitchOff = 0;
+      updateCamera(0, true);
       app.fx.uFade.value = 1;
       app.audio.setMusicLevel(0.45);
       banner('Los geht’s!', `${btn('RT')} drücken zum Treten`);
@@ -137,7 +221,7 @@ export function createRideScene(app) {
           }
         }
         app.bike.update(0, 0, 0, st.steerVis);
-        chaseCamera(app, dt, { speed: st.speed });
+        updateCamera(dt);
         return;
       }
       if (inp.pressed('back') || inp.pressed('start')) {
@@ -208,8 +292,9 @@ export function createRideScene(app) {
 
       const kmh = st.speed * 3.6;
       app.audio.setWind(clamp(st.speed / 15, 0, 1));
-      app.fx.uLines.value = damp(app.fx.uLines.value, clamp((kmh - 38) / 20, 0, 0.45), 4, dt);
-      chaseCamera(app, dt, { speed: st.speed });
+      // Speedlines nur ganz dezent bei hohem Tempo
+      app.fx.uLines.value = damp(app.fx.uLines.value, clamp((kmh - 42) / 30, 0, 0.12), 4, dt);
+      updateCamera(dt);
       if (st.shake) {
         app.camera.position.y += (Math.random() - 0.5) * 0.02;
       }
@@ -254,6 +339,7 @@ export function createRideScene(app) {
       $('.speedo-fill').style.strokeDasharray = `${clamp(kmh / 70, 0, 1) * 75} 100`;
       $('.lap').textContent = st.lap ? st.lap : '–';
       $('.time').textContent = st.lap ? formatTime(st.time - st.lapStart) : '0:00.0';
+      minimap.draw(st.x, st.z, st.heading, st.lap ? st.lastS : null);
     },
 
     exit() {

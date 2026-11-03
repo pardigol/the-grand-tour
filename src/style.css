@@ -814,20 +814,54 @@ body {
   font-size: 30px;
   font-variant-numeric: tabular-nums;
 }
-.hud-rider {
+.hud-map {
   position: absolute;
-  left: 28px;
-  bottom: 28px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 18px 10px 10px;
+  left: 24px;
+  bottom: 22px;
+  padding: 10px;
   background: var(--glass);
-  border-radius: 12px;
+  border-radius: 14px;
+  border-bottom: 2px solid var(--gold);
   backdrop-filter: blur(6px);
 }
+.hud-rider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.hud-rider .mini-plate {
+  width: 50px;
+  height: 38px;
+  font-size: 24px;
+}
+.minimap {
+  display: block;
+  margin-top: 4px;
+}
+.view-toast {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0;
+}
+.view-toast.show {
+  animation: viewToast 1.8s forwards;
+}
+@keyframes viewToast {
+  10%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .rider-name {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
 }
 .rider-sub {
@@ -965,6 +999,11 @@ body {
   transform: scale(1.05);
 }
 
+@media (max-height: 760px) {
+  .minimap { width: 150px !important; height: 150px !important; }
+  .speedo { width: 150px; height: 150px; }
+  .speedo-val b { font-size: 48px; }
+}
 @media (max-height: 700px) {
   .hints { font-size: 16px; }
   .number-value { font-size: 70px; }

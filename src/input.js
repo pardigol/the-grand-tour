@@ -11,6 +11,7 @@ const BUTTON_ACTIONS = {
   5: 'rb',
   8: 'select', // View
   9: 'start', // Menu
+  11: 'view', // rechten Stick drücken (R3)
 };
 const KEY_ACTIONS = {
   ArrowUp: 'up',
@@ -45,6 +46,9 @@ export class Input {
     this.dirTime = { up: 0, down: 0, left: 0, right: 0 };
     this.dirRepeat = { up: 0, down: 0, left: 0, right: 0 };
     this.steer = 0;
+    this.shoulderSteer = 0;
+    this.lookX = 0;
+    this.lookY = 0;
     this.throttle = 0;
     this.brake = 0;
     this.pad = null;
@@ -61,6 +65,7 @@ export class Input {
       if (!e.repeat) this.queue.push('any');
       const a = KEY_ACTIONS[e.key];
       if (a) this.queue.push(a);
+      if (e.code === 'KeyC') this.queue.push('view');
       if (e.key === 'Backspace') this.charQueue.push('\b');
       else if (e.key.length === 1) this.charQueue.push(e.key);
     });
@@ -126,6 +131,9 @@ export class Input {
     let padSteer = 0;
     let padThrottle = 0;
     let padBrake = 0;
+    let shoulder = 0;
+    let lookX = 0;
+    let lookY = 0;
 
     if (pad) {
       const b = pad.buttons;
@@ -161,6 +169,14 @@ export class Input {
       if (btn(15)) padSteer = 1;
       padThrottle = b[7] ? b[7].value : 0;
       padBrake = b[6] ? b[6].value : 0;
+      // Schultertasten LB/RB (L1/R1) lenken zusätzlich
+      if (btn(4)) shoulder -= 1;
+      if (btn(5)) shoulder += 1;
+      // Rechter Stick: Kamera
+      const rx = pad.axes[2] || 0;
+      const ry = pad.axes[3] || 0;
+      lookX = Math.abs(rx) > DEADZONE ? rx : 0;
+      lookY = Math.abs(ry) > DEADZONE ? ry : 0;
     }
 
     // Stick/Steuerkreuz wie Tasten behandeln, mit Wiederholung beim Halten
@@ -190,7 +206,18 @@ export class Input {
     const keyThrottle = k.has('KeyW') || k.has('ArrowUp') || k.has('Space') ? 1 : 0;
     const keyBrake = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0;
 
-    this.steer = Math.max(-1, Math.min(1, padSteer + keySteer));
+    // Tasten-Lenkung weich einblenden, damit das Rad nicht ruckartig einschlägt
+    const rate = shoulder !== 0 ? 4 : 8;
+    this.shoulderSteer += Math.max(-rate * dt, Math.min(rate * dt, shoulder - this.shoulderSteer));
+    this.steer = Math.max(-1, Math.min(1, padSteer + keySteer + this.shoulderSteer));
+
+    // Kamera auch per Tastatur: J/L drehen, I/K hoch/runter
+    if (k.has('KeyJ')) lookX -= 1;
+    if (k.has('KeyL')) lookX += 1;
+    if (k.has('KeyI')) lookY -= 1;
+    if (k.has('KeyK')) lookY += 1;
+    this.lookX = Math.max(-1, Math.min(1, lookX));
+    this.lookY = Math.max(-1, Math.min(1, lookY));
     this.throttle = Math.max(padThrottle, keyThrottle);
     this.brake = Math.max(padBrake, keyBrake);
   }
