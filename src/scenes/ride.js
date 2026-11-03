@@ -223,7 +223,7 @@ export function createRideScene(app) {
       minimap = new Minimap(app.world, $('.minimap'));
 
       app.bike.setPlate(char.number, char.name);
-      app.bike.setColors({ jersey: char.jersey, frame: char.frame });
+      app.bike.applyLook(char);
 
       const p = app.world.poseAt(app.world.length - 14, 1.5, tmp);
       Object.assign(st, {
@@ -419,8 +419,8 @@ export function createRideScene(app) {
 
       const kmh = st.speed * 3.6;
       app.audio.setWind(clamp(st.speed / 15, 0, 1));
-      // Speedlines nur ganz dezent bei hohem Tempo
-      app.fx.uLines.value = damp(app.fx.uLines.value, clamp((kmh - 42) / 30, 0, 0.12), 4, dt);
+      // Keine Speedlines auf der Strecke
+      app.fx.uLines.value = 0;
       updateCamera(dt);
       if (st.shake) {
         app.camera.position.y += (Math.random() - 0.5) * 0.02;

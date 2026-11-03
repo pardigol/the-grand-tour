@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
+import { brandById, brandLabel, contrastColor, DEFAULT_LOOK } from './brands.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const V = (side, up, fwd) => new THREE.Vector3(side, up, fwd);
@@ -128,6 +129,8 @@ export class Bike {
     this.buildCockpit(m);
     this.buildRider(m);
     this.buildPlates();
+    this.buildDecals();
+    this.setBrand(DEFAULT_LOOK.brand);
     this.update(0, 0, 0, 0);
   }
 
@@ -376,6 +379,67 @@ export class Bike {
     this.setPlate(1, '');
   }
 
+  // Markenschriftzug links und rechts auf dem Unterrohr
+  buildDecals() {
+    this.decalCanvas = document.createElement('canvas');
+    this.decalCanvas.width = 512;
+    this.decalCanvas.height = 64;
+    this.decalTex = new THREE.CanvasTexture(this.decalCanvas);
+    this.decalTex.colorSpace = THREE.SRGBColorSpace;
+    this.decalTex.anisotropy = 8;
+    const mat = new THREE.MeshStandardMaterial({
+      map: this.decalTex,
+      transparent: true,
+      roughness: 0.3,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    });
+    const HB = V(0, 0.7, 0.4);
+    const dir = HB.clone().sub(BB);
+    const len = dir.length();
+    dir.normalize();
+    const mid = BB.clone().lerp(HB, 0.52);
+    for (const s of [-1, 1]) {
+      const n = V(s, 0, 0);
+      // Schrift so ausrichten, dass sie auf beiden Seiten aufrecht und nicht gespiegelt ist
+      const u = s > 0 ? dir.clone().negate() : dir.clone();
+      const v = new THREE.Vector3().crossVectors(n, u);
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.62, 0.04), mat);
+      plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
+      plane.position.copy(mid).addScaledVector(n, 0.0245);
+      this.root.add(plane);
+    }
+  }
+
+  setBrand(id) {
+    const b = brandById(id);
+    this.brand = b.id;
+    const c = this.decalCanvas;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    const family = b.serif ? '"Cinzel", Georgia, serif' : '"Barlow Condensed", Arial, sans-serif';
+    ctx.font = `${b.font} 54px ${family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = contrastColor('#' + this.mats.frame.color.getHexString());
+    const text = brandLabel(b);
+    const w = ctx.measureText(text).width;
+    if (w > c.width * 0.95) ctx.font = `${b.font} ${Math.floor((54 * c.width * 0.95) / w)}px ${family}`;
+    ctx.fillText(text, c.width / 2, c.height / 2 + 2);
+    this.decalTex.needsUpdate = true;
+  }
+
+  // Alle Farben und die Marke eines Charakters übernehmen
+  applyLook(c = {}) {
+    this.setColors({
+      jersey: c.jersey || CONFIG.colors.jersey,
+      frame: c.frame || CONFIG.colors.bikeFrame,
+      helmet: c.helmet || DEFAULT_LOOK.helmet,
+      shorts: c.shorts || DEFAULT_LOOK.shorts,
+    });
+    this.setBrand(c.brand || DEFAULT_LOOK.brand);
+  }
+
   setPlate(number, name) {
     this.plateNumber = number;
     this.plateName = name;
@@ -383,9 +447,13 @@ export class Bike {
     this.plateTex.needsUpdate = true;
   }
 
-  setColors({ jersey, frame } = {}) {
+  setColors({ jersey, frame, helmet, shorts } = {}) {
     if (jersey) this.mats.jersey.color.set(jersey);
     if (frame) this.mats.frame.color.set(frame);
+    if (helmet) this.mats.helmet.color.set(helmet);
+    if (shorts) this.mats.shorts.color.set(shorts);
+    // Schriftfarbe an die Rahmenfarbe anpassen
+    if (frame && this.brand) this.setBrand(this.brand);
   }
 
   // speed in m/s, crankRate in rad/s (0 = Freilauf), steer -1..1

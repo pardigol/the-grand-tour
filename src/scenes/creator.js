@@ -1,7 +1,8 @@
 // 4. CHARAKTERERSTELLUNG
-// Aufgebaut aus "Schritten". Heute gibt es nur "Name & Startnummer" – weitere Schritte
-// (z. B. Aussehen, Trikot, Rad) können einfach in STEPS ergänzt werden.
-import { addCharacter, newCharacterDraft } from '../storage.js';
+// Aufgebaut aus "Schritten".
+// Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
+import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
+import { BRANDS, COLORS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
 const NAME_MAX = 12;
@@ -30,6 +31,12 @@ function buildGrid() {
 const identityStep = {
   id: 'identity',
   title: 'Name & Startnummer',
+  hints: [
+    ['A', 'Taste drücken'],
+    ['X', 'Buchstabe löschen'],
+    ['Y', 'Leerzeichen'],
+    ['B', 'Abbrechen'],
+  ],
 
   mount(container, draft, ctx) {
     this.draft = draft;
@@ -38,8 +45,8 @@ const identityStep = {
     this.zone = 'kb';
     this.r = 1;
     this.c = 0;
-    this.upper = true;
-    this.autoLower = true;
+    this.upper = !draft.name;
+    this.autoLower = !draft.name;
     container.innerHTML = `
       <div class="creator-body">
         <div class="plate-stage">
@@ -312,7 +319,140 @@ const identityStep = {
   unmount() {},
 };
 
-const STEPS = [identityStep];
+// ---------- Auswahl-Schritte (Farben, Marke) ----------
+// Stick ↑↓ wählt die Zeile, ←→ ändert sofort die Auswahl. Das Rad rechts zeigt alles live.
+function choiceStep({ id, title, rows }) {
+  return {
+    id,
+    title,
+    seeBike: true,
+    hints: [
+      ['A', 'Weiter'],
+      ['B', 'Zurück'],
+    ],
+
+    mount(container, draft, ctx) {
+      this.draft = draft;
+      this.ctx = ctx;
+      this.row = 0;
+      const opt = (r, o, oi) =>
+        r.type === 'brand'
+          ? `<div class="brand-opt" data-o="${oi}"><span class="brand-logo ${o.serif ? 'serif' : ''} ${o.font.includes('italic') ? 'italic' : ''}">${esc(brandLabel(o))}</span><small>${esc(o.land)}</small></div>`
+          : `<div class="swatch" data-o="${oi}" style="--c:${o.hex}"></div>`;
+      container.innerHTML = `
+        <div class="choice-panel">
+          ${rows
+            .map(
+              (r, ri) => `
+            <div class="choice-row" data-r="${ri}">
+              <div class="choice-head"><span class="field-label">${esc(r.label)}</span><span class="choice-name"></span></div>
+              <div class="choice-opts ${r.type}">${r.options.map((o, oi) => opt(r, o, oi)).join('')}</div>
+            </div>`,
+            )
+            .join('')}
+          <div class="choice-row done-row" data-r="${rows.length}">
+            <div class="done-btn">${ctx.isLast(this) ? 'Fertig' : 'Weiter'} <span>${ctx.isLast(this) ? '✓' : '›'}</span></div>
+          </div>
+        </div>`;
+      this.root = container;
+      container.querySelectorAll('.choice-row').forEach((rowEl) => {
+        const ri = Number(rowEl.dataset.r);
+        rowEl.querySelectorAll('[data-o]').forEach((o) =>
+          o.addEventListener('click', () => {
+            this.row = ri;
+            this.select(ri, Number(o.dataset.o));
+          }),
+        );
+      });
+      container.querySelector('.done-btn').addEventListener('click', () => ctx.next());
+      this.refresh();
+    },
+
+    valueOf(r, o) {
+      return r.type === 'brand' ? o.id : o.hex;
+    },
+
+    current(ri) {
+      const r = rows[ri];
+      return r.options.findIndex((o) => this.valueOf(r, o) === this.draft[r.key]);
+    },
+
+    select(ri, oi) {
+      const r = rows[ri];
+      this.draft[r.key] = this.valueOf(r, r.options[oi]);
+      this.ctx.audio.nav();
+      this.ctx.preview(this.draft);
+      this.refresh();
+    },
+
+    refresh() {
+      this.root.querySelectorAll('.choice-row').forEach((rowEl) => {
+        const ri = Number(rowEl.dataset.r);
+        rowEl.classList.toggle('active', ri === this.row);
+        if (ri >= rows.length) return;
+        const cur = this.current(ri);
+        rowEl.querySelectorAll('[data-o]').forEach((o) => o.classList.toggle('selected', Number(o.dataset.o) === cur));
+        const r = rows[ri];
+        const o = r.options[cur];
+        rowEl.querySelector('.choice-name').textContent = o ? o.name : '';
+      });
+      this.root.querySelector('.done-btn').classList.toggle('focus', this.row === rows.length);
+    },
+
+    update(input) {
+      if (input.pressed('up') && this.row > 0) {
+        this.row--;
+        this.ctx.audio.nav();
+        this.refresh();
+      }
+      if (input.pressed('down') && this.row < rows.length) {
+        this.row++;
+        this.ctx.audio.nav();
+        this.refresh();
+      }
+      if (this.row < rows.length && (input.pressed('left') || input.pressed('right'))) {
+        const n = rows[this.row].options.length;
+        const cur = Math.max(0, this.current(this.row));
+        this.select(this.row, (cur + (input.pressed('right') ? 1 : -1) + n) % n);
+      }
+      if (input.pressed('confirm')) {
+        if (this.row < rows.length) {
+          this.row++;
+          this.ctx.audio.nav();
+          this.refresh();
+        } else this.ctx.next();
+      }
+      if (input.pressed('start')) this.ctx.next();
+    },
+
+    validate() {
+      return true;
+    },
+
+    unmount() {},
+  };
+}
+
+const looksStep = choiceStep({
+  id: 'looks',
+  title: 'Dein Aussehen',
+  rows: [
+    { key: 'helmet', label: 'Helm', type: 'color', options: COLORS },
+    { key: 'jersey', label: 'Trikot', type: 'color', options: COLORS },
+    { key: 'shorts', label: 'Hose', type: 'color', options: COLORS },
+  ],
+});
+
+const bikeStep = choiceStep({
+  id: 'bike',
+  title: 'Dein Rennrad',
+  rows: [
+    { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
+    { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: COLORS },
+  ],
+});
+
+const STEPS = [identityStep, looksStep, bikeStep];
 
 // ---------- Die Szene, die durch die Schritte führt ----------
 export function createCreatorScene(app) {
@@ -322,13 +462,19 @@ export function createCreatorScene(app) {
   let draft;
   let cancelArmed = 0;
   let first = true;
+  let editing = false;
 
   function mountStep() {
     const step = STEPS[stepIndex];
     root.querySelector('.step-label').textContent =
-      `Neuer Charakter · Schritt ${stepIndex + 1} von ${STEPS.length}`;
+      `${editing ? 'Fahrer bearbeiten' : 'Neuer Charakter'} · Schritt ${stepIndex + 1} von ${STEPS.length}`;
     root.querySelector('.step-title').textContent = step.title;
+    // Bei den Farb-Schritten soll man das Rad rechts gut sehen
+    root.classList.toggle('see-bike', !!step.seeBike);
+    const hints = stepIndex === 0 ? step.hints : step.hints.map(([b, t]) => [b, b === 'B' ? 'Zurück' : t]);
+    root.querySelector('.hints').outerHTML = hintBar(hints);
     step.mount(body, draft, ctx);
+    ctx.preview(draft);
     const doneBtn = body.querySelector('.done-btn');
     if (doneBtn && stepIndex < STEPS.length - 1) doneBtn.firstChild.textContent = 'Weiter ';
   }
@@ -337,6 +483,10 @@ export function createCreatorScene(app) {
     audio: app.audio,
     preview(d) {
       app.bike.setPlate(d.number, d.name || ' ');
+      app.bike.applyLook(d);
+    },
+    isLast(step) {
+      return STEPS.indexOf(step) === STEPS.length - 1;
     },
     next() {
       const step = STEPS[stepIndex];
@@ -352,7 +502,8 @@ export function createCreatorScene(app) {
         mountStep();
         return;
       }
-      addCharacter(draft);
+      if (editing) updateCharacter(draft);
+      else addCharacter(draft);
       app.audio.success();
       app.input.rumble(0.5, 200);
       root.classList.add('saved');
@@ -363,8 +514,10 @@ export function createCreatorScene(app) {
   };
 
   return {
-    enter() {
-      draft = newCharacterDraft();
+    // params.edit = bestehender Charakter, der bearbeitet wird
+    enter(params = {}) {
+      editing = !!params.edit;
+      draft = editing ? { ...DEFAULT_LOOK, ...params.edit } : newCharacterDraft();
       stepIndex = 0;
       cancelArmed = 0;
       first = true;
@@ -375,12 +528,7 @@ export function createCreatorScene(app) {
             <h2 class="step-title"></h2>
           </header>
           <div class="step-body"></div>
-          ${hintBar([
-            ['A', 'Taste drücken'],
-            ['X', 'Buchstabe löschen'],
-            ['Y', 'Leerzeichen'],
-            ['B', 'Abbrechen'],
-          ])}
+          ${hintBar([])}
           <div class="toast"></div>
         </div>`);
       body = root.querySelector('.step-body');
@@ -395,10 +543,18 @@ export function createCreatorScene(app) {
       if (stepIndex < 0) return;
 
       cancelArmed = Math.max(0, cancelArmed - dt);
+      // B in einem späteren Schritt: einen Schritt zurück
+      if (app.input.pressed('back') && stepIndex > 0) {
+        STEPS[stepIndex].unmount();
+        stepIndex--;
+        app.audio.back();
+        mountStep();
+        return;
+      }
       if (app.input.pressed('back')) {
         if (cancelArmed > 0) {
           app.audio.back();
-          app.go('menu');
+          app.go('menu', editing ? { selectId: draft.id } : {});
           return;
         }
         cancelArmed = 2;

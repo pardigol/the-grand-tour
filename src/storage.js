@@ -1,5 +1,6 @@
 // Speichert die Charaktere im Browser (localStorage).
 import { CONFIG } from './config.js';
+import { DEFAULT_LOOK } from './brands.js';
 
 const KEY = 'pedal-legends.characters.v1';
 
@@ -28,6 +29,9 @@ export function newCharacterDraft() {
     number: 1,
     jersey: CONFIG.colors.jersey,
     frame: CONFIG.colors.bikeFrame,
+    helmet: DEFAULT_LOOK.helmet,
+    shorts: DEFAULT_LOOK.shorts,
+    brand: DEFAULT_LOOK.brand,
     bestLap: null,
     createdAt: Date.now(),
     version: 1,

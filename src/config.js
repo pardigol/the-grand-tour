@@ -21,7 +21,7 @@ export const CONFIG = {
   exposure: 0.62,
 
   // Der Fahrer auf dem Startbildschirm
-  titleRider: { number: 11, name: 'PAUL' },
+  titleRider: { number: 11, name: 'PAUL', brand: 'canyon' },
 
   // Musik
   music: {

@@ -67,7 +67,12 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 1. **Startbildschirm** – filmische Kamerafahrt bei Sonnenaufgang, ein Rennradfahrer rollt über die Landstraße.
 2. **Übergang** – das Rad beschleunigt, Bewegungsunschärfe und Geschwindigkeitslinien, ein goldenes Kettenblatt dreht sich ins Menü. Dazu Freilaufklicken und Fahrtwind.
 3. **Hauptmenü** – alle Fahrer mit Name und Startnummer, darunter „Neuer Charakter +“.
-4. **Charaktererstellung** – Name über die Bildschirmtastatur, Startnummer (1–999) mit dem Stick. Das Startnummernschild in der Mitte zeigt alles sofort an. „Fertig“ speichert den Fahrer.
+4. **Charaktererstellung** in drei Schritten:
+   - **Name & Startnummer:** Name über die Bildschirmtastatur, Startnummer (1–999) mit dem Stick. Das Startnummernschild in der Mitte zeigt alles sofort an.
+   - **Dein Aussehen:** Farben für Helm, Trikot und Hose.
+   - **Dein Rennrad:** Marke (Canyon, Rose, Colnago oder Cervélo) und Rahmenfarbe. Der Markenname steht dann auf dem Unterrohr.
+
+   Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
 5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
 ---
@@ -119,6 +124,10 @@ raceLaps: 3,       // Anzahl Runden (in src/config.js)
 
 Die Gegner änderst du in `src/rivals.js`: Name, Nummer, Trikotfarbe und Kraft (`power` in Watt). Mehr Watt = schwerer zu schlagen.
 
+**Neue Farben**
+
+In `src/brands.js` steht die Farbliste für Helm, Trikot, Hose und Rahmen. Füge einfach eine Zeile hinzu, z. B. `{ hex: '#00ffcc', name: 'Mint' },`
+
 **Schneller fahren**
 
 ```js
@@ -160,8 +169,8 @@ src/
 
 ## Ideen für die nächsten Schritte
 
-- 🎨 **Aussehen-Schritt** in der Charaktererstellung: Trikot- und Helmfarbe, Hautfarbe, Frisur
-- 🚲 **Rad-Schritt:** Rahmenfarbe, Laufräder, Rennrad vs. Zeitfahrrad
+- 🎨 Mehr Aussehen: Hautfarbe, Frisur, Trikot-Muster, Sonnenbrille
+- 🚲 Mehr am Rad: Laufräder, Lenkerband, Zeitfahrrad
 - 🏁 **Echte Rennen** gegen computergesteuerte Fahrer mit Windschatten-Effekt
 - ⛰️ **Mehrere Strecken:** Bergetappe mit Serpentinen, Küstenstraße, Stadtkurs mit Kopfsteinpflaster
 - 🔁 **Gangschaltung** mit LB/RB und Trittfrequenz-Anzeige

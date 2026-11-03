@@ -1,6 +1,7 @@
 // 3. HAUPTMENÜ – Liste aller Charaktere plus "Neuer Charakter"
 import { CONFIG } from '../config.js';
 import { loadCharacters, deleteCharacter } from '../storage.js';
+import { brandById } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera, formatTime } from './common.js';
 import { damp } from '../noise.js';
 
@@ -11,6 +12,7 @@ export function createMenuScene(app) {
   let index = 0;
   let confirmDelete = null;
   let first = true;
+  let actions = null; // offenes Auswahlfenster: Index der Aktion
 
   function render() {
     chars = loadCharacters();
@@ -22,7 +24,7 @@ export function createMenuScene(app) {
           <div class="mini-plate"><span>${c.number}</span></div>
           <div class="card-info">
             <div class="card-name">${esc(c.name)}</div>
-            <div class="card-sub">Startnummer ${c.number}${c.bestLap ? ` · Bestzeit ${formatTime(c.bestLap)}` : ''}</div>
+            <div class="card-sub">Nr. ${c.number} · ${esc(brandById(c.brand).name)}${c.bestLap ? ` · Bestzeit ${formatTime(c.bestLap)}` : ''}</div>
           </div>
           <div class="card-go">›</div>
         </div>`,
@@ -36,6 +38,7 @@ export function createMenuScene(app) {
       </div>`;
     list.querySelectorAll('.card').forEach((c) =>
       c.addEventListener('click', () => {
+        if (actions !== null) return;
         index = Number(c.dataset.i);
         highlight();
         activate();
@@ -54,10 +57,10 @@ export function createMenuScene(app) {
     const c = chars[index];
     if (c) {
       app.bike.setPlate(c.number, c.name);
-      app.bike.setColors({ jersey: c.jersey, frame: c.frame });
+      app.bike.applyLook(c);
     } else {
       app.bike.setPlate('?', 'NEU');
-      app.bike.setColors({ jersey: CONFIG.colors.jersey, frame: CONFIG.colors.bikeFrame });
+      app.bike.applyLook({});
     }
     const hint = root.querySelector('.hint-delete');
     if (hint) hint.style.visibility = c ? 'visible' : 'hidden';
@@ -67,11 +70,47 @@ export function createMenuScene(app) {
     }
   }
 
+  const ACTIONS = ['Rennen fahren', 'Fahrer bearbeiten'];
+
   function activate() {
     app.audio.select();
     app.input.rumble(0.35, 80);
-    if (index < chars.length) app.go('ride', { character: chars[index] });
+    if (index < chars.length) openActions();
     else app.go('creator');
+  }
+
+  // Zwei Knöpfe in der Karte: fahren oder bearbeiten
+  function openActions() {
+    actions = 0;
+    const card = list.querySelector('.card.selected');
+    card.insertAdjacentHTML(
+      'beforeend',
+      `<div class="card-actions">${ACTIONS.map((a, i) => `<div class="card-action" data-a="${i}">${a}</div>`).join('')}</div>`,
+    );
+    card.querySelectorAll('.card-action').forEach((e) =>
+      e.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        actions = Number(e.dataset.a);
+        runAction();
+      }),
+    );
+    renderActions();
+  }
+
+  function closeActions() {
+    actions = null;
+    list.querySelector('.card-actions')?.remove();
+  }
+
+  function renderActions() {
+    list.querySelectorAll('.card-action').forEach((e, i) => e.classList.toggle('selected', i === actions));
+  }
+
+  function runAction() {
+    const c = chars[index];
+    app.audio.select();
+    if (actions === 0) app.go('ride', { character: c });
+    else app.go('creator', { edit: c });
   }
 
   return {
@@ -96,6 +135,7 @@ export function createMenuScene(app) {
         if (i >= 0) index = i;
       }
       confirmDelete = null;
+      actions = null;
       render();
       first = true;
       app.npc.speed = 4;
@@ -114,6 +154,18 @@ export function createMenuScene(app) {
 
       const inp = app.input;
       const total = chars.length + 1;
+      if (actions !== null) {
+        if (inp.pressed('left') || inp.pressed('right') || inp.pressed('up') || inp.pressed('down')) {
+          actions = 1 - actions;
+          renderActions();
+          app.audio.nav();
+        } else if (inp.pressed('confirm')) runAction();
+        else if (inp.pressed('back')) {
+          closeActions();
+          app.audio.back();
+        }
+        return;
+      }
       if (inp.pressed('up') && index > 0) {
         index--;
         confirmDelete = null;
