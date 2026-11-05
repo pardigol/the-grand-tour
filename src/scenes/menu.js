@@ -119,7 +119,7 @@ export function createMenuScene(app) {
         <div class="screen menu-screen ${params.fromTransition ? 'intro' : ''}">
           <div class="menu-panel">
             <div class="menu-brand">${esc(CONFIG.gameName)}</div>
-            <div class="menu-heading">Wähle deinen Fahrer · ${app.mode === 'cx' ? 'Cyclocross' : 'Rennrad'}</div>
+            <div class="menu-heading">Wähle deinen Fahrer · ${app.mode === 'cx' ? 'Cycle Cross' : 'Rennrad'}</div>
             <div class="menu-list"></div>
           </div>
           ${hintBar([

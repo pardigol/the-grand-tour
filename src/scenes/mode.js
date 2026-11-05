@@ -1,11 +1,11 @@
-// Auswahl vor dem Hauptmenü: Rennrad oder Cyclocross (CX)
+// Auswahl vor dem Hauptmenü: Rennrad oder Cycle Cross (CX)
 import { CONFIG } from '../config.js';
 import { el, esc, hintBar, rideNpc, showcaseCamera } from './common.js';
 import { damp } from '../noise.js';
 
 export const MODES = [
   { id: 'road', name: 'Rennrad' },
-  { id: 'cx', name: 'Cyclocross' },
+  { id: 'cx', name: 'Cycle Cross' },
 ];
 
 // Kleines Rad-Symbol: CX mit Stollen an den Reifen

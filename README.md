@@ -68,7 +68,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 
 1. **Startbildschirm** – filmische Kamerafahrt bei Sonnenaufgang, ein Rennradfahrer rollt über die Landstraße.
 2. **Übergang** – das Rad beschleunigt, Bewegungsunschärfe und Geschwindigkeitslinien, ein goldenes Kettenblatt dreht sich ins Menü. Dazu Freilaufklicken und Fahrtwind.
-3. **Rennrad oder Cyclocross** – zwei große Felder: **Rennrad** (schmale Reifen, schnell auf Asphalt) oder **Cyclocross** (dicke Stollenreifen, rollt viel besser auf Wiese und Schotter, auf Asphalt etwas langsamer). Mit dem Stick wählen, ✕/A bestätigen. Die Werte stehen in `src/config.js` unter `rollen`.
+3. **Rennrad oder Cycle Cross** – zwei große Felder: **Rennrad** (schmale Reifen, schnell auf Asphalt) oder **Cycle Cross** (dicke Stollenreifen, rollt viel besser auf Wiese und Schotter, auf Asphalt etwas langsamer). Mit dem Stick wählen, ✕/A bestätigen. Die Werte stehen in `src/config.js` unter `rollen`.
 3. **Hauptmenü** – alle Fahrer mit Name und Startnummer, darunter „Neuer Charakter +“.
 4. **Charaktererstellung** in drei Schritten:
    - **Name & Startnummer:** Name über die Bildschirmtastatur, Startnummer (1–999) mit dem Stick. Das Startnummernschild in der Mitte zeigt alles sofort an.

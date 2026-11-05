@@ -179,7 +179,7 @@ export function createRideScene(app) {
           <div class="hud-map">
             <div class="hud-rider">
               <div class="mini-plate"><span>${char.number}</span></div>
-              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke · ${app.mode === 'cx' ? 'Cyclocross' : 'Rennrad'}</div></div>
+              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke · ${app.mode === 'cx' ? 'Cycle Cross' : 'Rennrad'}</div></div>
             </div>
             <canvas class="minimap"></canvas>
           </div>
