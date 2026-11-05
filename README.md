@@ -5,6 +5,23 @@ Gemacht für Paul (11 Jahre). Spielbar mit einem Xbox-Controller oder mit der Ta
 
 ---
 
+
+## Online spielen
+
+Das Spiel liegt auf GitHub und ist online spielbar:
+
+**https://pardigol.github.io/the-grand-tour/**
+
+Quellcode: https://github.com/pardigol/the-grand-tour
+
+Nach Änderungen bringst du die Online-Version auf den neuesten Stand mit:
+
+```bash
+git push && ./veroeffentlichen.sh
+```
+
+Gespeicherte Fahrer und Bestzeiten liegen im Browser, online und lokal also getrennt.
+
 ## Starten
 
 ### Am einfachsten: Doppelklick
