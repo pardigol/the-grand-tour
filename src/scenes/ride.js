@@ -162,6 +162,21 @@ export function createRideScene(app) {
     root.querySelectorAll('.result-item').forEach((e, i) => e.classList.toggle('selected', i === resultIndex));
   }
 
+  // Sturz: kurz liegen bleiben, danach an der Stelle resumeS/resumeLat weiterfahren
+  function crash(title, hint, resumeS = null, resumeLat = 0) {
+    st.crash = 1.8;
+    st.speed = 0;
+    st.air = false;
+    st.cruise = false;
+    st.resumeS = resumeS;
+    st.resumeLat = resumeLat;
+    root.querySelector('.cruise-badge')?.classList.remove('on');
+    banner(title, hint);
+    app.audio.error();
+    app.audio.noiseBurst(0.25, { vol: 0.5, freq: 180, type: 'lowpass' });
+    app.input.rumble(1, 450);
+  }
+
   function banner(text, sub = '') {
     const b = $('.banner');
     b.innerHTML = `<div>${text}</div>${sub ? `<small>${sub}</small>` : ''}`;
@@ -427,7 +442,9 @@ export function createRideScene(app) {
       const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
       const drag = 0.5 * 1.2 * 0.36 * v * v;
       const brakeF = brake * 650;
-      let a = (drive - drag - roll * MASS * G - MASS * G * Math.sin(st.pitch)) / MASS;
+      // In der Luft gibt es weder Rollwiderstand noch Hangabtrieb
+      const slope = st.air ? 0 : Math.sin(st.pitch);
+      let a = (drive - drag - (st.air ? 0 : roll * MASS * G) - MASS * G * slope) / MASS;
       a -= v > 0.01 ? brakeF / MASS : 0;
       st.speed = Math.max(0, v + a * dt);
       if (st.speed < 0.05 && throttle < 0.05 && Math.sin(st.pitch) > 0.02) st.speed = 0;
@@ -462,10 +479,15 @@ export function createRideScene(app) {
       const nrD = w.nearest(st.x, st.z);
       if (!st.air && w.drops.length && nrD.found && nrD.dist < w.rhArr[nrD.i] + 1.2 && st.speed > 1.5) {
         for (const d of w.drops) {
-          if (st.lastS < d.s - 0.3 && nrD.s >= d.s - 0.3 && nrD.s < d.s + 3) {
+          // Absprung kurz vor der Kante (der Weg fällt ab einem Messpunkt vor d.s ab)
+          const lip = d.s - w.ds - 0.2;
+          if (st.lastS < lip && nrD.s >= lip && nrD.s < d.s + 3) {
             st.air = true;
-            st.vy = 0.8;
-            banner('Drop!', `${btn('LB')} + ${btn('RB')} halten zum Landen`);
+            // Absprung: kräftig nach oben, je schneller desto höher
+            st.vy = 2.2 + st.speed * 0.12;
+            st.pitch = 0.32; // Vorderrad hoch beim Absprung
+            app.audio.whoosh(0.9);
+            app.input.rumble(0.3, 80);
           }
         }
       }
@@ -482,23 +504,28 @@ export function createRideScene(app) {
             app.input.rumble(0.5, 120);
             st.speed *= 0.92;
           } else {
-            st.crash = 1.8;
-            st.speed = 0;
-            st.cruise = false;
-            $('.cruise-badge')?.classList.remove('on');
-            banner('Sturz!', `Beim Landen ${btn('LB')} + ${btn('RB')} gleichzeitig halten`);
-            app.audio.error();
-            app.audio.noiseBurst(0.25, { vol: 0.5, freq: 180, type: 'lowpass' });
-            app.input.rumble(1, 450);
+            crash('Sturz!', `Beim Landen ${btn('LB')} + ${btn('RB')} gleichzeitig halten`);
           }
         }
       } else st.h = gh;
+      // Felsbrocken: wer dagegen fährt, stürzt (in der Luft fliegt man drüber)
+      if (!st.air && !crashed && w.rocks) {
+        for (const rk of w.rocks) {
+          if (Math.hypot(st.x - rk.x, st.z - rk.z) < rk.r + 0.3) {
+            // danach hinter dem Stein auf der freien Seite weiter
+            const free = -Math.sign(rk.lat) * Math.min(0.6, w.rhArr[rk.i] * 0.5);
+            crash('Autsch, ein Felsbrocken!', 'Fahr um die Steine herum', rk.s + rk.r + 1.5, free);
+            break;
+          }
+        }
+      }
       if (crashed) {
         st.crash -= dt;
         st.speed = 0;
         if (st.crash <= 0) {
-          // wieder aufrichten, mitten auf dem Weg
-          const p = w.poseAt(nrD.found ? nrD.s : st.lastS, 0, tmp);
+          // wieder aufrichten, mitten auf dem Weg (bzw. hinter dem Felsen)
+          const p = w.poseAt(st.resumeS ?? (nrD.found ? nrD.s : st.lastS), st.resumeS != null ? st.resumeLat : 0, tmp);
+          st.resumeS = null;
           st.x = p.x;
           st.z = p.z;
           st.heading = p.heading;
@@ -514,7 +541,8 @@ export function createRideScene(app) {
 
       // beim Sturz kippt das Rad zur Seite, in der Luft geht die Nase etwas runter
       st.lean = damp(st.lean, crashed ? 1.35 : steer * clamp(st.speed / 9, 0, 1) * 0.42, crashed ? 10 : 6, dt);
-      if (st.air) st.pitch = damp(st.pitch, -0.12, 4, dt);
+      // Sprung: Nase hoch beim Absprung, runter vor der Landung (folgt der Flugbahn)
+      if (st.air) st.pitch = damp(st.pitch, Math.atan2(st.vy, Math.max(st.speed, 3)) * 1.1, 5, dt);
       st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.speed / 14, 0, 0.85)), 10, dt);
 
       // Pedalieren oder Freilauf

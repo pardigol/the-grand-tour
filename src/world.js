@@ -239,12 +239,24 @@ export class World {
     // Damit die Runde wieder oben ankommt, steigt der Weg dazwischen ganz leicht an.
     this.drops = [];
     if (this.cx) {
-      const at = [0.14, 0.33, 0.52, 0.7, 0.88];
+      // Drops nur dort, wo der Weg vorher 45 m und danach 15 m fast gerade ist – nie direkt hinter einer Kurve
+      const before = Math.round(45 / this.ds);
+      const after = Math.round(15 / this.ds);
+      const cand = [];
+      for (let i = Math.round(80 / this.ds); i < N - Math.round(80 / this.ds); i += 2) {
+        cand.push({ i, t: this.turnBetween(i - before, i + after) });
+      }
+      cand.sort((a, b) => a.t - b.t);
+      const picks = [];
+      for (const c of cand) {
+        if (picks.length >= 5) break;
+        if (picks.every((p) => Math.abs(p - c.i) > N / 7)) picks.push(c.i);
+      }
+      picks.sort((a, b) => a - b);
       const depth = [1.1, 1.4, 1.0, 1.5, 1.2];
       let total = 0;
-      at.forEach((f, k) => {
-        const i0 = Math.floor(f * N);
-        this.drops.push({ i: i0, s: (i0 + 1) * this.ds, d: depth[k] });
+      picks.forEach((i0, k) => {
+        this.drops.push({ i: i0, s: (i0 + 1) * this.ds, d: depth[k], turn: this.turnBetween(i0 - before, i0 + after) });
         total += depth[k];
       });
       for (let i = 0; i < N; i++) {
@@ -272,6 +284,29 @@ export class World {
       this.shArr[i] = rh + (this.SH - this.RH);
     }
 
+    // Felsbrocken auf dem Waldweg: immer mit genug Platz zum Vorbeifahren, nicht hinter Kurven,
+    // nicht neben Drops und nicht am Start
+    this.rocks = [];
+    if (this.cx) {
+      const rr = mulberry32(99);
+      let tries = 0;
+      while (this.rocks.length < 16 && tries++ < 800) {
+        const i = Math.floor(rr() * N);
+        const s = i * this.ds;
+        if (Math.min(i, N - i) * this.ds < 50) continue;
+        if (this.drops.some((d) => Math.abs(d.i - i) * this.ds < 30)) continue;
+        if (this.rocks.some((r) => Math.abs(r.i - i) * this.ds < 45)) continue;
+        const rh = this.rhArr[i];
+        if (rh < 1.05) continue;
+        if (this.turnBetween(i - Math.round(20 / this.ds), i) > 0.35) continue;
+        const r = 0.35 + rr() * 0.25;
+        const side = rr() < 0.5 ? -1 : 1;
+        // Stein an einen Rand, auf der anderen Seite bleibt mindestens etwa 1 m frei
+        const lat = side * (rh - r - 0.1) * (0.6 + 0.4 * rr());
+        this.rocks.push({ i, s, lat, r });
+      }
+    }
+
     // Raster für schnelle "Wo ist die nächste Straße?"-Abfragen
     this.grid = new Map();
     for (let i = 0; i < N; i++) {
@@ -284,6 +319,16 @@ export class World {
 
   cellKey(cx, cz) {
     return (cx + 1000) * 4000 + (cz + 1000);
+  }
+
+  // Wie stark der Weg zwischen den Punkten a und b die Richtung ändert (größte Abweichung, in Radiant)
+  turnBetween(a, b) {
+    const N = this.N;
+    const ang = (i) => Math.atan2(this.tx[((i % N) + N) % N], this.tz[((i % N) + N) % N]);
+    const h0 = ang(a);
+    let m = 0;
+    for (let j = a; j <= b; j++) m = Math.max(m, Math.abs(Math.atan2(Math.sin(ang(j) - h0), Math.cos(ang(j) - h0))));
+    return m;
   }
 
   // Halbe Breite von Weg und Seitenstreifen an der Stelle s (Meter ab Start)
@@ -850,6 +895,39 @@ export class World {
     );
   }
 
+  // Felsbrocken: grau mit etwas Moos, halb im Boden
+  buildRocks(pose) {
+    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const gp = geo.attributes.position;
+    const col = [];
+    const moss = new THREE.Color('#5b6b3a');
+    const stone = new THREE.Color('#8a8580');
+    const c = new THREE.Color();
+    for (let i = 0; i < gp.count; i++) {
+      const x = gp.getX(i);
+      const y = gp.getY(i);
+      const z = gp.getZ(i);
+      const k = 1 + this.n1(x * 2.1 + 5, z * 2.1 + y * 1.7) * 0.25;
+      gp.setXYZ(i, x * k, y * k, z * k);
+      c.copy(stone).lerp(moss, Math.max(0, y) * 0.8);
+      col.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const rand = mulberry32(7);
+    const mats = this.rocks.map((r) => {
+      this.poseAt(r.s, r.lat, pose);
+      r.x = pose.x;
+      r.z = pose.z;
+      return new THREE.Matrix4().compose(
+        new THREE.Vector3(pose.x, this.ph[r.i] + r.r * 0.35, pose.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * 3, rand() * 3, rand() * 3)),
+        new THREE.Vector3(r.r, r.r * 0.8, r.r * 1.1),
+      );
+    });
+    this.instanced(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), mats);
+  }
+
   // Ein liegender Baumstamm markiert jede Drop-Kante
   buildDropLogs(pose) {
     const logs = [];
@@ -920,6 +998,7 @@ export class World {
     if (this.cx) {
       this.buildTape(pose);
       this.buildDropLogs(pose);
+      this.buildRocks(pose);
     }
     for (let s = 0; s < (this.cx ? 0 : this.length); s += 50) {
       for (const side of [-1, 1]) {
