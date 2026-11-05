@@ -5,7 +5,7 @@ import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
 import { clamp, damp } from '../noise.js';
 import { Minimap } from '../minimap.js';
-import { Rivals, RIVALS, RIVALS_CX } from '../rivals.js';
+import { Rivals, RIVALS } from '../rivals.js';
 
 const MASS = 78;
 const G = 9.81;
@@ -147,7 +147,11 @@ export function createRideScene(app) {
         </div>`,
       )
       .join('');
-    $('.result-title').textContent = st.place === 1 ? 'Sieg! Du bist Erster!' : `Ziel! Du bist ${st.place}.`;
+    $('.result-title').textContent = !rivals.list.length
+      ? `Ziel! ${formatTime(st.finishTime)}`
+      : st.place === 1
+        ? 'Sieg! Du bist Erster!'
+        : `Ziel! Du bist ${st.place}.`;
     resultIndex = 0;
     renderResult();
     $('.result').classList.add('show');
@@ -264,10 +268,13 @@ export function createRideScene(app) {
         showResult: false,
       });
       if (!rivalsByWorld.has(app.world)) {
-        rivalsByWorld.set(app.world, new Rivals(app, app.world.cx ? RIVALS_CX : RIVALS));
+        // Beim Cycle Cross fährt man allein gegen die Uhr (keine Gegner)
+        rivalsByWorld.set(app.world, new Rivals(app, app.world.cx ? [] : RIVALS));
       }
       rivals = rivalsByWorld.get(app.world);
       app.rivals = rivals; // zum Ausprobieren in der Konsole
+      // Ohne Gegner gibt es keinen Platz anzuzeigen
+      $('.hud-place').style.display = rivals.list.length ? '' : 'none';
       app.bike.setTires(app.mode);
       rivals.reset(p.s);
       this.placeBike();
@@ -506,7 +513,7 @@ export function createRideScene(app) {
               st.phase = 'finished';
               st.cruise = false;
               $('.cruise-badge').classList.remove('on');
-              banner(st.place === 1 ? 'Sieg!' : `Platz ${st.place}`, formatTime(st.finishTime));
+              banner(!rivals.list.length ? 'Ziel!' : st.place === 1 ? 'Sieg!' : `Platz ${st.place}`, formatTime(st.finishTime));
               app.audio.success();
               app.input.rumble(0.8, 400);
               setTimeout(() => root && st.phase === 'finished' && showResult(), 2200);
@@ -543,7 +550,7 @@ export function createRideScene(app) {
         st.raceTime,
       );
 
-      $('.place').textContent = st.phase === 'countdown' ? '–' : `${currentPlace()}/5`;
+      $('.place').textContent = st.phase === 'countdown' ? '–' : `${currentPlace()}/${rivals.list.length + 1}`;
       $('.lap').textContent = st.lap ? `${Math.min(st.lap, RACE_LAPS)}/${RACE_LAPS}` : '–';
       $('.time').textContent = st.phase === 'finished' ? formatTime(st.finishTime) : formatTime(st.raceTime);
       minimap.draw(st.x, st.z, st.heading, st.lap && st.phase !== 'finished' ? st.lastS : null, rivals.list);
