@@ -162,6 +162,10 @@ berge: 1,   // 0 = flach, 1 = normal, 1.5 = sehr bergig
 
 Über dem Tacho siehst du die Steigung in Prozent: **+** heißt bergauf, **–** bergab. Rot wird es ab 8 %.
 
+**Sprint-Haltung und Zuschauer**
+
+Beim Sprint steht dein Fahrer aus dem Sattel auf (Wiegetritt), und das Rad schaukelt im Takt der Pedale. Am Start/Ziel stehen Zuschauer hinter Absperrgittern. Sie jubeln, klatschen und winken, wenn du vorbeifährst. Die Lautstärke regelst du mit `zuschauer: 0.7` in `src/config.js` (0 = aus).
+
 **Windschatten**
 
 Fährst du dicht hinter einem Gegner (bis etwa 8 m), hast du weniger Luftwiderstand. Dann leuchten hinter ihm blaue Pfeile auf der Straße, und oben erscheint „Windschatten“ mit einem Balken für die Stärke. Wie stark er wirkt, stellst du in `src/config.js` ein: `windschatten: 0.4` (0.4 = 40 % weniger Luftwiderstand ganz dicht dahinter).
@@ -227,5 +231,5 @@ src/
 - 🌦️ **Tageszeiten und Wetter:** Regen, Abendrot, Nacht mit Lampe
 - 👥 **Zwei-Spieler-Modus** mit geteiltem Bildschirm (zwei Controller)
 - 📷 **Fotomodus** mit freier Kamera
-- 🔊 Zuschauer am Straßenrand, Glocken und Jubel
+- 🔔 Kuhglocken und Zuschauer auch an den Bergen
 - 💾 Bestenliste mit allen Rundenzeiten

@@ -41,6 +41,8 @@ export const CONFIG = {
 
   // Lautstärke der Geräusche (Menü, Fahrtwind, Freilauf)
   soundVolume: 0.8,
+  // Lautstärke der Zuschauer an Start/Ziel (Applaus, Jubel, Pfiffe): 0 = aus, 1 = laut
+  zuschauer: 0.7,
   // Extra-Regler nur für die Fahrgeräusche (Fahrtwind und Freilaufklicken): 0 = aus, 1 = laut
   fahrgeraeusche: 0.35,
 

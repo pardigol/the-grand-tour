@@ -361,13 +361,21 @@ export class Bike {
   buildRider(m) {
     const r = (this.rider = new THREE.Group());
     this.root.add(r);
-    this.hip = V(0, 0.98, -0.2);
+    // Sitzen und Stehen (Wiegetritt beim Sprint): Becken über dem Sattel bzw. weiter vorne über dem Tretlager
+    this.hipSeat = V(0, 0.98, -0.2);
+    this.hipStand = V(0, 1.02, -0.03);
+    this.hip = this.hipSeat.clone();
     this.shoulder = V(0, 1.3, 0.18);
+    this.torsoLen = this.hip.distanceTo(this.shoulder);
+    this.standing = 0;
+    this.standTarget = 0;
+    this.rock = 0;
 
     // Becken
     const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), m.shorts);
     pelvis.rotation.z = Math.PI / 2;
     pelvis.position.copy(this.hip);
+    this.pelvis = pelvis;
     pelvis.castShadow = true;
     r.add(pelvis);
 
@@ -405,7 +413,8 @@ export class Bike {
     this.head.position.set(0, 1.42, 0.3);
     this.head.rotation.x = 0.35;
     r.add(this.head);
-    r.add(tube(V(0, 1.31, 0.2), V(0, 1.39, 0.27), 0.045, m.skin));
+    this.neck = limb(0.12, 0.045, m.skin);
+    r.add(this.neck);
 
     // Arme und Beine (werden jedes Bild neu ausgerichtet)
     this.arms = [-1, 1].map((s) => ({
@@ -576,6 +585,11 @@ export class Bike {
   }
 
   // speed in m/s, crankRate in rad/s (0 = Freilauf), steer -1..1
+  // Im Sprint aus dem Sattel gehen (true) oder sitzen (false)
+  setStanding(on) {
+    this.standTarget = on ? 1 : 0;
+  }
+
   update(dt, speed, crankRate, steer) {
     this.wheelAngle += (speed / WHEEL_R) * dt;
     this.rearWheel.rotation.x = this.wheelAngle;
@@ -587,7 +601,24 @@ export class Bike {
     const ca = this.crankAngle;
     const bob = Math.sin(ca * 2) * 0.006 * Math.min(1, Math.abs(crankRate) / 4);
     this.rider.position.y = bob;
-    this.torso.rotation.y = 0;
+
+    // Haltung: weich zwischen Sitzen und Stehen überblenden
+    this.standing += (this.standTarget - this.standing) * (1 - Math.exp(-5 * dt));
+    const st = this.standing;
+    const sway = Math.sin(ca);
+    this.hip.lerpVectors(this.hipSeat, this.hipStand, st);
+    this.hip.x += sway * 0.035 * st; // Becken wandert mit jedem Tritt zur Seite
+    this.hip.y -= Math.abs(Math.cos(ca)) * 0.015 * st;
+    // Oberkörper im Stehen flacher und weiter über dem Lenker (gleiche Länge)
+    _d.set(0, 0.32 - 0.07 * st, 0.38 + 0.06 * st).normalize().multiplyScalar(this.torsoLen);
+    this.shoulder.copy(this.hip).add(_d);
+    this.shoulder.x -= sway * 0.02 * st;
+    this.pelvis.position.copy(this.hip);
+    placeLimb(this.torso, this.hip, this.shoulder);
+    this.head.position.copy(this.shoulder).add(_k.set(0, 0.12, 0.12));
+    placeLimb(this.neck, _a.copy(this.shoulder).add(_k.set(0, 0.01, 0.02)), _b.copy(this.shoulder).add(_k.set(0, 0.09, 0.09)));
+    // Das Rad schaukelt beim Wiegetritt im Takt der Pedale
+    this.rock = sway * 0.11 * st;
 
     // Pedale und Beine
     for (const l of this.legs) {
@@ -614,7 +645,7 @@ export class Bike {
     // Arme zu den Griffen (folgen dem Lenker)
     const steerA = this.steer.rotation.y;
     for (const a of this.arms) {
-      const sh = V(a.s * 0.19, 1.29, 0.16);
+      const sh = V(this.shoulder.x + a.s * 0.19, this.shoulder.y - 0.01, this.shoulder.z - 0.02);
       const hx = a.s * 0.21;
       const hz = 0.1 + 0.45;
       const hand = V(

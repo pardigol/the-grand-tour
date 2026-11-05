@@ -78,6 +78,93 @@ export class AudioEngine {
     this.windFilter.connect(this.windGain);
     this.windGain.connect(this.sfx);
     src.start();
+
+    // Zuschauer: Grundrauschen der Menge (wird bei Start/Ziel lauter)
+    const crowd = c.createBufferSource();
+    crowd.buffer = this.noise;
+    crowd.loop = true;
+    const cf = c.createBiquadFilter();
+    cf.type = 'bandpass';
+    cf.frequency.value = 900;
+    cf.Q.value = 0.6;
+    this.crowdGain = c.createGain();
+    this.crowdGain.gain.value = 0;
+    crowd.connect(cf);
+    cf.connect(this.crowdGain);
+    this.crowdGain.connect(this.sfx);
+    crowd.start();
+    this.clapPhase = 0;
+    this.cheerTimer = 0;
+  }
+
+  // level 0 … 1: wie nah man an den Zuschauern ist
+  setCrowd(level, dt) {
+    if (!this.ok) return;
+    const vol = CONFIG.zuschauer;
+    const t = this.ctx.currentTime;
+    this.crowdGain.gain.setTargetAtTime(level * 0.18 * vol * (0.85 + Math.random() * 0.3), t, 0.25);
+    if (level < 0.05) return;
+    // Applaus: viele kurze Klatscher
+    this.clapPhase += level * 28 * dt;
+    let n = 0;
+    while (this.clapPhase >= 1 && n < 6) {
+      this.clapPhase -= 1;
+      this.noiseBurst(0.012 + Math.random() * 0.01, {
+        vol: (0.05 + Math.random() * 0.07) * level * vol,
+        freq: 1200 + Math.random() * 1500,
+        type: 'bandpass',
+        q: 1.2,
+        when: Math.random() * 0.03,
+      });
+      n++;
+    }
+    // Jubelrufe und Pfiffe
+    this.cheerTimer -= dt;
+    if (this.cheerTimer <= 0) {
+      this.cheerTimer = (0.25 + Math.random() * 0.9) / level;
+      if (Math.random() < 0.35) this.whistle(level * vol);
+      else this.woo(level * vol);
+    }
+  }
+
+  // "Wuuuh!" – eine Stimme, die nach oben zieht
+  woo(level) {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const f0 = 180 + Math.random() * 160;
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * (1.35 + Math.random() * 0.3), t + 0.35);
+    o.frequency.exponentialRampToValueAtTime(f0 * 1.1, t + 0.7);
+    const vib = c.createOscillator();
+    vib.frequency.value = 6;
+    const vibG = c.createGain();
+    vibG.gain.value = f0 * 0.03;
+    vib.connect(vibG);
+    vibG.connect(o.frequency);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 800 + Math.random() * 400;
+    f.Q.value = 2.5;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05 * level + 0.0001, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    o.connect(f);
+    f.connect(g);
+    g.connect(this.sfx);
+    o.start(t);
+    vib.start(t);
+    o.stop(t + 0.8);
+    vib.stop(t + 0.8);
+  }
+
+  // Pfiff
+  whistle(level) {
+    const f = 1700 + Math.random() * 600;
+    this.tone(f, 0.18, { vol: 0.03 * level + 0.0001, slideTo: f * 1.4 });
+    this.tone(f * 1.4, 0.3, { vol: 0.025 * level + 0.0001, slideTo: f * 1.05, when: 0.18 });
   }
 
   impulse(seconds) {

@@ -3,7 +3,7 @@ import { CONFIG } from '../config.js';
 import { updateCharacter, loadCharacters } from '../storage.js';
 import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
-import { clamp, damp } from '../noise.js';
+import { clamp, damp, smoothstep } from '../noise.js';
 import { Minimap } from '../minimap.js';
 import { Rivals } from '../rivals.js';
 import { gearDrive, gearCount } from '../gears.js';
@@ -294,7 +294,7 @@ export function createRideScene(app) {
     placeBike() {
       const b = app.bike.root;
       b.position.set(st.x, st.h, st.z);
-      b.rotation.set(-st.pitch, st.heading, st.lean);
+      b.rotation.set(-st.pitch, st.heading, st.lean + app.bike.rock);
       app.focus.set(st.x, st.h, st.z);
     },
 
@@ -401,6 +401,8 @@ export function createRideScene(app) {
         }
       }
       const sprinting = st.sprint === 'active';
+      // Im Sprint steht der Fahrer aus dem Sattel auf
+      app.bike.setStanding(sprinting);
 
       // Beim Bremsen wird nicht getreten, Dauertreten und Sprint laufen danach weiter
       let throttle = inp.brake > 0.1 ? 0 : st.cruise || sprinting ? 1 : inp.throttle;
@@ -500,6 +502,9 @@ export function createRideScene(app) {
       app.bike.update(dt, st.speed, crankRate, st.steerVis);
 
       const kmh = st.speed * 3.6;
+      // Zuschauer an Start/Ziel: Jubel wird beim Näherkommen lauter
+      const dStart = Math.hypot(st.x - w.crowdCenter.x, st.z - w.crowdCenter.z);
+      app.audio.setCrowd(smoothstep(90, 8, dStart), dt);
       // Im Windschatten ist es auch leiser
       app.audio.setWind(clamp(st.speed / 15, 0, 1) * (1 - 0.5 * st.draft));
       rivals.showDraft(dr.rival, dr.strength, dt);
@@ -615,6 +620,9 @@ export function createRideScene(app) {
 
     exit() {
       rivals.hide();
+      app.audio.setCrowd(0, 0);
+      app.bike.setStanding(false);
+      app.bike.standing = 0;
       root.remove();
       root = null;
       app.audio.setWind(0);

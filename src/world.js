@@ -56,6 +56,7 @@ export class World {
     this.buildRoad();
     this.buildVegetation();
     this.buildProps();
+    this.buildCrowd();
     this.buildClouds();
     this.buildMotes();
   }
@@ -807,11 +808,140 @@ export class World {
         flag.position.set(0, 2.7, 0.35);
         flag.rotation.y = Math.PI / 2;
         f.add(pole, flag);
-        f.position.set(side * (SHOULDER_HALF + 3), 0, k * 7);
+        f.position.set(side * (SHOULDER_HALF + 5.5), 0, k * 7);
         arch.add(f);
       }
     }
     this.scene.add(arch);
+  }
+
+  // ---------- Zuschauer an Start/Ziel ----------
+  buildCrowd() {
+    const rand = mulberry32(2024);
+    const pose = {};
+    const people = [];
+    // Absperrgitter
+    const fence = [];
+    for (let s = -44; s <= 34; s += 2) {
+      for (const side of [-1, 1]) {
+        this.poseAt(s, side * (SHOULDER_HALF + 0.9), pose);
+        const h = this.terrainHeight(pose.x, pose.z);
+        fence.push(
+          new THREE.Matrix4().compose(
+            new THREE.Vector3(pose.x, h + 0.5, pose.z),
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), pose.heading),
+            new THREE.Vector3(1, 1, 1),
+          ),
+        );
+      }
+    }
+    const fenceGeo = mergeGeometries([
+      new THREE.BoxGeometry(0.04, 0.05, 1.95).translate(0, 0.45, 0),
+      new THREE.BoxGeometry(0.04, 0.05, 1.95).translate(0, -0.35, 0),
+      ...[-0.75, -0.25, 0.25, 0.75].map((z) => new THREE.BoxGeometry(0.03, 0.8, 0.03).translate(0, 0.05, z)),
+      new THREE.BoxGeometry(0.05, 1.0, 0.05).translate(0, 0, -0.97),
+    ]);
+    this.instanced(fenceGeo, new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.7, roughness: 0.35 }), fence);
+
+    // Zwei bis drei Reihen Leute hinter dem Gitter
+    for (let s = -42; s <= 32; s += 1.15) {
+      for (const side of [-1, 1]) {
+        const rows = rand() < 0.4 ? 3 : 2;
+        for (let row = 0; row < rows; row++) {
+          if (rand() < 0.15) continue;
+          const lat = side * (SHOULDER_HALF + 1.6 + row * 0.85 + rand() * 0.3);
+          this.poseAt(s + (rand() - 0.5) * 0.6, lat, pose);
+          // Blick zur Straße
+          const yaw = side > 0 ? Math.atan2(pose.tz, -pose.tx) : Math.atan2(-pose.tz, pose.tx);
+          people.push({
+            x: pose.x,
+            z: pose.z,
+            y: this.terrainHeight(pose.x, pose.z),
+            yaw: yaw + (rand() - 0.5) * 0.5,
+            scale: 0.85 + rand() * 0.25,
+            phase: rand() * Math.PI * 2,
+            style: rand() < 0.45 ? 'wave' : 'clap',
+            speed: 0.8 + rand() * 0.5,
+          });
+        }
+      }
+    }
+    this.crowd = people;
+    const n = people.length;
+    const shirtCols = ['#d62839', '#2f7cf6', '#f2d14b', '#2bb24c', '#ff7a3d', '#ffffff', '#8a3ffc', '#1fa88f', '#ff6fb5', '#14365c'];
+    const pantsCols = ['#1b1f2a', '#3b4a6b', '#5a4632', '#2a2a2a', '#6b6f78'];
+    const skinCols = ['#f1c7a8', '#e2ad8c', '#c68863', '#8d5a3b', '#f5d6c1'];
+    const pick = (arr) => new THREE.Color(arr[Math.floor(rand() * arr.length)]);
+    const mk = (geo, mat, colorFn) => {
+      const m = new THREE.InstancedMesh(geo, mat, n);
+      for (let i = 0; i < n; i++) m.setColorAt(i, colorFn());
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.frustumCulled = false;
+      this.scene.add(m);
+      return m;
+    };
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
+    const legs = new THREE.CylinderGeometry(0.15, 0.13, 0.82, 8).translate(0, 0.41, 0);
+    const torso = new THREE.CapsuleGeometry(0.2, 0.36, 4, 10).scale(1, 1, 0.75).translate(0, 1.17, 0);
+    const head = new THREE.SphereGeometry(0.12, 12, 10).translate(0, 1.62, 0);
+    // Arm hängt vom Schultergelenk (Ursprung) nach unten
+    const arm = new THREE.CapsuleGeometry(0.055, 0.45, 4, 8).translate(0, -0.27, 0);
+    const skins = Array.from({ length: n }, () => pick(skinCols));
+    let si = 0;
+    let ai = 0;
+    this.crowdMeshes = {
+      legs: mk(legs, mat, () => pick(pantsCols)),
+      torso: mk(torso, mat, () => pick(shirtCols)),
+      head: mk(head, mat, () => skins[si++]),
+      armL: mk(arm, mat, () => skins[ai++ % n]),
+      armR: mk(arm, mat, () => skins[ai++ % n]),
+    };
+    this.poseAt(0, 0, pose);
+    this.crowdCenter = new THREE.Vector3(pose.x, pose.h, pose.z);
+    this.crowdExcite = -1;
+    this.updateCrowd(0, 0);
+  }
+
+  // Animation: excite 0 = ruhig, 1 = alle jubeln (wenn jemand vorbeifährt)
+  updateCrowd(time, excite) {
+    if (excite < 0.02 && this.crowdExcite < 0.02 && this.crowdExcite >= 0) return;
+    this.crowdExcite = excite;
+    const M = this.crowdMeshes;
+    const base = new THREE.Matrix4();
+    const local = new THREE.Matrix4();
+    const out = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    const v = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    this.crowd.forEach((p, i) => {
+      const t = time * p.speed * 6 + p.phase;
+      const hop = Math.abs(Math.sin(t)) * 0.12 * excite * (p.style === 'wave' ? 1 : 0.5);
+      q.setFromAxisAngle(v.set(0, 1, 0), p.yaw);
+      base.compose(v.set(p.x, p.y + hop, p.z), q, sc.set(p.scale, p.scale, p.scale));
+      M.legs.setMatrixAt(i, base);
+      M.torso.setMatrixAt(i, base);
+      M.head.setMatrixAt(i, base);
+      for (const s of [-1, 1]) {
+        let rx;
+        let rz;
+        if (p.style === 'wave') {
+          // Arme über dem Kopf schwenken
+          rx = -(0.3 + 2.4 * excite);
+          rz = s * (0.25 + Math.sin(t * 1.3 + s) * 0.35 * excite);
+        } else {
+          // Klatschen vor der Brust
+          rx = -(0.25 + 1.1 * excite);
+          rz = -s * (0.15 + (0.5 + 0.5 * Math.sin(t * 2.2)) * 0.45 * excite);
+        }
+        e.set(rx, 0, rz, 'ZXY');
+        local.compose(v.set(s * 0.25, 1.44, 0), q.setFromEuler(e), sc.set(1, 1, 1));
+        out.multiplyMatrices(base, local);
+        (s > 0 ? M.armL : M.armR).setMatrixAt(i, out);
+      }
+    });
+    for (const m of Object.values(M)) m.instanceMatrix.needsUpdate = true;
   }
 
   // ---------- Wolken ----------
@@ -877,6 +1007,9 @@ export class World {
   }
 
   update(dt, focus, camera, time) {
+    // Zuschauer werden wilder, je näher das Geschehen am Start/Ziel ist
+    const dCrowd = focus.distanceTo(this.crowdCenter);
+    this.updateCrowd(time, smoothstep(110, 15, dCrowd));
     // Schattenkamera folgt dem Geschehen
     this.sun.position.copy(focus).addScaledVector(this.lightDir, 120);
     this.sun.target.position.copy(focus);
