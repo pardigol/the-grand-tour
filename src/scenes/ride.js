@@ -396,7 +396,13 @@ export function createRideScene(app) {
       if (inp.l1 && inp.r1) st.bothHeld = st.time;
       // Sprint: □ / X startet ihn, wenn der Balken voll ist
       const sp = CONFIG.sprint;
-      if ((inp.pressed('x') || inp.pressed('sprint')) && st.sprint === 'ready' && st.phase === 'race') {
+      const sprintKey = inp.pressed('x') || inp.pressed('sprint');
+      // Nochmal □ während des Sprints: abbrechen. Der Balken lädt ab dem Stand weiter, wo abgebrochen wurde.
+      if (sprintKey && st.sprint === 'active') {
+        st.sprint = 'charging';
+        st.sprintT = (st.sprintT / sp.dauer) * sp.aufladen;
+        app.audio.back();
+      } else if (sprintKey && st.sprint === 'ready' && st.phase === 'race') {
         st.sprint = 'active';
         st.sprintT = sp.dauer;
         app.audio.whoosh(1.2);
