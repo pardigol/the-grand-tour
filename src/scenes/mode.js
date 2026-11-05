@@ -6,7 +6,12 @@ import { damp } from '../noise.js';
 export const MODES = [
   { id: 'road', name: 'Rennrad' },
   { id: 'cx', name: 'Cycle Cross' },
+  { id: 'tt', name: 'Zeitfahren' },
 ];
+
+export const modeName = (id) => (MODES.find((m) => m.id === id) || MODES[0]).name;
+// Zeitfahren fährt auf der Landstraße, Cycle Cross im Wald
+export const worldOf = (mode) => (mode === 'cx' ? 'cx' : 'road');
 
 export function createModeScene(app) {
   let root;
@@ -29,8 +34,8 @@ export function createModeScene(app) {
     app.mode = MODES[index].id;
     app.audio.select();
     app.input.rumble(0.35, 80);
-    if (app.worlds[app.mode]) {
-      app.useWorld(app.mode);
+    if (app.worlds[worldOf(app.mode)]) {
+      app.useWorld(worldOf(app.mode));
       app.go('menu');
       return;
     }
@@ -38,7 +43,7 @@ export function createModeScene(app) {
     busy = true;
     root.querySelector('.mode-building').classList.add('show');
     setTimeout(() => {
-      app.useWorld(app.mode);
+      app.useWorld(worldOf(app.mode));
       busy = false;
       app.go('menu');
     }, 60);

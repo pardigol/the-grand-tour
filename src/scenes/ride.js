@@ -1,4 +1,5 @@
 // 5. TESTSTRECKE – selbst fahren! (Platzhalter für das spätere Spiel)
+import { modeName } from './mode.js';
 import { CONFIG } from '../config.js';
 import { updateCharacter, loadCharacters } from '../storage.js';
 import { el, esc, btn, formatTime } from './common.js';
@@ -199,7 +200,7 @@ export function createRideScene(app) {
           <div class="hud-map">
             <div class="hud-rider">
               <div class="mini-plate"><span>${char.number}</span></div>
-              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke · ${app.mode === 'cx' ? 'Cycle Cross' : 'Rennrad'}</div></div>
+              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke · ${modeName(app.mode)}</div></div>
             </div>
             <canvas class="minimap"></canvas>
           </div>
@@ -294,11 +295,13 @@ export function createRideScene(app) {
         finishTime: null,
         showResult: false,
       });
-      if (!rivalsByWorld.has(app.world)) {
+      // Gegner je Modus: Beim Cycle Cross und beim Zeitfahren fährt man allein gegen die Uhr
+      const rivalKey = app.mode;
+      if (!rivalsByWorld.has(rivalKey)) {
         // Beim Cycle Cross fährt man allein gegen die Uhr (keine Gegner)
-        rivalsByWorld.set(app.world, new Rivals(app, app.world.cx ? [] : RIVALS));
+        rivalsByWorld.set(rivalKey, new Rivals(app, app.mode === 'road' ? RIVALS : []));
       }
-      rivals = rivalsByWorld.get(app.world);
+      rivals = rivalsByWorld.get(rivalKey);
       app.rivals = rivals; // zum Ausprobieren in der Konsole
       app.rideState = st;
       // Ohne Gegner gibt es keinen Platz anzuzeigen
@@ -462,7 +465,9 @@ export function createRideScene(app) {
       const dr = rivals.draftFor(st.x, st.z);
       st.draft = damp(st.draft || 0, dr.strength, 5, dt);
       if (dr.rival) st.draftName = dr.rival.name;
-      const drag = 0.5 * 1.2 * 0.36 * v * v * (1 - CONFIG.windschatten * st.draft);
+      // Zeitfahren: flache Aero-Haltung, weniger Luftwiderstand
+      const aero = app.mode === 'tt' ? CONFIG.zeitfahren.luftwiderstand : 1;
+      const drag = 0.5 * 1.2 * 0.36 * aero * v * v * (1 - CONFIG.windschatten * st.draft);
       const brakeF = brake * 650;
       // In der Luft gibt es weder Rollwiderstand noch Hangabtrieb
       const slope = st.air ? 0 : Math.sin(st.pitch);

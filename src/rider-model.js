@@ -151,14 +151,17 @@ export class RiderModel {
 
   // Knochen bekommen Werte aus dem Rad (alles in Rad-Koordinaten, Meter)
   // pedals[0] = rechtes Pedal, pedals[1] = linkes Pedal; hands[0] = rechte, hands[1] = linke Hand
-  pose({ hip, pedals, angles, hands, bob }) {
+  pose({ hip, pedals, angles, hands, bob, aero = false }) {
     const S = 1 / SCALE;
     const B = this.bones;
     this.scene.updateMatrixWorld(true);
     this.inv.copy(this.scene.matrixWorld).invert();
 
     // Becken auf den Sattel
-    const target = _t.copy(hip).multiplyScalar(S);
+    // Zeitfahren: auf der Sattelspitze, weiter vorne
+    const target = _t.copy(hip);
+    if (aero) target.z += 0.07;
+    target.multiplyScalar(S);
     target.y += bob * S;
     this.hipParentInv.copy(B.Hips.parent.matrixWorld).invert();
     B.Hips.position.copy(target.applyMatrix4(this.scene.matrixWorld).applyMatrix4(this.hipParentInv));
@@ -166,12 +169,14 @@ export class RiderModel {
 
     // Becken nach vorne gekippt, Rücken rund nach vorne, Kopf schaut nach vorne
     const dir = (a) => _d.set(0, Math.cos(a), Math.sin(a));
-    this.aim('Hips', dir(0.55));
-    this.aim('Spine', dir(0.95));
-    this.aim('Spine1', dir(1.1));
-    this.aim('Spine2', dir(1.2));
-    this.aim('Neck', dir(0.6));
-    this.aim('Head', dir(0.12));
+    // Zeitfahren: Rücken fast waagerecht, Kopf tief zwischen den Schultern
+    const A = aero ? [0.75, 1.3, 1.45, 1.5, 1.0, 0.45] : [0.55, 0.95, 1.1, 1.2, 0.6, 0.12];
+    this.aim('Hips', dir(A[0]));
+    this.aim('Spine', dir(A[1]));
+    this.aim('Spine1', dir(A[2]));
+    this.aim('Spine2', dir(A[3]));
+    this.aim('Neck', dir(A[4]));
+    this.aim('Head', dir(A[5]));
 
     // Beine: Fußballen auf dem Pedal, Ferse hinten im Tritt etwas hoch
     const knee = new THREE.Vector3();
@@ -200,7 +205,8 @@ export class RiderModel {
       const n = s > 0 ? 'Left' : 'Right';
       const sh = this.pos(B[n + 'Arm'], new THREE.Vector3());
       const hand = new THREE.Vector3().copy(hands[s > 0 ? 1 : 0]).multiplyScalar(S);
-      ik(sh, hand, this.upperArm, this.foreArm, new THREE.Vector3(s * 0.15, -0.75, -0.35), elbow);
+      // Beim Zeitfahren liegen die Ellbogen unten auf den Polstern
+      ik(sh, hand, this.upperArm, this.foreArm, aero ? new THREE.Vector3(0, -1, -0.15) : new THREE.Vector3(s * 0.15, -0.75, -0.35), elbow);
       const u = elbow.clone().sub(sh);
       const f = hand.clone().sub(elbow);
       const side = new THREE.Vector3().crossVectors(u, f);

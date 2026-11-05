@@ -449,6 +449,14 @@ export class Bike {
     this.rearWheel = this.makeWheel(m, rimMat);
     this.rearWheel.position.set(0, WHEEL_R, -0.5);
     this.root.add(this.rearWheel);
+    // Zeitfahren: geschlossenes Scheibenrad hinten
+    const carbon = new THREE.MeshPhysicalMaterial({ color: '#1a1b1f', roughness: 0.35, metalness: 0.3, clearcoat: 1 });
+    // linsenförmig: in der Mitte dicker, damit die Speichen ganz verdeckt sind
+    const lens = [V(0.001, 0.04, 0), V(0.03, 0.038, 0), V(0.306, 0.013, 0), V(0.306, -0.013, 0), V(0.03, -0.038, 0), V(0.001, -0.04, 0)].map((p) => new THREE.Vector2(p.x, p.y));
+    this.disc = new THREE.Mesh(new THREE.LatheGeometry(lens, 56), carbon);
+    this.disc.rotation.z = Math.PI / 2;
+    this.disc.visible = false;
+    this.rearWheel.add(this.disc);
 
     // Lenkbarer Vorderbau: dreht sich um eine Achse beim Steuerrohr
     this.steer = new THREE.Group();
@@ -457,6 +465,16 @@ export class Bike {
     this.frontWheel = this.makeWheel(m, rimMat);
     this.frontWheel.position.set(0, WHEEL_R, 0.05);
     this.steer.add(this.frontWheel);
+    // Zeitfahren: hohe Carbonfelge vorne
+    this.deepRim = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const r = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.307, 56, 1), carbon);
+      r.rotation.y = (s * Math.PI) / 2;
+      r.position.x = s * 0.014;
+      this.deepRim.add(r);
+    }
+    this.deepRim.visible = false;
+    this.frontWheel.add(this.deepRim);
     this.forkTubes = [-1, 1].map((s) => tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.014, m.frame, 0.018));
     this.forkCrown = tube(V(0, 0.7, -0.05), V(0, 0.72, -0.05), 0.03, m.frame);
     this.steer.add(...this.forkTubes, this.forkCrown);
@@ -544,6 +562,18 @@ export class Bike {
       hood.rotation.x = -0.4;
       s.add(hood);
     }
+    // Zeitfahr-Aufsatz: Armauflagen und zwei Verlängerungen nach vorne
+    const tt = (this.ttBars = new THREE.Group());
+    for (const side of [-1, 1]) {
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.02, 0.11), m.black);
+      pad.position.set(side * 0.1, 0.935, -0.05);
+      tt.add(pad);
+      tt.add(tube(V(side * 0.1, 0.925, -0.05), V(side * 0.1, 0.9, -0.03), 0.012, m.black));
+      tt.add(tube(V(side * 0.07, 0.915, 0.0), V(side * 0.065, 0.925, 0.19), 0.012, m.black));
+      tt.add(tube(V(side * 0.065, 0.925, 0.19), V(side * 0.062, 0.95, 0.22), 0.012, m.black));
+    }
+    tt.visible = false;
+    s.add(tt);
   }
 
   buildRider(m) {
@@ -636,6 +666,19 @@ export class Bike {
       );
       this.head.add(strap);
     }
+    // Zeitfahrhelm: lange Spitze nach hinten (nur beim Zeitfahren sichtbar)
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), m.helmet);
+    tail.scale.set(0.1, 0.075, 0.2);
+    tail.position.set(0, 0.035, -0.11);
+    tail.rotation.x = -0.25;
+    tail.visible = false;
+    tail.userData.tt = true;
+    this.head.add(tail);
+    const visor = new THREE.Mesh(new THREE.SphereGeometry(0.128, 18, 10, -Math.PI * 0.32, Math.PI * 0.64, Math.PI * 0.42, Math.PI * 0.2), m.glasses);
+    visor.position.set(0, 0.005, 0.005);
+    visor.visible = false;
+    visor.userData.tt = true;
+    this.head.add(visor);
     // Haare im Nacken unter dem Helm
     const hair = new THREE.Mesh(new THREE.SphereGeometry(0.098, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.3), m.hair);
     hair.position.set(0, -0.005, -0.012);
@@ -903,6 +946,13 @@ export class Bike {
     const cx = mode === 'cx';
     for (const t of this.roadTires) t.visible = !cx;
     for (const t of this.cxTires) t.visible = cx;
+    // Zeitfahren: Aufsatzlenker, Scheibenrad, hohe Felge vorne, Zeitfahrhelm, flache Haltung
+    const tt = (this.aero = mode === 'tt');
+    this.ttBars.visible = tt;
+    this.disc.visible = tt;
+    this.deepRim.visible = tt;
+    for (const h of [this.head, this.modelHelmet]) h?.traverse((o) => o.userData.tt && (o.visible = tt));
+    this.update(0, 0, 0, 0);
   }
 
   setPlate(number, name) {
@@ -975,10 +1025,13 @@ export class Bike {
       const sh = V(a.s * 0.19, 1.19, 0.23);
       const hx = a.s * 0.21;
       const hz = 0.1 + 0.45;
+      // Zeitfahren: Hände vorne an den Verlängerungen
+      const ax = this.aero ? a.s * 0.065 : hx;
+      const az = this.aero ? 0.45 + 0.17 : hz;
       const hand = V(
-        hx * Math.cos(steerA) + (hz - 0.45) * Math.sin(steerA),
-        0.94,
-        0.45 - hx * Math.sin(steerA) + (hz - 0.45) * Math.cos(steerA),
+        ax * Math.cos(steerA) + (az - 0.45) * Math.sin(steerA),
+        this.aero ? 0.95 : 0.94,
+        0.45 - ax * Math.sin(steerA) + (az - 0.45) * Math.cos(steerA),
       );
       // Ellbogen eng am Körper: zeigen nach unten/hinten, nicht nach außen
       const elbow = ik(sh, hand, 0.27, 0.26, _k.set(a.s * 0.05, -0.75, -0.35), new THREE.Vector3());
@@ -997,6 +1050,7 @@ export class Bike {
         angles: [ca, ca + Math.PI],
         hands,
         bob,
+        aero: this.aero,
       });
     }
   }

@@ -521,7 +521,7 @@ body {
   margin-top: 5vh;
 }
 .mode-card {
-  width: min(34vw, 340px);
+  width: min(26vw, 300px);
   padding: 22px 24px 26px;
   border-radius: 16px;
   text-align: center;

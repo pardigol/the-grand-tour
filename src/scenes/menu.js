@@ -1,4 +1,5 @@
 // 3. HAUPTMENÜ – Liste aller Charaktere plus "Neuer Charakter"
+import { modeName } from './mode.js';
 import { CONFIG } from '../config.js';
 import { loadCharacters, deleteCharacter } from '../storage.js';
 import { brandById } from '../brands.js';
@@ -120,7 +121,7 @@ export function createMenuScene(app) {
         <div class="screen menu-screen ${params.fromTransition ? 'intro' : ''}">
           <div class="menu-panel">
             <div class="menu-brand">${esc(CONFIG.gameName)}</div>
-            <div class="menu-heading">Wähle deinen Fahrer · ${app.mode === 'cx' ? 'Cycle Cross' : 'Rennrad'}</div>
+            <div class="menu-heading">Wähle deinen Fahrer · ${modeName(app.mode)}</div>
             <div class="menu-list"></div>
           </div>
           ${hintBar([
