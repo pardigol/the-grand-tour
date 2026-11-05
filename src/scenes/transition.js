@@ -99,7 +99,7 @@ export function createTransitionScene(app) {
       ring.style.transform = `translate(-50%, -50%) scale(${0.35 + r * 0.65 + grow * 2.4}) rotate(${spin}deg)`;
       veil.style.opacity = String(ease((t - 1.25) / 0.6));
 
-      if (t >= DURATION) app.go('menu', { fromTransition: true });
+      if (t >= DURATION) app.go('mode', { fromTransition: true });
     },
 
     exit() {

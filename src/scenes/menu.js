@@ -119,7 +119,7 @@ export function createMenuScene(app) {
         <div class="screen menu-screen ${params.fromTransition ? 'intro' : ''}">
           <div class="menu-panel">
             <div class="menu-brand">${esc(CONFIG.gameName)}</div>
-            <div class="menu-heading">Wähle deinen Fahrer</div>
+            <div class="menu-heading">Wähle deinen Fahrer · ${app.mode === 'cx' ? 'Cyclocross' : 'Rennrad'}</div>
             <div class="menu-list"></div>
           </div>
           ${hintBar([
@@ -183,7 +183,7 @@ export function createMenuScene(app) {
           app.audio.back();
         } else {
           app.audio.back();
-          app.go('title');
+          app.go('mode');
         }
       } else if (inp.pressed('x') && index < chars.length) {
         if (confirmDelete === index) {

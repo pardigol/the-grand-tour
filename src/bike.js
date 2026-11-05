@@ -146,6 +146,27 @@ function fadeMask(from, flip = false, rows = 7, gap = 20) {
   return t;
 }
 
+// Breiter Reifen mit Stollen: auf der Lauffläche stehen kleine Klötze nach außen
+function cxTireGeometry() {
+  const R = 0.318;
+  const g = new THREE.TorusGeometry(R, 0.026, 10, 144);
+  const pos = g.attributes.position;
+  const p = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i);
+    const ang = Math.atan2(p.y, p.x);
+    c.set(Math.cos(ang) * R, Math.sin(ang) * R, 0);
+    const off = p.clone().sub(c);
+    const outward = off.dot(c) / (off.length() * R + 1e-6);
+    const knob = (ang / (Math.PI * 2)) * 40;
+    if (outward > 0.2 && knob - Math.floor(knob) < 0.5) p.addScaledVector(off.normalize(), 0.006);
+    pos.setXYZ(i, p.x, p.y, p.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 export class Bike {
   constructor() {
     this.root = new THREE.Group();
@@ -165,6 +186,7 @@ export class Bike {
       black: new THREE.MeshStandardMaterial({ color: '#17171a', roughness: 0.45, metalness: 0.3 }),
       alu: new THREE.MeshStandardMaterial({ color: '#b9bcc2', roughness: 0.25, metalness: 1 }),
       tire: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.9 }),
+      cxTire: new THREE.MeshStandardMaterial({ color: '#241f1a', roughness: 0.95 }),
       tape: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
       jersey: new THREE.MeshStandardMaterial({ color: CONFIG.colors.jersey, roughness: 0.62 }),
       jerseyDark: new THREE.MeshStandardMaterial({ color: '#202533', roughness: 0.6 }),
@@ -246,6 +268,14 @@ export class Bike {
     tire.rotation.y = Math.PI / 2;
     tire.castShadow = true;
     g.add(tire);
+    // Cyclocross: dicker Reifen mit Stollen (wird mit setTires umgeschaltet)
+    const cx = new THREE.Mesh(cxTireGeometry(), m.cxTire);
+    cx.rotation.y = Math.PI / 2;
+    cx.castShadow = true;
+    cx.visible = false;
+    g.add(cx);
+    (this.roadTires ||= []).push(tire);
+    (this.cxTires ||= []).push(cx);
     for (const s of [-1, 1]) {
       const rim = new THREE.Mesh(new THREE.RingGeometry(0.232, 0.306, 56, 1), rimMat);
       rim.rotation.y = (s * Math.PI) / 2;
@@ -556,6 +586,13 @@ export class Bike {
     m.tape.color.set(this.barColor || (team ? '#1b1b1e' : '#f1f1ee'));
     this.rimMat.map = rimTexture(team ? 'team' : 'gold');
     this.rimMat.needsUpdate = true;
+  }
+
+  // 'road' = schmale Rennradreifen, 'cx' = Cyclocross-Stollenreifen
+  setTires(mode) {
+    const cx = mode === 'cx';
+    for (const t of this.roadTires) t.visible = !cx;
+    for (const t of this.cxTires) t.visible = cx;
   }
 
   setPlate(number, name) {

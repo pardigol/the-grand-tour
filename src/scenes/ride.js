@@ -179,7 +179,7 @@ export function createRideScene(app) {
           <div class="hud-map">
             <div class="hud-rider">
               <div class="mini-plate"><span>${char.number}</span></div>
-              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke</div></div>
+              <div><div class="rider-name">${esc(char.name)}</div><div class="rider-sub">Teststrecke · ${app.mode === 'cx' ? 'Cyclocross' : 'Rennrad'}</div></div>
             </div>
             <canvas class="minimap"></canvas>
           </div>
@@ -231,6 +231,7 @@ export function createRideScene(app) {
 
       app.bike.setPlate(char.number, char.name);
       app.bike.applyLook(char);
+      app.bike.setTires(app.mode);
 
       const p = app.world.poseAt(app.world.length - 14, 1.5, tmp);
       Object.assign(st, {
@@ -395,7 +396,9 @@ export function createRideScene(app) {
 
       // Kräfte: Treten, Luftwiderstand, Rollwiderstand, Hangabtrieb, Bremse
       const v = st.speed;
-      const roll = ground.surface === 'road' ? 0.005 : ground.surface === 'gravel' ? 0.02 : 0.06;
+      // Rollwiderstand je Untergrund: CX-Stollen rollen im Gelände viel besser, auf Asphalt etwas schlechter
+      const R = CONFIG.rollen[app.mode === 'cx' ? 'cx' : 'rennrad'];
+      const roll = ground.surface === 'road' ? R.asphalt : ground.surface === 'gravel' ? R.schotter : R.wiese;
       const boost = sprinting ? CONFIG.sprint.kraft : 1;
       const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
       const drag = 0.5 * 1.2 * 0.36 * v * v;

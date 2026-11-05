@@ -35,6 +35,7 @@ export function createTitleScene(app) {
       const tr = CONFIG.titleRider;
       app.bike.setPlate(tr.number, tr.name);
       app.bike.applyLook(CONFIG.titleRider);
+      app.bike.setTires(app.mode);
       app.audio.setWind(0);
       app.audio.setMusicLevel(1);
       app.audio.startMusic();

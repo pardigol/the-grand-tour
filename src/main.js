@@ -20,6 +20,7 @@ import { FxShader } from './fx.js';
 import { createTitleScene } from './scenes/title.js';
 import { createTransitionScene } from './scenes/transition.js';
 import { createMenuScene } from './scenes/menu.js';
+import { createModeScene } from './scenes/mode.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
 
@@ -81,6 +82,7 @@ async function boot() {
     fx: fxPass.uniforms,
     focus: new THREE.Vector3(),
     npc: { s: 0, speed: 6, lateral: 1.5, pedal: true },
+    mode: 'road', // 'road' = Rennrad, 'cx' = Cyclocross
     time: 0,
     scenes: {},
     current: null,
@@ -95,6 +97,7 @@ async function boot() {
   app.scenes = {
     title: createTitleScene(app),
     transition: createTransitionScene(app),
+    mode: createModeScene(app),
     menu: createMenuScene(app),
     creator: createCreatorScene(app),
     ride: createRideScene(app),

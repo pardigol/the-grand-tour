@@ -53,6 +53,12 @@ export const CONFIG = {
   // Sprint (□ / X): so viele Sekunden lang, danach so viele Sekunden Aufladen, und so viel stärker (1.6 = 60 % mehr Kraft)
   sprint: { dauer: 15, aufladen: 30, kraft: 1.6 },
 
+  // Rollwiderstand je Untergrund (kleiner = rollt besser) für Rennrad und Cyclocross (CX)
+  rollen: {
+    rennrad: { asphalt: 0.005, schotter: 0.02, wiese: 0.06 },
+    cx: { asphalt: 0.008, schotter: 0.011, wiese: 0.022 },
+  },
+
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,
 };
