@@ -51,6 +51,18 @@ export const GROUPSETS = [
   { id: 'red', name: 'Red AXS', maker: 'SRAM', crank: '#101012', ring: '#101012', accent: '#c8102e' },
 ];
 
+// Reifenfarben fürs Zeitfahrrad
+export const TIRE_COLORS = [
+  { hex: '#1c1c1c', name: 'Schwarz' },
+  { hex: '#b8864e', name: 'Braun (Classic)' },
+  { hex: '#f1f1ee', name: 'Weiß' },
+  { hex: '#d62839', name: 'Rot' },
+  { hex: '#f2d14b', name: 'Gelb' },
+  { hex: '#2f7cf6', name: 'Blau' },
+  { hex: '#2bb24c', name: 'Grün' },
+  { hex: '#ff6fb5', name: 'Pink' },
+];
+
 export function groupsetById(id) {
   return GROUPSETS.find((g) => g.id === id) || GROUPSETS[0];
 }

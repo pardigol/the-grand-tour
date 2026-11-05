@@ -547,33 +547,84 @@ export class Bike {
     const s = this.steer;
     // Vorbau
     s.add(tube(V(0, 0.86, -0.08), V(0, 0.9, 0.03), 0.016, m.black));
-    // Lenker oben
-    s.add(tube(V(-0.21, 0.9, 0.03), V(0.21, 0.9, 0.03), 0.013, m.tape));
+    // Rennlenker (beim Zeitfahren ausgeblendet)
+    const road = (this.roadBars = new THREE.Group());
+    s.add(road);
+    road.add(tube(V(-0.21, 0.9, 0.03), V(0.21, 0.9, 0.03), 0.013, m.tape));
     for (const side of [-1, 1]) {
       const x = side * 0.21;
       const pts = [V(x, 0.9, 0.03), V(x, 0.91, 0.1), V(x, 0.86, 0.13), V(x, 0.79, 0.09), V(x, 0.78, 0.0)];
       const curve = new THREE.CatmullRomCurve3(pts);
       const drop = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.013, 8), m.tape);
       drop.castShadow = true;
-      s.add(drop);
+      road.add(drop);
       // Schalt-/Bremsgriffe
       const hood = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.05), m.black);
       hood.position.set(x, 0.925, 0.1);
       hood.rotation.x = -0.4;
-      s.add(hood);
+      road.add(hood);
     }
-    // Zeitfahr-Aufsatz: Armauflagen und zwei Verlängerungen nach vorne
+    this.buildAeroBars(m);
+  }
+
+  // Zeitfahr-Cockpit: flacher Basislenker mit Hörnern, Armschalen und geschwungene Verlängerungen
+  buildAeroBars(m) {
+    const carbon = new THREE.MeshPhysicalMaterial({ color: '#16171b', roughness: 0.35, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.15 });
+    const pad = new THREE.MeshStandardMaterial({ color: '#2a2b30', roughness: 0.95 });
+    const cupMat = carbon.clone();
+    cupMat.side = THREE.DoubleSide;
     const tt = (this.ttBars = new THREE.Group());
+    // Basislenker als flaches Flügelprofil
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.014, 0.045), carbon);
+    wing.position.set(0, 0.885, 0.035);
+    wing.castShadow = true;
+    tt.add(wing);
     for (const side of [-1, 1]) {
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.02, 0.11), m.black);
-      pad.position.set(side * 0.1, 0.935, -0.05);
-      tt.add(pad);
-      tt.add(tube(V(side * 0.1, 0.925, -0.05), V(side * 0.1, 0.9, -0.03), 0.012, m.black));
-      tt.add(tube(V(side * 0.07, 0.915, 0.0), V(side * 0.065, 0.925, 0.19), 0.012, m.black));
-      tt.add(tube(V(side * 0.065, 0.925, 0.19), V(side * 0.062, 0.95, 0.22), 0.012, m.black));
+      const x = side * 0.19;
+      // Hörner nach vorne mit Bremshebel am Ende
+      const horn = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(x, 0.885, 0.04), V(x + side * 0.02, 0.882, 0.1), V(x + side * 0.022, 0.87, 0.17)]), 12, 0.013, 8),
+        carbon,
+      );
+      tt.add(horn);
+      const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.06, 8), m.black);
+      lever.position.set(x + side * 0.022, 0.84, 0.18);
+      lever.rotation.x = 0.3;
+      tt.add(lever);
+      // Erhöhung und Armschale mit Polster
+      const px = side * 0.095;
+      tt.add(tube(V(px, 0.89, -0.04), V(px, 0.925, -0.04), 0.012, carbon));
+      // offene Halbschale (unten rund, oben offen), innen sichtbar
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.12, 14, 1, true, -Math.PI / 2, Math.PI), cupMat);
+      cup.rotation.x = Math.PI / 2;
+      cup.position.set(px, 0.972, -0.04);
+      tt.add(cup);
+      const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.11), pad);
+      cushion.position.set(px, 0.934, -0.04);
+      tt.add(cushion);
+      // Verlängerung: unten gerade, vorne nach oben gebogen (Ski-Form)
+      const ex = side * 0.055;
+      const ext = new THREE.Mesh(
+        new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3([V(side * 0.07, 0.915, -0.07), V(ex, 0.918, 0.05), V(ex, 0.922, 0.15), V(ex, 0.94, 0.2), V(ex, 0.965, 0.22)]),
+          20,
+          0.011,
+          8,
+        ),
+        carbon,
+      );
+      ext.castShadow = true;
+      tt.add(ext);
+      // Schalter am Ende der Verlängerung
+      const shifter = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.03, 8), m.black);
+      shifter.position.set(ex, 0.978, 0.225);
+      shifter.rotation.x = -0.6;
+      tt.add(shifter);
     }
+    // Brücke zwischen den Verlängerungen
+    tt.add(tube(V(-0.06, 0.917, 0.0), V(0.06, 0.917, 0.0), 0.008, carbon));
     tt.visible = false;
-    s.add(tt);
+    this.steer.add(tt);
   }
 
   buildRider(m) {
@@ -879,6 +930,13 @@ export class Bike {
     });
     this.setBrand(c.brand || DEFAULT_LOOK.brand);
     this.setGroupset(c.groupset || DEFAULT_LOOK.groupset);
+    this.tireColor = c.tires || null;
+    this.applyTireColor();
+  }
+
+  // Reifenfarbe (nur beim Zeitfahrrad einstellbar, sonst schwarz)
+  applyTireColor() {
+    this.mats.tire.color.set(this.aero && this.tireColor ? this.tireColor : '#1c1c1c');
   }
 
   setGroupset(id) {
@@ -949,6 +1007,8 @@ export class Bike {
     // Zeitfahren: Aufsatzlenker, Scheibenrad, hohe Felge vorne, Zeitfahrhelm, flache Haltung
     const tt = (this.aero = mode === 'tt');
     this.ttBars.visible = tt;
+    this.roadBars.visible = !tt;
+    this.applyTireColor();
     this.disc.visible = tt;
     this.deepRim.visible = tt;
     for (const h of [this.head, this.modelHelmet]) h?.traverse((o) => o.userData.tt && (o.visible = tt));
@@ -1026,7 +1086,7 @@ export class Bike {
       const hx = a.s * 0.21;
       const hz = 0.1 + 0.45;
       // Zeitfahren: Hände vorne an den Verlängerungen
-      const ax = this.aero ? a.s * 0.065 : hx;
+      const ax = this.aero ? a.s * 0.058 : hx;
       const az = this.aero ? 0.45 + 0.17 : hz;
       const hand = V(
         ax * Math.cos(steerA) + (az - 0.45) * Math.sin(steerA),

@@ -3,7 +3,7 @@
 // Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
 import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
 import { KITS } from '../kit.js';
-import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, GROUPSETS, DEFAULT_LOOK, brandLabel } from '../brands.js';
+import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, GROUPSETS, TIRE_COLORS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
 const NAME_MAX = 12;
@@ -465,7 +465,22 @@ const bikeStep = choiceStep({
   ],
 });
 
-const STEPS = [identityStep, looksStep, bikeStep];
+// Zeitfahrrad: wie das Rennrad, zusätzlich mit Reifenfarbe
+const ttBikeStep = choiceStep({
+  id: 'ttbike',
+  title: 'Dein Zeitfahrrad',
+  tab: 'Zeitfahrrad',
+  rows: [
+    { key: 'brand', label: 'Marke', type: 'brand', options: BRANDS },
+    { key: 'paint', label: 'Lackierung', type: 'paint', options: PAINTS },
+    { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: FRAME_COLORS },
+    { key: 'tires', label: 'Reifen', type: 'color', options: TIRE_COLORS },
+    { key: 'groupset', label: 'Schaltung', type: 'group', options: GROUPSETS },
+  ],
+});
+
+// Welche Schritte es gibt, hängt vom Modus ab (beim Zeitfahren mit Reifenfarbe)
+let STEPS = [identityStep, looksStep, bikeStep];
 
 // ---------- Die Szene, die durch die Schritte führt ----------
 export function createCreatorScene(app) {
@@ -552,6 +567,7 @@ export function createCreatorScene(app) {
     enter(params = {}) {
       editing = !!params.edit;
       draft = editing ? { ...DEFAULT_LOOK, ...params.edit } : newCharacterDraft(app.mode);
+      STEPS = [identityStep, looksStep, app.mode === 'tt' ? ttBikeStep : bikeStep];
       stepIndex = 0;
       cancelArmed = 0;
       first = true;
