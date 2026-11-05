@@ -59,6 +59,27 @@ export function drawTorso(k, base, kit) {
   } else if (kit === 'rainbow') {
     bands(ctx, W, H, 0.57, 0.74, RAINBOW);
   }
+  // drei Rückentaschen unten am Rücken (hinten = Mitte des Canvas)
+  ctx.strokeStyle = shade(base, 0.55);
+  ctx.lineWidth = 3;
+  const px = W * 0.36;
+  const pw = W * 0.28;
+  ctx.strokeRect(px, H * 0.8, pw, H * 0.16);
+  ctx.beginPath();
+  ctx.moveTo(px + pw / 3, H * 0.8);
+  ctx.lineTo(px + pw / 3, H * 0.96);
+  ctx.moveTo(px + (2 * pw) / 3, H * 0.8);
+  ctx.lineTo(px + (2 * pw) / 3, H * 0.96);
+  ctx.stroke();
+  // Nähte an den Seiten
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 2;
+  for (const x of [0.19, 0.31, 0.69, 0.81]) {
+    ctx.beginPath();
+    ctx.moveTo(W * x, 0);
+    ctx.lineTo(W * x, H);
+    ctx.stroke();
+  }
   // Kragen
   bands(ctx, W, H, 0.95, 1, [kit === 'rainbow' ? '#0b6cb5' : shade(base, 0.5)]);
   // Reißverschluss vorne in der Mitte (u = 0 bzw. 1)

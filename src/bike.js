@@ -44,6 +44,18 @@ function ik(a, c, l1, l2, pole, out) {
   return out.copy(a).addScaledVector(_d, cosA * l1).addScaledVector(_p, sinA * l1);
 }
 
+// Körperteil mit Muskelform: radius(t) für t = 0 (Anfang) bis 1 (Ende), entlang der Länge len
+function shapedLimb(len, radius, mat, steps = 10) {
+  const pts = [];
+  for (let k = 0; k <= steps; k++) {
+    const t = k / steps;
+    pts.push(new THREE.Vector2(radius(t), -len / 2 + t * len));
+  }
+  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 14), mat);
+  m.castShadow = true;
+  return m;
+}
+
 function limb(len, r, mat) {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(0.01, len - 2 * r), 4, 10), mat);
   m.castShadow = true;
@@ -231,6 +243,8 @@ export class Bike {
       glasses: new THREE.MeshStandardMaterial({ color: '#ff8a2a', roughness: 0.06, metalness: 1, envMapIntensity: 2.2 }),
       glassFrame: new THREE.MeshStandardMaterial({ color: '#111114', roughness: 0.4 }),
       glove: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
+      hair: new THREE.MeshStandardMaterial({ color: '#4a3324', roughness: 0.9 }),
+      jerseyPlain: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
       sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.6 }),
       sleeve: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
       thigh: new THREE.MeshStandardMaterial({ roughness: 0.55 }),
@@ -447,7 +461,19 @@ export class Bike {
     this.torso = new THREE.Group();
     const torsoLen = this.hip.distanceTo(this.shoulder) + 0.04;
     const torsoMesh = limb(torsoLen, 0.15, m.jersey);
-    torsoMesh.scale.set(1.25, 1, 0.82);
+    // breite Schultern, schmale Taille
+    const tg = torsoMesh.geometry;
+    tg.computeBoundingBox();
+    const y0 = tg.boundingBox.min.y;
+    const y1 = tg.boundingBox.max.y;
+    const tp = tg.attributes.position;
+    for (let i = 0; i < tp.count; i++) {
+      const t = (tp.getY(i) - y0) / (y1 - y0);
+      const wide = 1.02 + 0.38 * Math.pow(Math.max(0, (t - 0.25) / 0.75), 1.4);
+      tp.setX(i, tp.getX(i) * wide);
+      tp.setZ(i, tp.getZ(i) * (0.9 - 0.12 * t));
+    }
+    tg.computeVertexNormals();
     this.torso.add(torsoMesh);
     placeLimb(this.torso, this.hip, this.shoulder);
     r.add(this.torso);
@@ -463,12 +489,49 @@ export class Bike {
     helmet.rotation.x = -0.25;
     helmet.castShadow = true;
     this.head.add(helmet);
-    const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.02), m.glasses);
-    glasses.position.set(0, 0.01, 0.095);
-    this.head.add(glasses);
-    const glassFrame = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.012, 0.024), m.glassFrame);
-    glassFrame.position.set(0, 0.036, 0.094);
-    this.head.add(glassFrame);
+    // Gebogene Sportbrille, die um den Kopf herumgeht
+    const arc = 2.3;
+    const lens = new THREE.Mesh(new THREE.TorusGeometry(0.104, 0.021, 6, 24, arc), m.glasses);
+    lens.rotation.set(Math.PI / 2, 0, 0);
+    const lensPivot = new THREE.Group();
+    lensPivot.rotation.y = arc / 2 - Math.PI / 2;
+    lensPivot.add(lens);
+    lens.scale.set(1, 1, 0.55);
+    lensPivot.position.set(0, 0.008, 0.004);
+    this.head.add(lensPivot);
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.106, 0.006, 4, 24, arc + 0.2), m.glassFrame);
+    frame.rotation.set(Math.PI / 2, 0, 0);
+    const framePivot = new THREE.Group();
+    framePivot.rotation.y = (arc + 0.2) / 2 - Math.PI / 2;
+    framePivot.add(frame);
+    framePivot.position.set(0, 0.03, 0.004);
+    this.head.add(framePivot);
+    // Nase und Ohren
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.035, 6), m.skin);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.set(0, -0.022, 0.1);
+    this.head.add(nose);
+    for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), m.skin);
+      ear.scale.set(0.45, 1, 0.7);
+      ear.position.set(sx * 0.098, -0.008, -0.01);
+      this.head.add(ear);
+      // Kinnriemen vom Helm unter das Kinn
+      const strap = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(sx * 0.1, 0.03, 0.0), V(sx * 0.085, -0.05, 0.03), V(0, -0.098, 0.045)]), 8, 0.0045, 4),
+        m.glassFrame,
+      );
+      this.head.add(strap);
+    }
+    // Haare im Nacken unter dem Helm
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.098, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.3), m.hair);
+    hair.position.set(0, -0.005, -0.012);
+    this.head.add(hair);
+    // Grat oben auf dem Helm
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.01, 0.24), m.glassFrame);
+    ridge.position.set(0, 0.127, -0.03);
+    ridge.rotation.x = -0.18;
+    this.head.add(ridge);
     // Kopf tiefer, Blick trotzdem nach vorne auf die Straße
     this.head.position.set(0, 1.31, 0.39);
     this.head.rotation.x = 0.05;
@@ -480,22 +543,39 @@ export class Bike {
       s,
       upper: limb(0.27, 0.047, m.sleeve),
       lower: limb(0.26, 0.037, m.skin),
-      hand: new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), m.glove),
+      hand: new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), m.glove),
+      elbow: new THREE.Mesh(new THREE.SphereGeometry(0.041, 10, 8), m.skin),
+      cap: new THREE.Mesh(new THREE.SphereGeometry(0.054, 12, 8), m.jerseyPlain),
     }));
     this.legs = [-1, 1].map((s) => ({
       s,
-      thigh: limb(0.44, 0.078, m.thigh),
-      shin: limb(0.43, 0.056, m.skin),
+      // Oberschenkel oben kräftig, zum Knie schmaler; Wade mit Muskel
+      thigh: shapedLimb(0.44, (t) => 0.086 - 0.026 * t + 0.007 * Math.sin(Math.PI * t), m.thigh),
+      shin: shapedLimb(0.43, (t) => 0.044 + 0.02 * Math.exp(-(((t - 0.3) / 0.17) ** 2)) - 0.008 * t, m.skin),
+      knee: new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 8), m.skin),
       sock: limb(0.18, 0.058, m.shoe),
       shoe: new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.24), m.shoe),
     }));
-    for (const a of this.arms) r.add(a.upper, a.lower, a.hand);
+    for (const a of this.arms) {
+      a.hand.scale.set(0.95, 1.4, 0.8);
+      a.hand.castShadow = true;
+      r.add(a.upper, a.lower, a.hand, a.elbow, a.cap);
+    }
     for (const l of this.legs) {
       l.shoe.castShadow = true;
       const sole = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.016, 0.25), m.sole);
       sole.position.y = -0.033;
       l.shoe.add(sole);
-      r.add(l.thigh, l.shin, l.sock, l.shoe);
+      // zwei Klettriemen und ein Drehverschluss
+      for (const z of [0.05, -0.02]) {
+        const strap = new THREE.Mesh(new THREE.BoxGeometry(0.086, 0.012, 0.03), m.sole);
+        strap.position.set(0, 0.031, z);
+        l.shoe.add(strap);
+      }
+      const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 10), m.glassFrame);
+      dial.position.set(0, 0.035, -0.07);
+      l.shoe.add(dial);
+      r.add(l.thigh, l.shin, l.sock, l.shoe, l.knee);
     }
   }
 
@@ -519,6 +599,7 @@ export class Bike {
   updateKit() {
     const c = this.kitCol;
     drawTorso(this.kitTex.torso, c.jersey, this.kit);
+    this.mats.jerseyPlain.color.set(c.jersey);
     drawSleeve(this.kitTex.sleeve, c.jersey, this.kit);
     drawThigh(this.kitTex.thigh, c.shorts, '#' + this.mats.skin.color.getHexString(), this.kit);
     drawHelmet(this.kitTex.helmet, c.helmet);
@@ -728,6 +809,7 @@ export class Bike {
       const hipC = hip.clone();
       const knee = ik(hipC, ankle, 0.44, 0.43, _k.set(s * 0.12, 0.1, 1), new THREE.Vector3());
       placeLimb(l.thigh, hipC, knee);
+      l.knee.position.copy(knee);
       // Schienbein mit fester Länge Richtung Knöchel
       const dir = ankle.clone().sub(knee).normalize();
       const ankleR = knee.clone().addScaledVector(dir, 0.43);
@@ -748,10 +830,14 @@ export class Bike {
         0.94,
         0.45 - hx * Math.sin(steerA) + (hz - 0.45) * Math.cos(steerA),
       );
-      const elbow = ik(sh, hand, 0.27, 0.26, _k.set(a.s * 0.6, -0.3, -0.5), new THREE.Vector3());
+      // Ellbogen eng am Körper: zeigen nach unten/hinten, nicht nach außen
+      const elbow = ik(sh, hand, 0.27, 0.26, _k.set(a.s * 0.05, -0.75, -0.35), new THREE.Vector3());
       placeLimb(a.upper, sh, elbow);
       placeLimb(a.lower, elbow, hand);
       a.hand.position.copy(hand);
+      a.hand.quaternion.copy(a.lower.quaternion);
+      a.elbow.position.copy(elbow);
+      a.cap.position.copy(sh).add(_k.set(-a.s * 0.01, -0.012, 0));
     }
   }
 }
