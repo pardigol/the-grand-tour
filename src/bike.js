@@ -1,5 +1,6 @@
 // Prozedurales Rennrad mit Fahrer. Vorwärts = +z, oben = +y, rechts vom Fahrer = -x.
 import * as THREE from 'three';
+import { RiderModel } from './rider-model.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
@@ -687,6 +688,30 @@ export class Bike {
     drawSleeve(this.kitTex.sleeve, c.jersey, this.kit);
     drawThigh(this.kitTex.thigh, c.shorts, '#' + this.mats.skin.color.getHexString(), this.kit);
     drawHelmet(this.kitTex.helmet, c.helmet);
+    this.model?.setKit(c);
+  }
+
+  // Echtes 3D-Modell (Mixamo) statt der einfachen Figur benutzen
+  useModel(scene) {
+    const model = new RiderModel(scene);
+    this.model = model;
+    this.root.add(scene);
+    this.rider.visible = false;
+    // Helm, Brille und Haare im Nacken von der einfachen Figur übernehmen (ohne Gesicht)
+    const helmet = this.head.clone();
+    for (const c of [...helmet.children]) if (c.material === this.mats.skin) helmet.remove(c);
+    helmet.position.set(0, 0.107, 0.034);
+    helmet.rotation.set(0.12, 0, 0);
+    helmet.scale.setScalar(1.12);
+    model.attach('Head', helmet);
+    this.modelHelmet = helmet;
+    // Rückennummer mitten auf den Rücken
+    this.backPlate.removeFromParent();
+    this.backPlate.position.set(0, 0.063, -0.145);
+    this.backPlate.rotation.set(0, Math.PI, 0);
+    model.attach('Spine1', this.backPlate);
+    model.setKit(this.kitCol);
+    this.update(0, 0, 0, 0);
   }
 
   buildPlates() {
@@ -703,6 +728,7 @@ export class Bike {
     back.position.set(0, 0.02, -0.132);
     back.rotation.set(0, Math.PI, 0);
     this.torso.add(back);
+    this.backPlate = back;
 
     // Rahmennummer unter dem Sattel – auf beiden Seiten lesbar
     for (const s of [-1, 1]) {
@@ -906,6 +932,7 @@ export class Bike {
 
     // Arme zu den Griffen (folgen dem Lenker)
     const steerA = this.steer.rotation.y;
+    const hands = (this._hands ||= [new THREE.Vector3(), new THREE.Vector3()]);
     for (const a of this.arms) {
       // Schultern passend zur tiefen Haltung: Arme dadurch stärker angewinkelt
       const sh = V(a.s * 0.19, 1.19, 0.23);
@@ -921,9 +948,19 @@ export class Bike {
       placeLimb(a.upper, sh, elbow);
       placeLimb(a.lower, elbow, hand);
       a.hand.position.copy(hand);
+      hands[a.s > 0 ? 1 : 0].copy(hand);
       a.hand.quaternion.copy(a.lower.quaternion);
       a.elbow.position.copy(elbow);
       a.cap.position.copy(sh).add(_k.set(-a.s * 0.01, -0.012, 0));
+    }
+    if (this.model) {
+      this.model.pose({
+        hip: this.hip,
+        pedals: [this.pedals[0].position, this.pedals[1].position],
+        angles: [ca, ca + Math.PI],
+        hands,
+        bob,
+      });
     }
   }
 }

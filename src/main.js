@@ -13,6 +13,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CONFIG } from './config.js';
 import { World } from './world.js';
+import { loadRiderModel } from './rider-model.js';
 import { loadNature } from './nature.js';
 import { Bike } from './bike.js';
 import { Input } from './input.js';
@@ -60,6 +61,11 @@ async function boot() {
   const nature = await loadNature();
   const world = new World(renderer, 'road', nature);
   const bike = new Bike();
+  // Echte Fahrerin (Mixamo-Modell) für den eigenen Fahrer; die Gegner bleiben einfache Figuren
+  if (CONFIG.fahrerModell) {
+    const model = await loadRiderModel();
+    if (model) bike.useModel(model);
+  }
   world.scene.add(bike.root);
 
   // Post-Processing: Bloom (Leuchten) + eigener Effekt (Unschärfe, Linien, Vignette)
