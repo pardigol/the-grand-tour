@@ -4,18 +4,8 @@ import { el, esc, hintBar, rideNpc, showcaseCamera } from './common.js';
 import { damp } from '../noise.js';
 
 export const MODES = [
-  {
-    id: 'road',
-    name: 'Rennrad',
-    sub: 'Asphalt und Tempo',
-    info: 'Schmale, glatte Reifen: sehr schnell auf der Straße, auf Wiese und Schotter wird es zäh.',
-  },
-  {
-    id: 'cx',
-    name: 'Cyclocross (CX)',
-    sub: 'Wiese, Schotter, Matsch',
-    info: 'Dicke Stollenreifen: rollt viel besser abseits der Straße, auf Asphalt etwas langsamer.',
-  },
+  { id: 'road', name: 'Rennrad' },
+  { id: 'cx', name: 'Cyclocross' },
 ];
 
 // Kleines Rad-Symbol: CX mit Stollen an den Reifen
@@ -69,8 +59,6 @@ export function createModeScene(app) {
               <div class="mode-card" data-i="${i}">
                 ${bikeIcon(m.id === 'cx')}
                 <div class="mode-name">${esc(m.name)}</div>
-                <div class="mode-sub">${esc(m.sub)}</div>
-                <div class="mode-info">${esc(m.info)}</div>
               </div>`,
             ).join('')}
           </div>
