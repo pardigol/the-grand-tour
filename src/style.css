@@ -543,6 +543,21 @@ body {
   color: #fff;
 }
 
+.mode-building {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 26px;
+  letter-spacing: 0.15em;
+  color: #e9dfcc;
+  background: rgba(4, 6, 12, 0.75);
+}
+.mode-building.show {
+  display: grid;
+}
+
 /* ---------- 4. Charaktererstellung ---------- */
 .creator-screen {
   background: radial-gradient(ellipse at 50% 35%, rgba(10, 12, 20, 0.45), rgba(5, 7, 12, 0.88) 75%);
@@ -658,6 +673,10 @@ body {
   height: 18px;
   border-radius: 4px;
   background: var(--paint, #6f8fb5);
+}
+/* Weltmeister: weiß mit Regenbogenstreifen */
+.paint-preview.rainbow {
+  background: linear-gradient(90deg, #f2f2ee 0 30%, #0b6cb5 30% 38%, #d81e2c 38% 46%, #111 46% 54%, #f5c400 54% 62%, #00a14b 62% 70%, #f2f2ee 70% 100%);
 }
 /* Team-Design: hinten schwarz, vorne weiß mit Zacken */
 .paint-preview.team {

@@ -15,7 +15,8 @@ export function createMenuScene(app) {
   let actions = null; // offenes Auswahlfenster: Index der Aktion
 
   function render() {
-    chars = loadCharacters();
+    // Nur die Fahrer des gewählten Modus (alte Fahrer ohne Modus gehören zum Rennrad)
+    chars = loadCharacters().filter((c) => (c.mode || 'road') === app.mode);
     index = Math.min(index, chars.length);
     const cards = chars
       .map(
@@ -131,7 +132,9 @@ export function createMenuScene(app) {
       app.ui.append(root);
       list = root.querySelector('.menu-list');
       if (params.selectId) {
-        const i = loadCharacters().findIndex((c) => c.id === params.selectId);
+        const i = loadCharacters()
+          .filter((c) => (c.mode || 'road') === app.mode)
+          .findIndex((c) => c.id === params.selectId);
         if (i >= 0) index = i;
       }
       confirmDelete = null;

@@ -6,8 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeNoise2D, mulberry32, smoothstep, lerp, clamp } from './noise.js';
 import { CONFIG } from './config.js';
 
-export const ROAD_HALF = 3.6;
-export const SHOULDER_HALF = 5.0;
+// Halbe Breite von Fahrbahn und Seitenstreifen: Straße 3,6 / 5,0 m, Waldweg 1,9 / 2,8 m (siehe World.RH / World.SH)
 const WORLD_SIZE = 1800;
 const TERRAIN_SEG = 320;
 const CELL = 20;
@@ -37,8 +36,55 @@ function speckle(ctx, w, h, rand, base, spread, count, size = 1) {
   }
 }
 
+// Erdweg: braun, zwei ausgefahrene Spuren, Wurzeln und dunkle Pfützen
+function dirtTexture(rand) {
+  return canvasTex(256, 1024, (ctx, w, h) => {
+    speckle(ctx, w, h, rand, '#6b5136', 255, 22000, 1.4);
+    // Steinchen
+    for (let i = 0; i < 900; i++) {
+      const v = 90 + Math.floor(rand() * 70);
+      ctx.fillStyle = `rgba(${v},${v - 8},${v - 20},${0.4 + rand() * 0.4})`;
+      ctx.fillRect(rand() * w, rand() * h, 1.5 + rand() * 2.5, 1.5 + rand() * 2.5);
+    }
+    // Fahrspuren
+    ctx.fillStyle = 'rgba(35,24,14,0.28)';
+    ctx.fillRect(w * 0.28, 0, w * 0.1, h);
+    ctx.fillRect(w * 0.62, 0, w * 0.1, h);
+    // Pfützen
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = 'rgba(30,24,18,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(w * (0.25 + rand() * 0.5), rand() * h, 18 + rand() * 30, 30 + rand() * 60, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Wurzeln quer über den Weg
+    for (let i = 0; i < 7; i++) {
+      ctx.strokeStyle = 'rgba(70,48,28,0.9)';
+      ctx.lineWidth = 3 + rand() * 4;
+      ctx.beginPath();
+      const y = rand() * h;
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(w * 0.3, y + (rand() - 0.5) * 40, w * 0.7, y + (rand() - 0.5) * 40, w, y + (rand() - 0.5) * 30);
+      ctx.stroke();
+    }
+    // Ränder weich in den Waldboden auslaufen lassen
+    const g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, 'rgba(60,70,30,0.6)');
+    g.addColorStop(0.12, 'rgba(60,70,30,0)');
+    g.addColorStop(0.88, 'rgba(60,70,30,0)');
+    g.addColorStop(1, 'rgba(60,70,30,0.6)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
 export class World {
-  constructor(renderer) {
+  // kind: 'road' = Landstraße (Rennrad), 'cx' = Waldweg durch dichten Wald (Cycle Cross)
+  constructor(renderer, kind = 'road') {
+    this.kind = kind;
+    this.cx = kind === 'cx';
+    this.RH = this.cx ? 1.9 : 3.6;
+    this.SH = this.cx ? 2.8 : 5.0;
     this.scene = new THREE.Scene();
     this.rand = mulberry32(1337);
     this.n1 = makeNoise2D(11);
@@ -78,7 +124,7 @@ export class World {
   // ---------- Seen ----------
   setupLakes() {
     // Positionen so gewählt, dass die Seen mindestens 50 m von der Straße entfernt sind
-    this.lakes = [
+    this.lakes = this.cx ? [] : [
       { x: -40, z: -30, r: 120 },
       { x: 180, z: 140, r: 60 },
       { x: -200, z: 170, r: 60 },
@@ -142,14 +188,17 @@ export class World {
   // ---------- Strecke ----------
   buildTrack() {
     const pts = [];
-    const K = 16;
+    // Waldweg: kürzere, viel kurvigere Runde (etwa 1,4 km)
+    const K = this.cx ? 24 : 16;
     for (let k = 0; k < K; k++) {
       const a = (k / K) * Math.PI * 2;
-      const r = 360 + 80 * Math.sin(3 * a + 0.6) + 45 * Math.sin(5 * a + 1.9) + 25 * Math.sin(7 * a);
+      const r = this.cx
+        ? 200 + 45 * Math.sin(3 * a + 0.6) + 30 * Math.sin(5 * a + 1.9) + 16 * Math.sin(9 * a + 0.4)
+        : 360 + 80 * Math.sin(3 * a + 0.6) + 45 * Math.sin(5 * a + 1.9) + 25 * Math.sin(7 * a);
       pts.push(new THREE.Vector3(Math.cos(a) * r * 1.18, 0, Math.sin(a) * r * 0.95));
     }
     const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-    const N = 2400;
+    const N = this.cx ? 1600 : 2400;
     const sp = curve.getSpacedPoints(N);
     this.N = N;
     this.length = curve.getLength();
@@ -260,19 +309,19 @@ export class World {
     const nr = this.nearest(x, z);
     const b = this.baseHeight(x, z);
     if (!nr.found) return b;
-    const w = smoothstep(ROAD_HALF + 1.2, ROAD_HALF + 22, nr.dist);
+    const w = smoothstep(this.RH + 1.2, this.RH + 22, nr.dist);
     return lerp(nr.h - 0.15, b, w);
   }
 
   // Höhe des Bodens, auf dem ein Rad fährt, und welche Oberfläche
   groundAt(x, z, out = {}) {
     const nr = this.nearest(x, z);
-    if (nr.found && nr.dist < ROAD_HALF + 0.2) {
+    if (nr.found && nr.dist < this.RH + 0.2) {
       out.h = nr.h + 0.06;
-      out.surface = 'road';
-    } else if (nr.found && nr.dist < SHOULDER_HALF) {
-      out.h = nr.h + 0.03 - smoothstep(ROAD_HALF + 0.5, SHOULDER_HALF, nr.dist) * 0.12;
-      out.surface = 'gravel';
+      out.surface = this.cx ? 'gravel' : 'road'; // Waldweg = Erde/Schotter
+    } else if (nr.found && nr.dist < this.SH) {
+      out.h = nr.h + 0.03 - smoothstep(this.RH + 0.5, this.SH, nr.dist) * 0.12;
+      out.surface = this.cx ? 'grass' : 'gravel'; // im Wald: Laub und Waldboden
     } else {
       out.h = this.terrainHeight(x, z);
       out.surface = 'grass';
@@ -373,21 +422,22 @@ export class World {
       const b = this.baseHeight(x, z);
       let h = b;
       if (nr.found) {
-        const w = smoothstep(ROAD_HALF + 1.2, ROAD_HALF + 22, nr.dist);
+        const w = smoothstep(this.RH + 1.2, this.RH + 22, nr.dist);
         h = lerp(nr.h - 0.15, b, w);
-        roadW[i] = 1 - smoothstep(SHOULDER_HALF, SHOULDER_HALF + 5, nr.dist);
+        roadW[i] = 1 - smoothstep(this.SH, this.SH + 5, nr.dist);
       }
       pos.setY(i, h);
     }
     geo.computeVertexNormals();
     const nrm = geo.attributes.normal;
 
-    const cGrassA = new THREE.Color('#3f6b25');
-    const cGrassB = new THREE.Color('#86a33c');
-    const cDry = new THREE.Color('#b9a457');
+    // Im Wald: Moos und braunes Laub statt Wiese
+    const cGrassA = new THREE.Color(this.cx ? '#33501f' : '#3f6b25');
+    const cGrassB = new THREE.Color(this.cx ? '#5b6b2c' : '#86a33c');
+    const cDry = new THREE.Color(this.cx ? '#7a5a34' : '#b9a457');
     const cRock = new THREE.Color('#7d756b');
     const cSnow = new THREE.Color('#f4efe9');
-    const cDirt = new THREE.Color('#8d7457');
+    const cDirt = new THREE.Color(this.cx ? '#5e4630' : '#8d7457');
     const cSand = new THREE.Color('#cbb98b');
     const col = new Float32Array(count * 3);
     const c = new THREE.Color();
@@ -464,7 +514,7 @@ export class World {
   buildRoad() {
     const N = this.N;
     const rand = mulberry32(9);
-    const asphalt = canvasTex(256, 1024, (ctx, w, h) => {
+    const asphalt = this.cx ? dirtTexture(rand) : canvasTex(256, 1024, (ctx, w, h) => {
       speckle(ctx, w, h, rand, '#45464a', 255, 26000, 1.2);
       // Flicken & Reifenspuren
       for (let i = 0; i < 18; i++) {
@@ -485,7 +535,16 @@ export class World {
       256,
       256,
       (ctx, w, h) => {
-        speckle(ctx, w, h, rand, '#8a7a66', 255, 12000, 1.5);
+        if (this.cx) {
+          // Laub am Wegrand
+          speckle(ctx, w, h, rand, '#5a4a2c', 255, 6000, 1.5);
+          for (let i = 0; i < 700; i++) {
+            ctx.fillStyle = `hsl(${20 + rand() * 30}, ${50 + rand() * 30}%, ${22 + rand() * 25}%)`;
+            ctx.beginPath();
+            ctx.ellipse(rand() * w, rand() * h, 2 + rand() * 4, 1 + rand() * 2, rand() * 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else speckle(ctx, w, h, rand, '#8a7a66', 255, 12000, 1.5);
       },
       { repeat: [1, 1] },
     );
@@ -503,10 +562,10 @@ export class World {
       const sx = -this.tz[i];
       const sz = this.tx[i];
       const v = (k * this.ds) / 12;
-      road.push(x - sx * ROAD_HALF, h + 0.06, z - sz * ROAD_HALF, x + sx * ROAD_HALF, h + 0.06, z + sz * ROAD_HALF);
+      road.push(x - sx * this.RH, h + 0.06, z - sz * this.RH, x + sx * this.RH, h + 0.06, z + sz * this.RH);
       roadUv.push(0, v, 1, v);
-      const a = SHOULDER_HALF;
-      const b = ROAD_HALF + 0.3;
+      const a = this.SH;
+      const b = this.RH + 0.3;
       sh.push(
         x - sx * a, h - 0.12, z - sz * a,
         x - sx * b, h + 0.035, z - sz * b,
@@ -593,16 +652,17 @@ export class World {
     const pineCol = [];
     const leafs = [];
     const leafCol = [];
-    const lim = 860;
+    const lim = this.cx ? 520 : 860;
     let tries = 0;
-    while (pines.length + leafs.length < 2600 && tries++ < 40000) {
+    const maxTrees = this.cx ? 4200 : 2600;
+    while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
-      if (Math.hypot(x, z) > 870) continue;
+      if (Math.hypot(x, z) > (this.cx ? 540 : 870)) continue;
       const dens = this.n3(x * 0.006 + 20, z * 0.006);
-      if (dens < 0.05 && rand() > 0.08) continue;
+      if (!this.cx && dens < 0.05 && rand() > 0.08) continue;
       const nr = this.nearest(x, z);
-      if (nr.found && nr.dist < 11) continue;
+      if (nr.found && nr.dist < (this.cx ? this.SH + 1.6 : 11)) continue;
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
@@ -643,7 +703,7 @@ export class World {
     for (let i = 0; i < 22000; i++) {
       const s = rand() * this.length;
       const side = rand() < 0.5 ? -1 : 1;
-      const lat = side * (SHOULDER_HALF + 0.3 + Math.pow(rand(), 1.6) * 45);
+      const lat = side * (this.SH + 0.3 + Math.pow(rand(), 1.6) * 45);
       this.poseAt(s, lat, pose);
       if (this.lakeAt(pose.x, pose.z, 1)) continue;
       const h = this.terrainHeight(pose.x, pose.z);
@@ -688,9 +748,9 @@ export class World {
       rocks,
     );
 
-    // Strohballen auf den Feldern
+    // Strohballen auf den Feldern (nicht im Wald)
     const bales = [];
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < (this.cx ? 0 : 60); i++) {
       const s = rand() * this.length;
       const lat = (rand() < 0.5 ? -1 : 1) * (18 + rand() * 60);
       this.poseAt(s, lat, pose);
@@ -711,14 +771,60 @@ export class World {
     );
   }
 
+  // Cycle Cross: Holzpflöcke mit rot-weißem Absperrband links und rechts vom Weg
+  buildTape(pose) {
+    const stakes = [];
+    const tapes = [];
+    const gap = 5;
+    const q = new THREE.Quaternion();
+    const yAxis = new THREE.Vector3(0, 1, 0);
+    for (const side of [-1, 1]) {
+      let prev = null;
+      for (let s = 0; s <= this.length + 0.01; s += gap) {
+        this.poseAt(s, side * (this.SH + 0.4), pose);
+        const p = new THREE.Vector3(pose.x, this.terrainHeight(pose.x, pose.z), pose.z);
+        stakes.push(new THREE.Matrix4().makeTranslation(p.x, p.y + 0.45, p.z));
+        if (prev) {
+          const a = prev.clone().add(new THREE.Vector3(0, 0.82, 0));
+          const b = p.clone().add(new THREE.Vector3(0, 0.82, 0));
+          const mid = a.clone().add(b).multiplyScalar(0.5);
+          const len = a.distanceTo(b);
+          q.setFromAxisAngle(yAxis, Math.atan2(b.x - a.x, b.z - a.z));
+          const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z)));
+          tapes.push(new THREE.Matrix4().compose(mid, q.clone().multiply(tilt), new THREE.Vector3(1, 1, len)));
+        }
+        prev = p;
+      }
+    }
+    this.instanced(new THREE.CylinderGeometry(0.03, 0.035, 0.9, 6), new THREE.MeshStandardMaterial({ color: '#8a6a45', roughness: 1 }), stakes);
+    // Streifen laufen entlang der Bandlänge (Textur-Richtung u bei den Seitenflächen)
+    const tapeTex = canvasTex(
+      64,
+      16,
+      (ctx, w, h) => {
+        for (let i = 0; i < 8; i++) {
+          ctx.fillStyle = i % 2 ? '#f4f4f0' : '#d8232a';
+          ctx.fillRect((i * w) / 8, 0, w / 8, h);
+        }
+      },
+      { repeat: [1, 1] },
+    );
+    // Band als dünner Streifen (Länge 1, wird je Abschnitt gestreckt); Muster wiederholt sich alle 1,2 m
+    const band = new THREE.BoxGeometry(0.005, 0.05, 1);
+    const uv = band.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) * gap) / 1.2);
+    this.instanced(band, new THREE.MeshStandardMaterial({ map: tapeTex, roughness: 0.6 }), tapes, null, { cast: false });
+  }
+
   // ---------- Leitpfosten & Start/Ziel-Bogen ----------
   buildProps() {
     const pose = {};
     const posts = [];
     const caps = [];
-    for (let s = 0; s < this.length; s += 50) {
+    if (this.cx) this.buildTape(pose);
+    for (let s = 0; s < (this.cx ? 0 : this.length); s += 50) {
       for (const side of [-1, 1]) {
-        this.poseAt(s, side * (SHOULDER_HALF + 0.5), pose);
+        this.poseAt(s, side * (this.SH + 0.5), pose);
         const h = this.terrainHeight(pose.x, pose.z);
         posts.push(new THREE.Matrix4().makeTranslation(pose.x, h + 0.5, pose.z));
         caps.push(new THREE.Matrix4().makeTranslation(pose.x, h + 0.92, pose.z));
@@ -739,7 +845,7 @@ export class World {
     arch.position.set(pose.x, pose.h, pose.z);
     arch.rotation.y = pose.heading;
     const pillarMat = new THREE.MeshStandardMaterial({ color: '#1b2233', roughness: 0.5, metalness: 0.4 });
-    const halfW = SHOULDER_HALF + 0.8;
+    const halfW = this.SH + 0.8;
     for (const side of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6.2, 0.5), pillarMat);
       p.position.set(side * halfW, 3.0, 0);
@@ -780,7 +886,7 @@ export class World {
         }
     });
     const line = new THREE.Mesh(
-      new THREE.PlaneGeometry(ROAD_HALF * 2, 0.9),
+      new THREE.PlaneGeometry(this.RH * 2, 0.9),
       new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }),
     );
     line.rotation.x = -Math.PI / 2;
@@ -799,7 +905,7 @@ export class World {
         flag.position.set(0, 2.7, 0.35);
         flag.rotation.y = Math.PI / 2;
         f.add(pole, flag);
-        f.position.set(side * (SHOULDER_HALF + 3), 0, k * 7);
+        f.position.set(side * (this.SH + 3), 0, k * 7);
         arch.add(f);
       }
     }

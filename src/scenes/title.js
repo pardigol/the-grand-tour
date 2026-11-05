@@ -30,7 +30,7 @@ export function createTitleScene(app) {
       app.fx.uLines.value = 0;
       app.npc.s = app.world.length - 150;
       app.npc.speed = 6;
-      app.npc.lateral = 1.5;
+      app.npc.lateral = app.world.cx ? 0.5 : 1.5;
       app.npc.pedal = true;
       const tr = CONFIG.titleRider;
       app.bike.setPlate(tr.number, tr.name);

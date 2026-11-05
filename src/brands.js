@@ -37,6 +37,7 @@ export function isMatte(hex) {
 export const PAINTS = [
   { id: 'solid', name: 'Einfarbig' },
   { id: 'team', name: 'Team-Design' },
+  { id: 'rainbow', name: 'Weltmeister' },
 ];
 
 export const DEFAULT_LOOK = {

@@ -5,7 +5,7 @@ import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
 import { clamp, damp } from '../noise.js';
 import { Minimap } from '../minimap.js';
-import { Rivals } from '../rivals.js';
+import { Rivals, RIVALS, RIVALS_CX } from '../rivals.js';
 
 const MASS = 78;
 const G = 9.81;
@@ -33,6 +33,7 @@ export function createRideScene(app) {
   let pauseIndex = 0;
   let minimap;
   let rivals;
+  const rivalsByWorld = new Map(); // eigene Gegner je Welt (Landstraße / Wald)
   let resultIndex = 0;
   const cam = { view: 0, yawOff: 0, pitchOff: 0, idle: 0, yaw: 0, pitch: 0.32, dist: 4.4, heading: 0 };
 
@@ -233,7 +234,8 @@ export function createRideScene(app) {
       app.bike.applyLook(char);
       app.bike.setTires(app.mode);
 
-      const p = app.world.poseAt(app.world.length - 14, 1.5, tmp);
+      // auf dem schmalen Waldweg weiter in der Mitte starten
+      const p = app.world.poseAt(app.world.length - 14, app.world.cx ? 0.7 : 1.5, tmp);
       Object.assign(st, {
         x: p.x,
         z: p.z,
@@ -261,7 +263,12 @@ export function createRideScene(app) {
         finishTime: null,
         showResult: false,
       });
-      if (!rivals) rivals = new Rivals(app);
+      if (!rivalsByWorld.has(app.world)) {
+        rivalsByWorld.set(app.world, new Rivals(app, app.world.cx ? RIVALS_CX : RIVALS));
+      }
+      rivals = rivalsByWorld.get(app.world);
+      app.rivals = rivals; // zum Ausprobieren in der Konsole
+      app.bike.setTires(app.mode);
       rivals.reset(p.s);
       this.placeBike();
       cam.view = 0;

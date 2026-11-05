@@ -23,7 +23,8 @@ function saveAll(list) {
 }
 
 // Ein neuer Charakter. Weitere Felder (Aussehen, Rad ...) können später ergänzt werden.
-export function newCharacterDraft() {
+// mode: 'road' (Rennrad) oder 'cx' (Cycle Cross) – jeder Modus hat seine eigenen Fahrer
+export function newCharacterDraft(mode = 'road') {
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
     name: '',
@@ -35,6 +36,7 @@ export function newCharacterDraft() {
     brand: DEFAULT_LOOK.brand,
     paint: DEFAULT_LOOK.paint,
     bar: '#f6f6f6',
+    mode,
     bestLap: null,
     createdAt: Date.now(),
     version: 1,

@@ -63,7 +63,8 @@ async function boot() {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
   const composer = new EffectComposer(renderer, rt);
-  composer.addPass(new RenderPass(world.scene, camera));
+  const renderPass = new RenderPass(world.scene, camera);
+  composer.addPass(renderPass);
   const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.5, 0.55, 0.92);
   composer.addPass(bloom);
   const fxPass = new ShaderPass(FxShader);
@@ -82,7 +83,21 @@ async function boot() {
     fx: fxPass.uniforms,
     focus: new THREE.Vector3(),
     npc: { s: 0, speed: 6, lateral: 1.5, pedal: true },
-    mode: 'road', // 'road' = Rennrad, 'cx' = Cyclocross
+    mode: 'road', // 'road' = Rennrad, 'cx' = Cycle Cross
+    worlds: { road: world },
+    // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
+    useWorld(kind) {
+      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind);
+      const w = this.worlds[kind];
+      if (w === this.world) return;
+      this.world.scene.remove(this.bike.root);
+      w.scene.add(this.bike.root);
+      this.world = w;
+      renderPass.scene = w.scene;
+      this.npc.s = w.length * 0.1;
+      // Auf dem schmalen Waldweg fährt der Vorführ-Fahrer weiter in der Mitte
+      this.npc.lateral = w.cx ? 0.5 : 1.5;
+    },
     time: 0,
     scenes: {},
     current: null,
@@ -142,7 +157,7 @@ async function boot() {
       app.audio.startMusic();
     }
     app.current.update(dt);
-    world.update(dt, app.focus, camera, app.time);
+    app.world.update(dt, app.focus, camera, app.time);
     fxPass.uniforms.uTime.value = app.time;
     // Nicht rendern, solange das Fenster keine Größe hat (z. B. minimiert)
     if (window.innerWidth && window.innerHeight) composer.render(dt);

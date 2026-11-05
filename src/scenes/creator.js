@@ -546,7 +546,7 @@ export function createCreatorScene(app) {
     // params.edit = bestehender Charakter, der bearbeitet wird
     enter(params = {}) {
       editing = !!params.edit;
-      draft = editing ? { ...DEFAULT_LOOK, ...params.edit } : newCharacterDraft();
+      draft = editing ? { ...DEFAULT_LOOK, ...params.edit } : newCharacterDraft(app.mode);
       stepIndex = 0;
       cancelArmed = 0;
       first = true;

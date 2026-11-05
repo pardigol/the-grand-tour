@@ -12,6 +12,7 @@ export function createModeScene(app) {
   let root;
   let index = 0;
   let first = true;
+  let busy = false;
 
   function highlight(silent = false) {
     root.querySelectorAll('.mode-card').forEach((c, i) => c.classList.toggle('selected', i === index));
@@ -24,10 +25,23 @@ export function createModeScene(app) {
   }
 
   function choose() {
+    if (busy) return;
     app.mode = MODES[index].id;
     app.audio.select();
     app.input.rumble(0.35, 80);
-    app.go('menu');
+    if (app.worlds[app.mode]) {
+      app.useWorld(app.mode);
+      app.go('menu');
+      return;
+    }
+    // Der Wald wird beim ersten Mal gebaut: kurz einen Hinweis zeigen, damit es nicht hängt
+    busy = true;
+    root.querySelector('.mode-building').classList.add('show');
+    setTimeout(() => {
+      app.useWorld(app.mode);
+      busy = false;
+      app.go('menu');
+    }, 60);
   }
 
   return {
@@ -51,6 +65,7 @@ export function createModeScene(app) {
             ['A', 'Auswählen'],
             ['B', 'Zurück'],
           ])}
+          <div class="mode-building">Der Wald wird gebaut …</div>
         </div>`);
       app.ui.append(root);
       root.querySelectorAll('.mode-card').forEach((c) =>
@@ -76,6 +91,7 @@ export function createModeScene(app) {
       app.fx.uFade.value = damp(app.fx.uFade.value, 0, 5, dt);
 
       const inp = app.input;
+      if (busy) return;
       if ((inp.pressed('left') || inp.pressed('up')) && index > 0) {
         index--;
         highlight();

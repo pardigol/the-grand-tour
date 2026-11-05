@@ -13,15 +13,24 @@ export const RIVALS = [
 const MASS = 78;
 const G = 9.81;
 
+// Gegner beim Cycle Cross im Wald: eigene Fahrer, enger beieinander auf dem schmalen Weg
+export const RIVALS_CX = [
+  { name: 'Lina', number: 3, jersey: '#e8452c', frame: '#16161b', helmet: '#e8452c', brand: 'canyon', power: 515, lane: -0.8 },
+  { name: 'Max', number: 14, jersey: '#2a7d4f', frame: '#e8e2d0', helmet: '#16161b', brand: 'rose', power: 495, lane: 0.6 },
+  { name: 'Sophie', number: 28, jersey: '#f2c12e', frame: '#2b2b33', helmet: '#f2c12e', brand: 'cervelo', power: 470, lane: -0.2 },
+  { name: 'Jonas', number: 45, jersey: '#5b3fa8', frame: '#9aa0a6', helmet: '#f6f6f6', brand: 'colnago', power: 445, lane: 0.9 },
+];
+
 // Startaufstellung: Abstand hinter der Spielerposition (Meter)
 const GRID = [0, 5, 5, 10];
 
 const pose = {};
 
 export class Rivals {
-  constructor(app) {
+  // list = welche Gegner (RIVALS oder RIVALS_CX)
+  constructor(app, list = RIVALS) {
     this.app = app;
-    this.list = RIVALS.map((r, i) => {
+    this.list = list.map((r, i) => {
       const bike = new Bike();
       bike.setPlate(r.number, r.name);
       bike.applyLook(r);

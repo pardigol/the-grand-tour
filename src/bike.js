@@ -151,6 +151,7 @@ function cxTireGeometry() {
   const R = 0.318;
   const g = new THREE.TorusGeometry(R, 0.026, 10, 144);
   const pos = g.attributes.position;
+  const cols = [];
   const p = new THREE.Vector3();
   const c = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -162,9 +163,41 @@ function cxTireGeometry() {
     const knob = (ang / (Math.PI * 2)) * 40;
     if (outward > 0.2 && knob - Math.floor(knob) < 0.5) p.addScaledVector(off.normalize(), 0.006);
     pos.setXYZ(i, p.x, p.y, p.z);
+    // Lauffläche schwarz, Seitenwände honigfarben (wie bei Cycle-Cross-Reifen üblich)
+    const c3 = outward > 0.35 ? TREAD : SIDEWALL;
+    cols.push(c3.r, c3.g, c3.b);
   }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   g.computeVertexNormals();
   return g;
+}
+const TREAD = new THREE.Color('#1e1a16');
+const SIDEWALL = new THREE.Color('#c39a5a');
+
+// Weltmeister-Lackierung: Rohr in Rahmenfarbe mit den fünf Regenbogenstreifen zwischen from und to
+// (0 = Rohranfang, 1 = Rohrende). Reihenfolge von oben: Blau, Rot, Schwarz, Gelb, Grün.
+const rainbowCache = {};
+function rainbowTexture(base, from, to, topIsStart) {
+  const key = `${base}-${from}-${to}-${topIsStart}`;
+  if (rainbowCache[key]) return rainbowCache[key];
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 32, 512);
+  const colors = ['#0b6cb5', '#d81e2c', '#111111', '#f5c400', '#00a14b'];
+  const band = (to - from) / colors.length;
+  colors.forEach((col, i) => {
+    // Canvas oben = Rohrende (v = 1)
+    const v1 = topIsStart ? from + band * (i + 1) : to - band * i;
+    ctx.fillStyle = col;
+    ctx.fillRect(0, (1 - v1) * 512, 32, band * 512 + 0.5);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  rainbowCache[key] = t;
+  return t;
 }
 
 export class Bike {
@@ -186,7 +219,7 @@ export class Bike {
       black: new THREE.MeshStandardMaterial({ color: '#17171a', roughness: 0.45, metalness: 0.3 }),
       alu: new THREE.MeshStandardMaterial({ color: '#b9bcc2', roughness: 0.25, metalness: 1 }),
       tire: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.9 }),
-      cxTire: new THREE.MeshStandardMaterial({ color: '#241f1a', roughness: 0.95 }),
+      cxTire: new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.95 }),
       tape: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
       jersey: new THREE.MeshStandardMaterial({ color: CONFIG.colors.jersey, roughness: 0.62 }),
       jerseyDark: new THREE.MeshStandardMaterial({ color: '#202533', roughness: 0.6 }),
@@ -237,7 +270,8 @@ export class Bike {
     this.tubes.top.scale.z = 1.4;
     this.tubes.head.scale.z = 1.3;
     f.add(this.tubes.down, this.tubes.top, this.tubes.head);
-    f.add(tube(BB, ST, 0.018, m.frame));
+    this.tubes.seat = tube(BB, ST, 0.018, m.frame);
+    f.add(this.tubes.seat);
     for (const s of [-1, 1]) {
       f.add(tube(V(s * 0.012, BB.y, BB.z), V(s * 0.06, R.y, R.z), 0.01, m.frame));
       // tief angesetzte Sitzstreben wie bei modernen Aero-Rädern
@@ -576,15 +610,30 @@ export class Bike {
       m.frame.color.set(this.frameColor);
       finish(m.frame);
     }
+    // Weltmeister: Regenbogenstreifen am Sitzrohr (oben) und an der Gabel (Mitte)
+    const rainbow = this.design === 'rainbow';
+    const rb = (from, to, topIsStart) =>
+      new THREE.MeshPhysicalMaterial({
+        map: rainbowTexture('#' + new THREE.Color(this.frameColor).getHexString(), from, to, topIsStart),
+        roughness: 0.3,
+        metalness: 0.2,
+        clearcoat: 1,
+      });
+    if (rainbow && this.rainbowFor !== this.frameColor) {
+      this.rainbowFor = this.frameColor;
+      this.rainbowMats = { seat: rb(0.5, 0.82, false), fork: rb(0.3, 0.62, true) };
+    }
+    this.tubes.seat.material = rainbow ? this.rainbowMats.seat : m.frame;
     this.tubes.down.material = team ? t.down : m.frame;
     this.tubes.top.material = team ? t.top : m.frame;
     this.tubes.head.material = team ? t.solid : m.frame;
-    for (const f of this.forkTubes) f.material = team ? t.fork : m.frame;
+    for (const f of this.forkTubes) f.material = team ? t.fork : rainbow ? this.rainbowMats.fork : m.frame;
     this.forkCrown.material = team ? t.solid : m.frame;
-    this.stripe.visible = !team;
-    m.accent.color.set(team ? '#1b1b1e' : CONFIG.colors.gold);
-    m.tape.color.set(this.barColor || (team ? '#1b1b1e' : '#f1f1ee'));
-    this.rimMat.map = rimTexture(team ? 'team' : 'gold');
+    const dark = team || rainbow;
+    this.stripe.visible = !dark;
+    m.accent.color.set(dark ? '#1b1b1e' : CONFIG.colors.gold);
+    m.tape.color.set(this.barColor || (dark ? '#1b1b1e' : '#f1f1ee'));
+    this.rimMat.map = rimTexture(dark ? 'team' : 'gold');
     this.rimMat.needsUpdate = true;
   }
 
