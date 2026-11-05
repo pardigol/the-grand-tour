@@ -34,6 +34,11 @@ export function createRideScene(app) {
   let pauseIndex = 0;
   let minimap;
   let rivals;
+  // Online-Rennen gegen einen Freund
+  let online = false;
+  let onlineRivals = null;
+  let restarting = false;
+  let sendT = 0;
   const rivalsByWorld = new Map(); // eigene Gegner je Welt (Landstraße / Wald)
   let resultIndex = 0;
   const cam = { view: 0, yawOff: 0, pitchOff: 0, idle: 0, yaw: 0, pitch: 0.32, dist: 4.4, heading: 0 };
@@ -132,6 +137,25 @@ export function createRideScene(app) {
     return ahead + 1;
   }
 
+  // Nachrichten vom Online-Gegner
+  function onNet(msg) {
+    if (!root || !online) return;
+    const r = onlineRivals?.list[0];
+    if (msg.t === 's' && r) {
+      r.net = { ...msg, at: performance.now() };
+    } else if (msg.t === 'start') {
+      // Der andere hat „Nochmal fahren“ gewählt
+      restarting = true;
+      app.go('ride', { character: char, online: true });
+    } else if (msg.t === 'closed' || msg.t === 'error') {
+      banner('Verbindung getrennt', 'Dein Gegner ist nicht mehr da');
+      app.audio.error();
+      online = false;
+      onlineRivals?.hide();
+      app.online.close();
+    }
+  }
+
   function showResult() {
     const L = app.world.length;
     const rows = [
@@ -187,8 +211,11 @@ export function createRideScene(app) {
   }
 
   return {
-    enter({ character }) {
+    enter({ character, online: wantOnline }) {
       char = character;
+      online = !!wantOnline && app.online.connected && !!app.online.remote;
+      const wasRestart = restarting;
+      restarting = false;
       root = el(`
         <div class="screen ride-screen">
           <div class="hud-top">
@@ -263,7 +290,11 @@ export function createRideScene(app) {
       app.bike.setTires(app.mode);
 
       // auf dem schmalen Waldweg weiter in der Mitte starten
-      const p = app.world.poseAt(app.world.length - 14, app.world.cx ? 0.7 : 1.5, tmp);
+      // Online: der Gast startet daneben, damit niemand im anderen steht
+      const baseLat = app.world.cx ? 0.7 : 1.5;
+      const otherLat = baseLat - (app.world.cx ? 1.3 : 2.2);
+      const guest = online && app.online.role === 'guest';
+      const p = app.world.poseAt(app.world.length - 14, guest ? otherLat : baseLat, tmp);
       Object.assign(st, {
         x: p.x,
         z: p.z,
@@ -302,6 +333,16 @@ export function createRideScene(app) {
         rivalsByWorld.set(rivalKey, new Rivals(app, app.mode === 'road' ? RIVALS : []));
       }
       rivals = rivalsByWorld.get(rivalKey);
+      if (online) {
+        // Statt Computer-Gegnern fährt der Freund mit (Position kommt übers Netz)
+        onlineRivals?.dispose();
+        const rc = app.online.remote.char;
+        onlineRivals = new Rivals(app, [{ ...rc, remote: true, power: 0, lane: guest ? baseLat : otherLat }]);
+        rivals = onlineRivals;
+        app.online.listen(onNet);
+        sendT = 0;
+        if (!wasRestart) setTimeout(() => root && banner(`Online gegen ${rc.name}`, 'Viel Glück!'), 300);
+      }
       app.rivals = rivals; // zum Ausprobieren in der Konsole
       app.rideState = st;
       // Ohne Gegner gibt es keinen Platz anzuzeigen
@@ -352,8 +393,14 @@ export function createRideScene(app) {
           app.audio.nav();
         } else if (inp.pressed('confirm')) {
           app.audio.select();
-          if (resultIndex === 0) app.go('ride', { character: char });
-          else app.go('menu', { selectId: char.id });
+          if (resultIndex === 0) {
+            // Online: beide fahren gleichzeitig noch einmal
+            if (online) {
+              app.online.send({ t: 'start' });
+              restarting = true;
+            }
+            app.go('ride', { character: char, online });
+          } else app.go('menu', { selectId: char.id });
           return;
         }
       } else if (inp.pressed('pause') || inp.pressed('start')) {
@@ -582,6 +629,27 @@ export function createRideScene(app) {
       }
       this.placeBike();
       app.bike.update(dt, st.speed, crankRate, st.steerVis);
+      // Online: eigene Position etwa 15-mal pro Sekunde an den Gegner schicken
+      if (online) {
+        sendT -= dt;
+        if (sendT <= 0) {
+          sendT = 1 / 15;
+          app.online.send({
+            t: 's',
+            x: st.x,
+            z: st.z,
+            h: st.h,
+            heading: st.heading,
+            pitch: st.pitch,
+            lean: st.lean,
+            speed: st.speed,
+            crank: crankRate,
+            steer: st.steerVis,
+            p: playerProgress(),
+            f: st.finishTime,
+          });
+        }
+      }
 
       const kmh = st.speed * 3.6;
       // Im Windschatten ist es auch leiser
@@ -704,6 +772,13 @@ export function createRideScene(app) {
 
     exit() {
       rivals.hide();
+      // Rennen verlassen (nicht neu starten): Verbindung beenden, Gegner entfernen
+      if (online && !restarting) {
+        app.online.close();
+        app.online.listen(null);
+        onlineRivals?.dispose();
+        onlineRivals = null;
+      }
       root.remove();
       root = null;
       app.audio.setWind(0);

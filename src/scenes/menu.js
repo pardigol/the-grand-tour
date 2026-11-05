@@ -72,7 +72,7 @@ export function createMenuScene(app) {
     }
   }
 
-  const ACTIONS = ['Rennen fahren', 'Fahrer bearbeiten'];
+  const ACTIONS = ['Rennen fahren', 'Online gegen Freund', 'Fahrer bearbeiten'];
 
   function activate() {
     app.audio.select();
@@ -112,6 +112,7 @@ export function createMenuScene(app) {
     const c = chars[index];
     app.audio.select();
     if (actions === 0) app.go('ride', { character: c });
+    else if (actions === 1) app.go('lobby', { character: c });
     else app.go('creator', { edit: c });
   }
 
@@ -160,7 +161,8 @@ export function createMenuScene(app) {
       const total = chars.length + 1;
       if (actions !== null) {
         if (inp.pressed('left') || inp.pressed('right') || inp.pressed('up') || inp.pressed('down')) {
-          actions = 1 - actions;
+          const d = inp.pressed('left') || inp.pressed('up') ? -1 : 1;
+          actions = (actions + d + ACTIONS.length) % ACTIONS.length;
           renderActions();
           app.audio.nav();
         } else if (inp.pressed('confirm')) runAction();

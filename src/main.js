@@ -14,6 +14,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CONFIG } from './config.js';
 import { World } from './world.js';
 import { loadRiderModel } from './rider-model.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { Online } from './online.js';
+import { createLobbyScene } from './scenes/lobby.js';
 import { loadNature } from './nature.js';
 import { Bike } from './bike.js';
 import { Input } from './input.js';
@@ -61,10 +64,15 @@ async function boot() {
   const nature = await loadNature();
   const world = new World(renderer, 'road', nature);
   const bike = new Bike();
+  let riderTemplate = null;
   // Echte Fahrerin (Mixamo-Modell) für den eigenen Fahrer; die Gegner bleiben einfache Figuren
   if (CONFIG.fahrerModell) {
     const model = await loadRiderModel();
-    if (model) bike.useModel(model);
+    if (model) {
+      // Vorlage aufheben: daraus bekommt der Online-Gegner seine eigene Fahrerin
+      riderTemplate = cloneSkinned(model);
+      bike.useModel(model);
+    }
   }
   world.scene.add(bike.root);
 
@@ -92,7 +100,10 @@ async function boot() {
     fx: fxPass.uniforms,
     focus: new THREE.Vector3(),
     npc: { s: 0, speed: 6, lateral: 1.5, pedal: true },
-    mode: 'road', // 'road' = Rennrad, 'cx' = Cycle Cross
+    mode: 'road', // 'road' = Rennrad, 'cx' = Cycle Cross, 'tt' = Zeitfahren
+    online: new Online(),
+    // Neue Fahrerin für einen anderen Fahrer (Online-Gegner); null = einfache Figur
+    cloneRider: () => (riderTemplate ? cloneSkinned(riderTemplate) : null),
     worlds: { road: world },
     // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
     useWorld(kind) {
@@ -125,6 +136,7 @@ async function boot() {
     menu: createMenuScene(app),
     creator: createCreatorScene(app),
     ride: createRideScene(app),
+    lobby: createLobbyScene(app),
   };
   window.__game = app; // praktisch zum Ausprobieren in der Browser-Konsole
 

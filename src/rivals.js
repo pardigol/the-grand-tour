@@ -83,6 +83,12 @@ export class Rivals {
       bike.applyLook(r);
       bike.root.visible = false;
       app.world.scene.add(bike.root);
+      // Online-Gegner: echte Fahrerin, falls vorhanden
+      if (r.remote) {
+        const model = app.cloneRider?.();
+        if (model) bike.useModel(model);
+        bike.setTires(app.mode);
+      }
       const draftZone = makeDraftZone();
       bike.root.add(draftZone);
       return { ...r, bike, draftZone, grid: GRID[i], d: 0, v: 0, lat: r.lane, heading: 0, lean: 0, finished: null };
@@ -98,6 +104,7 @@ export class Rivals {
       r.lat = r.lane;
       r.lean = 0;
       r.finished = null;
+      r.net = null;
       r.wobble = Math.random() * 10;
       r.bike.root.visible = true;
       this.place(r, 0, 0);
@@ -140,6 +147,40 @@ export class Rivals {
     }
   }
 
+  // Online-Gegner: Position kommt übers Netz, dazwischen weich nachziehen
+  updateRemote(r, dt) {
+    const n = r.net;
+    if (!n) return;
+    const k = 1 - Math.exp(-12 * dt);
+    // Seit dem letzten Paket vorausrechnen, damit es nicht ruckelt
+    const age = Math.min(0.25, (performance.now() - n.at) / 1000);
+    const tx = n.x + Math.sin(n.heading) * n.speed * age;
+    const tz = n.z + Math.cos(n.heading) * n.speed * age;
+    if (r.x == null || Math.hypot(tx - r.x, tz - r.z) > 15) {
+      r.x = tx;
+      r.z = tz;
+      r.h = n.h;
+    }
+    r.x += (tx - r.x) * k;
+    r.z += (tz - r.z) * k;
+    r.h += (n.h - r.h) * k;
+    r.heading += Math.atan2(Math.sin(n.heading - r.heading), Math.cos(n.heading - r.heading)) * k;
+    r.lean += (n.lean - r.lean) * k;
+    r.pitch = n.pitch;
+    r.v = n.speed;
+    r.finished = n.f;
+    const b = r.bike.root;
+    b.position.set(r.x, r.h, r.z);
+    b.rotation.set(-r.pitch, r.heading, r.lean);
+    r.bike.update(dt, r.v, n.crank, n.steer);
+  }
+
+  // Online-Gegner wieder aus der Welt nehmen
+  dispose() {
+    for (const r of this.list) r.bike.root.removeFromParent();
+    this.list = [];
+  }
+
   hide() {
     for (const r of this.list) {
       r.bike.root.visible = false;
@@ -150,6 +191,7 @@ export class Rivals {
 
   // Zurückgelegte Strecke ab der Startlinie
   progress(r) {
+    if (r.remote) return r.net ? r.net.p : -20;
     return r.d - (this.app.world.length - this.startS);
   }
 
@@ -169,11 +211,16 @@ export class Rivals {
     r.x = pose.x;
     r.z = pose.z;
     r.pitch = pose.pitch;
+    r.h = pose.h;
   }
 
   // running = Rennen läuft, player = { progress, lateral }, raceLen = Rennlänge in Metern
   update(dt, running, player, raceLen, time) {
     for (const r of this.list) {
+      if (r.remote) {
+        this.updateRemote(r, dt);
+        continue;
+      }
       // Gleiche Physik wie beim Spieler: Treten, Luftwiderstand, Rollen, Steigung
       let power = 0;
       if (running) {

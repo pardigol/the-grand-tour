@@ -466,11 +466,12 @@ body {
   flex-basis: 100%;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
   margin-top: 4px;
   animation: menuIn 0.2s both;
 }
 .card-action {
-  flex: 1;
+  flex: 1 1 40%;
   text-align: center;
   padding: 8px 10px;
   border-radius: 8px;
@@ -1552,4 +1553,74 @@ body {
 @media (max-height: 700px) {
   .hints { font-size: 16px; }
   .number-value { font-size: 70px; }
+}
+
+/* ---------- Online-Lobby ---------- */
+.lobby-me {
+  margin: 4px 0 18px;
+  font-size: 18px;
+  color: #cfc7b8;
+}
+.lobby-label {
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 8px 0 6px;
+}
+.lobby-code {
+  font-family: 'Cinzel', serif;
+  font-size: 84px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(245, 199, 107, 0.6);
+  line-height: 1.1;
+}
+.lobby-digits {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 10px;
+}
+.lobby-digit {
+  width: 64px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  font-size: 56px;
+  font-weight: 800;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+}
+.lobby-digit.cursor {
+  border-color: var(--gold);
+  box-shadow: 0 0 20px rgba(245, 199, 107, 0.45);
+}
+.lobby-info {
+  font-size: 19px;
+  line-height: 1.5;
+  color: #e9e3d6;
+  margin: 10px 0 16px;
+}
+.lobby-info b {
+  color: var(--gold);
+}
+.lobby-mode {
+  margin-top: 14px;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a69f92;
+}
+.lobby-wait {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--gold);
+  animation: lobbySpin 0.9s linear infinite;
+}
+@keyframes lobbySpin {
+  to { transform: rotate(360deg); }
 }
