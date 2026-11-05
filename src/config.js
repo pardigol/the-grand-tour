@@ -59,6 +59,9 @@ export const CONFIG = {
     cx: { asphalt: 0.008, schotter: 0.011, wiese: 0.022 },
   },
 
+  // Jahreszeit je Strecke: 'sommer' (grün) oder 'herbst' (bunte Blätter, Laub am Boden)
+  jahreszeiten: { rennrad: 'sommer', cx: 'herbst' },
+
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,
 };

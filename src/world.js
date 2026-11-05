@@ -80,9 +80,14 @@ function dirtTexture(rand) {
 
 export class World {
   // kind: 'road' = Landstraße (Rennrad), 'cx' = Waldweg durch dichten Wald (Cycle Cross)
-  constructor(renderer, kind = 'road') {
+  // nature = geladene Natur-Modelle (siehe nature.js) oder null
+  constructor(renderer, kind = 'road', nature = null) {
     this.kind = kind;
     this.cx = kind === 'cx';
+    this.nature = nature;
+    // Jahreszeit je Welt (CONFIG.jahreszeiten): Rennrad grün, Cycle Cross Herbst
+    this.season = (CONFIG.jahreszeiten || {})[this.cx ? 'cx' : 'rennrad'] || (this.cx ? 'herbst' : 'sommer');
+    this.autumn = this.season === 'herbst';
     // Größte halbe Weg-/Straßenbreite. Beim Waldweg schwankt die Breite (siehe rhArr in buildTrack).
     this.RH = this.cx ? 1.6 : 3.6;
     this.SH = this.cx ? 2.4 : 5.0;
@@ -475,12 +480,13 @@ export class World {
 
     // Im Wald dichter, leicht grünlicher Dunst
     this.scene.fog = this.cx
-      ? new THREE.FogExp2(new THREE.Color('#9fa88f'), 0.0042)
+      ? new THREE.FogExp2(new THREE.Color(this.autumn ? '#a8977a' : '#9fa88f'), 0.0042)
       : new THREE.FogExp2(new THREE.Color('#c9a58f'), 0.0013);
   }
 
   buildLights() {
-    const hemi = new THREE.HemisphereLight('#b9cdf5', '#5b4634', 0.9);
+    // im dichten Wald etwas mehr Himmelslicht, sonst wird es unter dem Blätterdach zu dunkel
+    const hemi = new THREE.HemisphereLight('#b9cdf5', '#5b4634', this.cx ? 1.35 : 0.9);
     this.scene.add(hemi);
 
     // Das Sonnenlicht steht etwas höher als die sichtbare Sonne – so bleibt die Landschaft hell
@@ -526,9 +532,10 @@ export class World {
     const nrm = geo.attributes.normal;
 
     // Im Wald: Moos und braunes Laub statt Wiese
-    const cGrassA = new THREE.Color(this.cx ? '#33501f' : '#3f6b25');
-    const cGrassB = new THREE.Color(this.cx ? '#5b6b2c' : '#86a33c');
-    const cDry = new THREE.Color(this.cx ? '#7a5a34' : '#b9a457');
+    // Im Herbst: olivbraunes Gras und viel orange-braunes Laub am Boden
+    const cGrassA = new THREE.Color(this.autumn ? '#4a4a22' : this.cx ? '#33501f' : '#3f6b25');
+    const cGrassB = new THREE.Color(this.autumn ? '#7a6a2e' : this.cx ? '#5b6b2c' : '#86a33c');
+    const cDry = new THREE.Color(this.autumn ? '#9a5a26' : this.cx ? '#7a5a34' : '#b9a457');
     const cRock = new THREE.Color('#7d756b');
     const cSnow = new THREE.Color('#f4efe9');
     const cDirt = new THREE.Color(this.cx ? '#5e4630' : '#8d7457');
@@ -542,7 +549,7 @@ export class World {
       const g = this.n3(x * 0.012, z * 0.012) * 0.5 + 0.5;
       c.copy(cGrassA).lerp(cGrassB, g);
       const dry = smoothstep(0.25, 0.8, this.n2(x * 0.004 + 50, z * 0.004));
-      c.lerp(cDry, dry * 0.55);
+      c.lerp(cDry, dry * (this.autumn ? 0.85 : 0.55));
       const slope = 1 - nrm.getY(i);
       const rock = clamp(smoothstep(0.18, 0.4, slope) + smoothstep(50, 100, h) * 0.7, 0, 1);
       c.lerp(cRock, rock);
@@ -770,10 +777,13 @@ export class World {
         leafCol.push(new THREE.Color().setHSL(0.18 + rand() * 0.1, 0.5, 0.25 + rand() * 0.12));
       }
     }
-    this.instanced(pineCrown, crownMat, pines, pineCol);
-    this.instanced(pineTrunk, trunkMat, pines);
-    this.instanced(leafCrown, crownMat, leafs, leafCol);
-    this.instanced(leafTrunk, trunkMat, leafs);
+    if (this.nature) this.plantModels(rand, pines, leafs, 3.0);
+    else {
+      this.instanced(pineCrown, crownMat, pines, pineCol);
+      this.instanced(pineTrunk, trunkMat, pines);
+      this.instanced(leafCrown, crownMat, leafs, leafCol);
+      this.instanced(leafTrunk, trunkMat, leafs);
+    }
 
     // Waldweg: Riesenbäume direkt am Weg, deren Kronen sich über dem Weg schließen
     if (this.cx) {
@@ -797,10 +807,14 @@ export class World {
           }
         }
       }
-      this.instanced(leafCrown, crownMat, gLeaf, gLeafCol);
-      this.instanced(leafTrunk, trunkMat, gLeaf);
-      this.instanced(pineCrown, crownMat, gPine, gPineCol);
-      this.instanced(pineTrunk, trunkMat, gPine);
+      // Riesenbäume nur als Laubbäume (Nadelbäume hängen sonst mit tiefen Ästen über den Weg)
+      if (this.nature) this.plantModels(rand, [], [...gLeaf, ...gPine], 3.0, true);
+      else {
+        this.instanced(leafCrown, crownMat, gLeaf, gLeafCol);
+        this.instanced(leafTrunk, trunkMat, gLeaf);
+        this.instanced(pineCrown, crownMat, gPine, gPineCol);
+        this.instanced(pineTrunk, trunkMat, gPine);
+      }
       this.giantCount = gLeaf.length + gPine.length;
     }
 
@@ -810,7 +824,9 @@ export class World {
       const g = new THREE.BufferGeometry();
       const w = 0.05;
       g.setAttribute('position', new THREE.Float32BufferAttribute([-w, 0, 0, w, 0, 0, 0.03, 0.55, 0], 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute([0.18, 0.3, 0.08, 0.18, 0.3, 0.08, 0.75, 0.8, 0.35], 3));
+      const cb = this.autumn ? [0.22, 0.18, 0.07] : [0.18, 0.3, 0.08];
+      const ct = this.autumn ? [0.8, 0.6, 0.28] : [0.75, 0.8, 0.35];
+      g.setAttribute('color', new THREE.Float32BufferAttribute([...cb, ...cb, ...ct], 3));
       g.rotateZ((rand() - 0.5) * 0.5);
       g.rotateY((k / 3) * Math.PI + rand() * 0.4);
       g.translate((rand() - 0.5) * 0.15, 0, (rand() - 0.5) * 0.15);
@@ -822,7 +838,8 @@ export class World {
     const grassCol = [];
     const flowers = [];
     const flowerCol = [];
-    const flowerPalette = ['#f2d14b', '#ffffff', '#e2455b', '#9b6bd6', '#ff9a3c'].map((c) => new THREE.Color(c));
+    // Sommer: Blumen. Herbst: Laubhäufchen in Orange, Rot, Gelb und Braun
+    const flowerPalette = (this.autumn ? ['#c2461f', '#e07b24', '#e9b13a', '#8a3b1c', '#b5651d'] : ['#f2d14b', '#ffffff', '#e2455b', '#9b6bd6', '#ff9a3c']).map((c) => new THREE.Color(c));
     const pose = {};
     for (let i = 0; i < 22000; i++) {
       const s = rand() * this.length;
@@ -833,9 +850,11 @@ export class World {
       const h = this.terrainHeight(pose.x, pose.z);
       const sc = 0.7 + rand() * 0.9;
       grass.push(mtx(pose.x, h - 0.05, pose.z, sc, sc * (0.8 + rand() * 0.8)));
-      grassCol.push(new THREE.Color().setHSL(0.2 + rand() * 0.06, 0.4, 0.4 + rand() * 0.3));
-      if (rand() < 0.1) {
-        flowers.push(mtx(pose.x + rand() - 0.5, h + 0.28 + rand() * 0.1, pose.z + rand() - 0.5, 0.6 + rand() * 0.5));
+      grassCol.push(new THREE.Color().setHSL((this.autumn ? 0.1 : 0.2) + rand() * 0.06, 0.4, 0.4 + rand() * 0.3));
+      if (rand() < (this.autumn ? 0.3 : 0.1)) {
+        const fs = 0.6 + rand() * 0.5;
+        if (this.autumn) flowers.push(mtx(pose.x + rand() - 0.5, h + 0.02, pose.z + rand() - 0.5, fs * 1.6, fs * 0.35));
+        else flowers.push(mtx(pose.x + rand() - 0.5, h + 0.28 + rand() * 0.1, pose.z + rand() - 0.5, fs));
         flowerCol.push(flowerPalette[Math.floor(rand() * flowerPalette.length)]);
       }
     }
@@ -866,11 +885,16 @@ export class World {
         ),
       );
     }
-    this.instanced(
-      new THREE.DodecahedronGeometry(1, 0),
-      new THREE.MeshStandardMaterial({ color: '#8b8580', roughness: 0.95, flatShading: true }),
-      rocks,
-    );
+    if (this.nature) {
+      this.placeOnGeos(rocks, this.nature.rocks, rand, 0.9);
+      this.plantUnderwood(rand);
+    } else {
+      this.instanced(
+        new THREE.DodecahedronGeometry(1, 0),
+        new THREE.MeshStandardMaterial({ color: '#8b8580', roughness: 0.95, flatShading: true }),
+        rocks,
+      );
+    }
 
     // Strohballen auf den Feldern (nicht im Wald)
     const bales = [];
@@ -895,8 +919,123 @@ export class World {
     );
   }
 
+  // ---------- Natur-Modelle (Quaternius) ----------
+  natureMaterial() {
+    return (this._natMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
+  }
+
+  // Zufällige Farbtönung pro Baum, damit nicht alle gleich aussehen
+  leafTint(rand) {
+    if (!this.autumn) return new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rand() * 0.3);
+    const r = rand();
+    if (r < 0.3) return new THREE.Color(1.35, 0.75, 0.6); // rötlich
+    if (r < 0.6) return new THREE.Color(1.15, 1.15, 0.65); // gelb
+    return new THREE.Color(1, 1, 1).multiplyScalar(0.9 + rand() * 0.25); // orange
+  }
+
+  // Bäume: Nadelbäume (pines) und Laubbäume (leafs) aus den Modellen, scale = Grundgröße
+  plantModels(rand, pines, leafs, scale, giant = false) {
+    const T = this.nature.trees[this.season] || this.nature.trees.sommer;
+    const groups = new Map();
+    const add = (geo, m, c) => {
+      if (!groups.has(geo)) groups.set(geo, { mats: [], cols: [] });
+      const g = groups.get(geo);
+      g.mats.push(m.clone().multiply(new THREE.Matrix4().makeScale(scale, scale, scale)));
+      g.cols.push(c);
+    };
+    const v = () => Math.floor(rand() * 5);
+    for (const m of pines) {
+      // im Herbst sind ein paar Nadelbäume (Lärchen) gelb-orange
+      const list = this.autumn && rand() < 0.25 ? T.pineAlt : T.pine;
+      add(list[v()], m, new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rand() * 0.3));
+    }
+    for (const m of leafs) {
+      const r = rand();
+      // Riesenbäume: vor allem breite Laubbäume, ein paar Birken
+      const list = giant ? (r < 0.85 ? T.common : T.birch) : r < 0.5 ? T.common : r < 0.8 ? T.birch : T.willow;
+      add(list[v()], m, this.leafTint(rand));
+    }
+    for (const [geo, g] of groups) this.instanced(geo, this.natureMaterial(), g.mats, g.cols);
+  }
+
+  // Matrizen zufällig auf mehrere Modelle verteilen (z. B. Felsen)
+  placeOnGeos(mats, geos, rand, scale = 1, tint = null) {
+    const groups = geos.map(() => ({ mats: [], cols: [] }));
+    for (const m of mats) {
+      const k = Math.floor(rand() * geos.length);
+      groups[k].mats.push(scale === 1 ? m : m.clone().multiply(new THREE.Matrix4().makeScale(scale, scale, scale)));
+      groups[k].cols.push(tint ? tint(rand) : new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rand() * 0.3));
+    }
+    groups.forEach((g, k) => g.mats.length && this.instanced(geos[k], this.natureMaterial(), g.mats, g.cols));
+  }
+
+  // Büsche, Baumstümpfe und liegende Stämme
+  plantUnderwood(rand) {
+    const pose = {};
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const at = (x, z, s, sy = s, yaw = rand() * Math.PI * 2) =>
+      new THREE.Matrix4().compose(new THREE.Vector3(x, this.terrainHeight(x, z) - 0.05, z), q.setFromAxisAngle(up, yaw).clone(), new THREE.Vector3(s, sy, s));
+    const bushes = [];
+    const nBush = this.cx ? 2600 : 1600;
+    for (let i = 0; i < nBush * 2 && bushes.length < nBush; i++) {
+      const sd = rand() < 0.5 ? -1 : 1;
+      const lat = sd * (this.SH + 0.8 + Math.pow(rand(), 1.4) * (this.cx ? 14 : 55));
+      this.poseAt(rand() * this.length, lat, pose);
+      const nr = this.nearest(pose.x, pose.z);
+      if (nr.found && nr.dist < this.shArr[nr.i] + 0.6) continue;
+      if (this.lakeAt(pose.x, pose.z, 2)) continue;
+      const sc = 0.8 + rand() * 0.8;
+      bushes.push(at(pose.x, pose.z, sc, sc * (0.8 + rand() * 0.4)));
+    }
+    // Herbst: Büsche teils gelb oder rot verfärbt
+    const bushTint = (r) => {
+      if (!this.autumn) return new THREE.Color(1, 1, 1).multiplyScalar(0.9 + r() * 0.4);
+      const x = r();
+      if (x < 0.35) return new THREE.Color(2.6, 1.0, 0.5);
+      if (x < 0.7) return new THREE.Color(2.4, 1.6, 0.5);
+      return new THREE.Color(1.2, 1.1, 0.8);
+    };
+    this.placeOnGeos(bushes, this.nature.bushes, rand, 1, bushTint);
+    const stumps = [];
+    const logs = [];
+    for (let i = 0; i < (this.cx ? 260 : 160); i++) {
+      const sd = rand() < 0.5 ? -1 : 1;
+      this.poseAt(rand() * this.length, sd * (this.SH + 1.5 + rand() * (this.cx ? 12 : 60)), pose);
+      if (this.lakeAt(pose.x, pose.z, 2)) continue;
+      if (rand() < 0.5) stumps.push(at(pose.x, pose.z, 1.1 + rand() * 0.7));
+      else logs.push(at(pose.x, pose.z, 1.0 + rand() * 0.4));
+    }
+    this.placeOnGeos(stumps, [this.nature.stump], rand);
+    this.placeOnGeos(logs, [this.nature.log], rand);
+  }
+
   // Felsbrocken: grau mit etwas Moos, halb im Boden
   buildRocks(pose) {
+    if (this.nature) {
+      // Größe so wählen, dass der Fels etwa den Kollisionsradius r hat
+      const rand = mulberry32(7);
+      const geos = this.nature.rocks;
+      const groups = geos.map(() => []);
+      for (const r of this.rocks) {
+        this.poseAt(r.s, r.lat, pose);
+        r.x = pose.x;
+        r.z = pose.z;
+        const k = Math.floor(rand() * geos.length);
+        const bb = geos[k].boundingBox;
+        const half = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2;
+        const sc = r.r / half;
+        groups[k].push(
+          new THREE.Matrix4().compose(
+            new THREE.Vector3(pose.x, this.ph[r.i] - 0.05, pose.z),
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 6.28),
+            new THREE.Vector3(sc, sc * 1.1, sc),
+          ),
+        );
+      }
+      groups.forEach((g, k) => g.length && this.instanced(geos[k], this.natureMaterial(), g));
+      return;
+    }
     const geo = new THREE.IcosahedronGeometry(1, 1);
     const gp = geo.attributes.position;
     const col = [];
@@ -1131,6 +1270,26 @@ export class World {
     for (let i = 0; i < n * 3; i++) pos[i] = (Math.random() - 0.5) * 50;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    if (this.autumn) {
+      // Fallende Blätter in Herbstfarben
+      const cols = new Float32Array(n * 3);
+      const pal = ['#c2461f', '#e07b24', '#e9b13a', '#8a3b1c'].map((c) => new THREE.Color(c));
+      for (let i = 0; i < n; i++) pal[i % pal.length].toArray(cols, i * 3);
+      geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      const leaf = canvasTex(64, 64, (ctx) => {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(32, 32, 26, 13, 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      this.motes = new THREE.Points(
+        geo,
+        new THREE.PointsMaterial({ size: 0.16, map: leaf, vertexColors: true, transparent: true, alphaTest: 0.4, depthWrite: false }),
+      );
+      this.motes.frustumCulled = false;
+      this.scene.add(this.motes);
+      return;
+    }
     const tex = canvasTex(64, 64, (ctx) => {
       const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
       g.addColorStop(0, 'rgba(255,255,255,1)');
@@ -1164,6 +1323,11 @@ export class World {
     for (let i = 0; i < p.count; i++) {
       let x = p.getX(i) + Math.sin(time * 0.5 + i) * 0.15 * dt + 0.25 * dt;
       let y = p.getY(i) + Math.cos(time * 0.4 + i * 1.7) * 0.1 * dt;
+      // Herbstblätter sinken taumelnd zu Boden
+      if (this.autumn) {
+        y -= (0.45 + (i % 5) * 0.08) * dt;
+        x += Math.sin(time * 1.3 + i) * 0.5 * dt;
+      }
       let z = p.getZ(i) + 0.1 * dt;
       const wrap = (v, c) => (v - c > 25 ? v - 50 : v - c < -25 ? v + 50 : v);
       x = wrap(x, cx);

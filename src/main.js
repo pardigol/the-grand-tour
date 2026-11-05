@@ -13,6 +13,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CONFIG } from './config.js';
 import { World } from './world.js';
+import { loadNature } from './nature.js';
 import { Bike } from './bike.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
@@ -55,7 +56,9 @@ async function boot() {
   document.getElementById('game').appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 6000);
-  const world = new World(renderer);
+  // Bäume, Büsche und Felsen aus dem Natur-Paket laden (fällt sonst auf einfache Formen zurück)
+  const nature = await loadNature();
+  const world = new World(renderer, 'road', nature);
   const bike = new Bike();
   world.scene.add(bike.root);
 
@@ -87,7 +90,7 @@ async function boot() {
     worlds: { road: world },
     // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
     useWorld(kind) {
-      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind);
+      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature);
       const w = this.worlds[kind];
       if (w === this.world) return;
       this.world.scene.remove(this.bike.root);
