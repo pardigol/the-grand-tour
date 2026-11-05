@@ -83,8 +83,9 @@ export class World {
   constructor(renderer, kind = 'road') {
     this.kind = kind;
     this.cx = kind === 'cx';
-    this.RH = this.cx ? 1.9 : 3.6;
-    this.SH = this.cx ? 2.8 : 5.0;
+    // Größte halbe Weg-/Straßenbreite. Beim Waldweg schwankt die Breite (siehe rhArr in buildTrack).
+    this.RH = this.cx ? 1.6 : 3.6;
+    this.SH = this.cx ? 2.4 : 5.0;
     this.scene = new THREE.Scene();
     this.rand = mulberry32(1337);
     this.n1 = makeNoise2D(11);
@@ -234,7 +235,42 @@ export class World {
       }
       h = out;
     }
+    // Drops im Wald: an fünf Stellen geht der Weg plötzlich tiefer weiter.
+    // Damit die Runde wieder oben ankommt, steigt der Weg dazwischen ganz leicht an.
+    this.drops = [];
+    if (this.cx) {
+      const at = [0.14, 0.33, 0.52, 0.7, 0.88];
+      const depth = [1.1, 1.4, 1.0, 1.5, 1.2];
+      let total = 0;
+      at.forEach((f, k) => {
+        const i0 = Math.floor(f * N);
+        this.drops.push({ i: i0, s: (i0 + 1) * this.ds, d: depth[k] });
+        total += depth[k];
+      });
+      for (let i = 0; i < N; i++) {
+        let off = total * (i / N);
+        for (const d of this.drops) if (i > d.i) off -= d.d;
+        h[i] += off;
+      }
+    }
     ph.set(h);
+
+    // Wegbreite je Stelle: Straße überall gleich, Waldweg schmal und stellenweise ein enger Pfad
+    this.rhArr = new Float32Array(N);
+    this.shArr = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let rh = this.RH;
+      if (this.cx) {
+        const th = (i / N) * Math.PI * 2;
+        rh = 1.2 + 0.3 * Math.sin(3 * th + 1) + 0.2 * Math.sin(7 * th + 2.2);
+        rh = Math.min(this.RH, Math.max(0.75, rh));
+        // am Start/Ziel etwas breiter
+        const fromStart = Math.min(i, N - i) * this.ds;
+        rh = lerp(this.RH, rh, smoothstep(15, 50, fromStart));
+      }
+      this.rhArr[i] = rh;
+      this.shArr[i] = rh + (this.SH - this.RH);
+    }
 
     // Raster für schnelle "Wo ist die nächste Straße?"-Abfragen
     this.grid = new Map();
@@ -248,6 +284,12 @@ export class World {
 
   cellKey(cx, cz) {
     return (cx + 1000) * 4000 + (cz + 1000);
+  }
+
+  // Halbe Breite von Weg und Seitenstreifen an der Stelle s (Meter ab Start)
+  shAt(s) {
+    const i = Math.floor((((s % this.length) + this.length) % this.length) / this.ds) % this.N;
+    return this.shArr[i];
   }
 
   // Nächster Punkt auf der Straße. Gibt ein wiederverwendetes Objekt zurück!
@@ -309,18 +351,21 @@ export class World {
     const nr = this.nearest(x, z);
     const b = this.baseHeight(x, z);
     if (!nr.found) return b;
-    const w = smoothstep(this.RH + 1.2, this.RH + 22, nr.dist);
+    const rh = this.rhArr[nr.i];
+    const w = smoothstep(rh + 1.2, rh + 22, nr.dist);
     return lerp(nr.h - 0.15, b, w);
   }
 
   // Höhe des Bodens, auf dem ein Rad fährt, und welche Oberfläche
   groundAt(x, z, out = {}) {
     const nr = this.nearest(x, z);
-    if (nr.found && nr.dist < this.RH + 0.2) {
+    const rh = nr.found ? this.rhArr[nr.i] : this.RH;
+    const sh = nr.found ? this.shArr[nr.i] : this.SH;
+    if (nr.found && nr.dist < rh + 0.2) {
       out.h = nr.h + 0.06;
       out.surface = this.cx ? 'gravel' : 'road'; // Waldweg = Erde/Schotter
-    } else if (nr.found && nr.dist < this.SH) {
-      out.h = nr.h + 0.03 - smoothstep(this.RH + 0.5, this.SH, nr.dist) * 0.12;
+    } else if (nr.found && nr.dist < sh) {
+      out.h = nr.h + 0.03 - smoothstep(rh + 0.5, sh, nr.dist) * 0.12;
       out.surface = this.cx ? 'grass' : 'gravel'; // im Wald: Laub und Waldboden
     } else {
       out.h = this.terrainHeight(x, z);
@@ -383,7 +428,10 @@ export class World {
     this.scene.environmentIntensity = 0.55;
     pmrem.dispose();
 
-    this.scene.fog = new THREE.FogExp2(new THREE.Color('#c9a58f'), 0.0013);
+    // Im Wald dichter, leicht grünlicher Dunst
+    this.scene.fog = this.cx
+      ? new THREE.FogExp2(new THREE.Color('#9fa88f'), 0.0042)
+      : new THREE.FogExp2(new THREE.Color('#c9a58f'), 0.0013);
   }
 
   buildLights() {
@@ -422,9 +470,10 @@ export class World {
       const b = this.baseHeight(x, z);
       let h = b;
       if (nr.found) {
-        const w = smoothstep(this.RH + 1.2, this.RH + 22, nr.dist);
+        const rh = this.rhArr[nr.i];
+        const w = smoothstep(rh + 1.2, rh + 22, nr.dist);
         h = lerp(nr.h - 0.15, b, w);
-        roadW[i] = 1 - smoothstep(this.SH, this.SH + 5, nr.dist);
+        roadW[i] = 1 - smoothstep(this.shArr[nr.i], this.shArr[nr.i] + 5, nr.dist);
       }
       pos.setY(i, h);
     }
@@ -562,10 +611,11 @@ export class World {
       const sx = -this.tz[i];
       const sz = this.tx[i];
       const v = (k * this.ds) / 12;
-      road.push(x - sx * this.RH, h + 0.06, z - sz * this.RH, x + sx * this.RH, h + 0.06, z + sz * this.RH);
+      const rh = this.rhArr[i];
+      road.push(x - sx * rh, h + 0.06, z - sz * rh, x + sx * rh, h + 0.06, z + sz * rh);
       roadUv.push(0, v, 1, v);
-      const a = this.SH;
-      const b = this.RH + 0.3;
+      const a = this.shArr[i];
+      const b = rh + 0.3;
       sh.push(
         x - sx * a, h - 0.12, z - sz * a,
         x - sx * b, h + 0.035, z - sz * b,
@@ -654,7 +704,7 @@ export class World {
     const leafCol = [];
     const lim = this.cx ? 520 : 860;
     let tries = 0;
-    const maxTrees = this.cx ? 4200 : 2600;
+    const maxTrees = this.cx ? 5500 : 2600;
     while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
@@ -662,7 +712,7 @@ export class World {
       const dens = this.n3(x * 0.006 + 20, z * 0.006);
       if (!this.cx && dens < 0.05 && rand() > 0.08) continue;
       const nr = this.nearest(x, z);
-      if (nr.found && nr.dist < (this.cx ? this.SH + 1.6 : 11)) continue;
+      if (nr.found && nr.dist < (this.cx ? this.shArr[nr.i] + 1.6 : 11)) continue;
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
@@ -679,6 +729,35 @@ export class World {
     this.instanced(pineTrunk, trunkMat, pines);
     this.instanced(leafCrown, crownMat, leafs, leafCol);
     this.instanced(leafTrunk, trunkMat, leafs);
+
+    // Waldweg: Riesenbäume direkt am Weg, deren Kronen sich über dem Weg schließen
+    if (this.cx) {
+      const gLeaf = [];
+      const gLeafCol = [];
+      const gPine = [];
+      const gPineCol = [];
+      const pose = {};
+      for (const side of [-1, 1]) {
+        for (let s = rand() * 6; s < this.length; s += 6 + rand() * 6) {
+          const lat = side * (this.shAt(s) + 1.0 + rand() * 2.5);
+          this.poseAt(s, lat, pose);
+          const h = this.terrainHeight(pose.x, pose.z);
+          const sc = 2.6 + rand() * 1.0;
+          if (rand() < 0.75) {
+            gLeaf.push(mtx(pose.x, h - 0.3, pose.z, sc, sc * (0.95 + rand() * 0.25)));
+            gLeafCol.push(new THREE.Color().setHSL(0.22 + rand() * 0.08, 0.5, 0.2 + rand() * 0.1));
+          } else {
+            gPine.push(mtx(pose.x, h - 0.3, pose.z, sc * 0.9, sc * (1.0 + rand() * 0.3)));
+            gPineCol.push(new THREE.Color().setHSL(0.31 + rand() * 0.04, 0.45, 0.14 + rand() * 0.06));
+          }
+        }
+      }
+      this.instanced(leafCrown, crownMat, gLeaf, gLeafCol);
+      this.instanced(leafTrunk, trunkMat, gLeaf);
+      this.instanced(pineCrown, crownMat, gPine, gPineCol);
+      this.instanced(pineTrunk, trunkMat, gPine);
+      this.giantCount = gLeaf.length + gPine.length;
+    }
 
     // Grasbüschel entlang der Straße
     const blades = [];
@@ -771,6 +850,23 @@ export class World {
     );
   }
 
+  // Ein liegender Baumstamm markiert jede Drop-Kante
+  buildDropLogs(pose) {
+    const logs = [];
+    for (const d of this.drops) {
+      this.poseAt(d.s - 0.6, 0, pose);
+      const len = this.rhArr[d.i] * 2 + 1.6;
+      logs.push(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(pose.x, this.ph[d.i] + 0.1, pose.z),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, pose.heading, Math.PI / 2, 'YXZ')),
+          new THREE.Vector3(1, len, 1),
+        ),
+      );
+    }
+    this.instanced(new THREE.CylinderGeometry(0.17, 0.2, 1, 10), new THREE.MeshStandardMaterial({ color: '#6b4b30', roughness: 1 }), logs);
+  }
+
   // Cycle Cross: Holzpflöcke mit rot-weißem Absperrband links und rechts vom Weg
   buildTape(pose) {
     const stakes = [];
@@ -781,7 +877,7 @@ export class World {
     for (const side of [-1, 1]) {
       let prev = null;
       for (let s = 0; s <= this.length + 0.01; s += gap) {
-        this.poseAt(s, side * (this.SH + 0.4), pose);
+        this.poseAt(s, side * (this.shAt(s) + 0.4), pose);
         const p = new THREE.Vector3(pose.x, this.terrainHeight(pose.x, pose.z), pose.z);
         stakes.push(new THREE.Matrix4().makeTranslation(p.x, p.y + 0.45, p.z));
         if (prev) {
@@ -821,7 +917,10 @@ export class World {
     const pose = {};
     const posts = [];
     const caps = [];
-    if (this.cx) this.buildTape(pose);
+    if (this.cx) {
+      this.buildTape(pose);
+      this.buildDropLogs(pose);
+    }
     for (let s = 0; s < (this.cx ? 0 : this.length); s += 50) {
       for (const side of [-1, 1]) {
         this.poseAt(s, side * (this.SH + 0.5), pose);
@@ -886,7 +985,7 @@ export class World {
         }
     });
     const line = new THREE.Mesh(
-      new THREE.PlaneGeometry(this.RH * 2, 0.9),
+      new THREE.PlaneGeometry(this.rhArr[0] * 2, 0.9),
       new THREE.MeshStandardMaterial({ map: checker, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }),
     );
     line.rotation.x = -Math.PI / 2;

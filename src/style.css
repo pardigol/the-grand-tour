@@ -1354,6 +1354,31 @@ body {
 .controls-help.fade {
   opacity: 0;
 }
+.drop-hint {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(60, 30, 10, 0.75);
+  border: 2px solid #ff9a3c;
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.drop-hint.show {
+  opacity: 1;
+}
+.drop-hint.now {
+  background: rgba(150, 30, 10, 0.85);
+  border-color: #ffd36b;
+  font-size: 30px;
+  animation: pulse 0.35s ease-in-out infinite;
+}
 .banner {
   position: absolute;
   top: 26%;

@@ -239,5 +239,9 @@ export class Input {
     this.lookY = Math.max(-1, Math.min(1, lookY));
     this.throttle = Math.max(padThrottle, keyThrottle);
     this.brake = Math.max(padBrake, keyBrake);
+    // Für die Landung nach einem Drop: L1 und R1 (Tastatur Q und E) gleichzeitig halten
+    const isDown = (i) => !!(pad && pad.buttons[i] && pad.buttons[i].pressed);
+    this.l1 = isDown(4) || k.has('KeyQ');
+    this.r1 = isDown(5) || k.has('KeyE');
   }
 }

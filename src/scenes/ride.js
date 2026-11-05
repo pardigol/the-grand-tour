@@ -206,6 +206,7 @@ export function createRideScene(app) {
             <div>${btn('B')} Dauertreten an/aus</div>
             <div>${btn('Y')} Bremsen</div>
             <div>${btn('X')} Sprint</div>
+            <div>${btn('LB')}+${btn('RB')} Landen nach Drops</div>
             <div>${btn('LT')}${btn('RT')} Lenken</div>
             <div><span class="btn btn-stick">L</span> leicht lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
@@ -213,6 +214,7 @@ export function createRideScene(app) {
             <div><span class="btn btn-opt">☰</span> Pause</div>
           </div>
           <div class="banner"></div>
+          <div class="drop-hint"></div>
           <div class="countdown"></div>
           <div class="result">
             <div class="pause-box result-box">
@@ -256,6 +258,10 @@ export function createRideScene(app) {
         time: 0,
         paused: false,
         shake: 0,
+        air: false, // in der Luft nach einem Drop
+        vy: 0,
+        bothHeld: -9,
+        crash: 0, // Sekunden, die man nach einem Sturz noch liegt
         cruise: false,
         sprint: 'ready', // 'ready' | 'active' | 'charging'
         sprintT: 0,
@@ -273,6 +279,7 @@ export function createRideScene(app) {
       }
       rivals = rivalsByWorld.get(app.world);
       app.rivals = rivals; // zum Ausprobieren in der Konsole
+      app.rideState = st;
       // Ohne Gegner gibt es keinen Platz anzuzeigen
       $('.hud-place').style.display = rivals.list.length ? '' : 'none';
       app.bike.setTires(app.mode);
@@ -363,7 +370,10 @@ export function createRideScene(app) {
 
       st.time += dt;
       const w = app.world;
-      const steer = inp.steer;
+      // Nach einem Sturz liegt man kurz, dann geht es aus dem Stand weiter
+      const crashed = st.crash > 0;
+      const steer = crashed ? 0 : inp.steer;
+      if (inp.l1 && inp.r1) st.bothHeld = st.time;
       // Sprint: □ / X startet ihn, wenn der Balken voll ist
       const sp = CONFIG.sprint;
       if ((inp.pressed('x') || inp.pressed('sprint')) && st.sprint === 'ready' && st.phase === 'race') {
@@ -392,7 +402,7 @@ export function createRideScene(app) {
       // Beim Bremsen wird nicht getreten, Dauertreten und Sprint laufen danach weiter
       let throttle = inp.brake > 0.1 ? 0 : st.cruise || sprinting ? 1 : inp.throttle;
       let brake = inp.brake;
-      if (st.phase === 'countdown') throttle = 0;
+      if (st.phase === 'countdown' || crashed) throttle = 0;
       // Nach dem Ziel rollt man langsam aus
       if (st.phase === 'finished') {
         throttle = 0;
@@ -447,7 +457,54 @@ export function createRideScene(app) {
         st.z *= 830 / r;
         st.speed *= 0.9;
       }
-      st.h = w.groundAt(st.x, st.z, ground).h;
+      // Boden und Drops: an einer Drop-Kante hebt man ab und fällt mit Schwerkraft nach unten
+      const gh = w.groundAt(st.x, st.z, ground).h;
+      const nrD = w.nearest(st.x, st.z);
+      if (!st.air && w.drops.length && nrD.found && nrD.dist < w.rhArr[nrD.i] + 1.2 && st.speed > 1.5) {
+        for (const d of w.drops) {
+          if (st.lastS < d.s - 0.3 && nrD.s >= d.s - 0.3 && nrD.s < d.s + 3) {
+            st.air = true;
+            st.vy = 0.8;
+            banner('Drop!', `${btn('LB')} + ${btn('RB')} halten zum Landen`);
+          }
+        }
+      }
+      if (st.air) {
+        st.vy -= G * dt;
+        st.h += st.vy * dt;
+        if (st.h <= gh) {
+          st.h = gh;
+          st.air = false;
+          // Sauber gelandet, wenn L1 und R1 gerade (oder eben noch) gleichzeitig gehalten werden
+          if (st.time - st.bothHeld < 0.3) {
+            banner('Sauber gelandet!');
+            app.audio.select();
+            app.input.rumble(0.5, 120);
+            st.speed *= 0.92;
+          } else {
+            st.crash = 1.8;
+            st.speed = 0;
+            st.cruise = false;
+            $('.cruise-badge')?.classList.remove('on');
+            banner('Sturz!', `Beim Landen ${btn('LB')} + ${btn('RB')} gleichzeitig halten`);
+            app.audio.error();
+            app.audio.noiseBurst(0.25, { vol: 0.5, freq: 180, type: 'lowpass' });
+            app.input.rumble(1, 450);
+          }
+        }
+      } else st.h = gh;
+      if (crashed) {
+        st.crash -= dt;
+        st.speed = 0;
+        if (st.crash <= 0) {
+          // wieder aufrichten, mitten auf dem Weg
+          const p = w.poseAt(nrD.found ? nrD.s : st.lastS, 0, tmp);
+          st.x = p.x;
+          st.z = p.z;
+          st.heading = p.heading;
+          st.h = w.groundAt(st.x, st.z, ground).h;
+        }
+      }
 
       // Wackeln im Gras
       if (ground.surface === 'grass' && st.speed > 1) {
@@ -455,7 +512,9 @@ export function createRideScene(app) {
         st.shake = 1;
       } else st.shake = 0;
 
-      st.lean = damp(st.lean, steer * clamp(st.speed / 9, 0, 1) * 0.42, 6, dt);
+      // beim Sturz kippt das Rad zur Seite, in der Luft geht die Nase etwas runter
+      st.lean = damp(st.lean, crashed ? 1.35 : steer * clamp(st.speed / 9, 0, 1) * 0.42, crashed ? 10 : 6, dt);
+      if (st.air) st.pitch = damp(st.pitch, -0.12, 4, dt);
       st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.speed / 14, 0, 0.85)), 10, dt);
 
       // Pedalieren oder Freilauf
@@ -530,6 +589,22 @@ export function createRideScene(app) {
 
       // Anzeige
       $('.speedo-val b').textContent = Math.round(kmh);
+      // Hinweis kurz vor jedem Drop und während des Flugs
+      let hint = '';
+      if (st.air) hint = `Jetzt ${btn('LB')} + ${btn('RB')}!`;
+      else if (w.drops.length && nrD.found && !crashed) {
+        for (const d of w.drops) {
+          const ahead = d.s - nrD.s;
+          if (ahead > 0 && ahead < 30) hint = `Drop in ${Math.ceil(ahead)} m – ${btn('LB')} + ${btn('RB')} zum Landen`;
+        }
+      }
+      if (hint !== st.hintShown) {
+        st.hintShown = hint;
+        const hEl = $('.drop-hint');
+        hEl.innerHTML = hint;
+        hEl.classList.toggle('show', !!hint);
+        hEl.classList.toggle('now', st.air);
+      }
       // Sprint-Balken unten in der Mitte
       const bar = $('.sprint-bar');
       const fill = st.sprint === 'active' ? st.sprintT / sp.dauer : st.sprint === 'charging' ? st.sprintT / sp.aufladen : 1;
