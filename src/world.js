@@ -919,6 +919,12 @@ export class World {
     );
   }
 
+  // Ist der Kreis (x, z, Radius r) frei vom Weg samt Seitenstreifen? Prüft das nächste Wegstück überhaupt.
+  clearOfPath(x, z, r) {
+    const nr = this.nearest(x, z);
+    return !nr.found || nr.dist >= this.shArr[nr.i] + r;
+  }
+
   // ---------- Natur-Modelle (Quaternius) ----------
   natureMaterial() {
     return (this._natMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
@@ -938,6 +944,10 @@ export class World {
     const T = this.nature.trees[this.season] || this.nature.trees.sommer;
     const groups = new Map();
     const add = (geo, m, c) => {
+      // Stamm darf nie auf dem Weg stehen
+      const e = m.elements;
+      const s = Math.hypot(e[0], e[1], e[2]) * scale;
+      if (!this.clearOfPath(e[12], e[14], (giant ? 0.14 : 0.1) * s + 0.4)) return;
       if (!groups.has(geo)) groups.set(geo, { mats: [], cols: [] });
       const g = groups.get(geo);
       g.mats.push(m.clone().multiply(new THREE.Matrix4().makeScale(scale, scale, scale)));
@@ -980,12 +990,11 @@ export class World {
     const nBush = this.cx ? 2600 : 1600;
     for (let i = 0; i < nBush * 2 && bushes.length < nBush; i++) {
       const sd = rand() < 0.5 ? -1 : 1;
-      const lat = sd * (this.SH + 0.8 + Math.pow(rand(), 1.4) * (this.cx ? 14 : 55));
+      const lat = sd * (this.SH + 1.4 + Math.pow(rand(), 1.4) * (this.cx ? 14 : 55));
       this.poseAt(rand() * this.length, lat, pose);
-      const nr = this.nearest(pose.x, pose.z);
-      if (nr.found && nr.dist < this.shArr[nr.i] + 0.6) continue;
-      if (this.lakeAt(pose.x, pose.z, 2)) continue;
       const sc = 0.8 + rand() * 0.8;
+      if (!this.clearOfPath(pose.x, pose.z, 0.75 * sc + 0.3)) continue;
+      if (this.lakeAt(pose.x, pose.z, 2)) continue;
       bushes.push(at(pose.x, pose.z, sc, sc * (0.8 + rand() * 0.4)));
     }
     // Herbst: Büsche teils gelb oder rot verfärbt
@@ -1001,10 +1010,21 @@ export class World {
     const logs = [];
     for (let i = 0; i < (this.cx ? 260 : 160); i++) {
       const sd = rand() < 0.5 ? -1 : 1;
-      this.poseAt(rand() * this.length, sd * (this.SH + 1.5 + rand() * (this.cx ? 12 : 60)), pose);
+      this.poseAt(rand() * this.length, sd * (this.SH + 2 + rand() * (this.cx ? 12 : 60)), pose);
       if (this.lakeAt(pose.x, pose.z, 2)) continue;
-      if (rand() < 0.5) stumps.push(at(pose.x, pose.z, 1.1 + rand() * 0.7));
-      else logs.push(at(pose.x, pose.z, 1.0 + rand() * 0.4));
+      if (rand() < 0.5) {
+        const s = 1.1 + rand() * 0.7;
+        if (this.clearOfPath(pose.x, pose.z, 0.75 * s + 0.3)) stumps.push(at(pose.x, pose.z, s));
+      } else {
+        // Stämme liegen längs zum Weg; beide Enden müssen frei sein
+        const s = 1.0 + rand() * 0.4;
+        const half = 1.35 * s;
+        const ok =
+          this.clearOfPath(pose.x + pose.tx * half, pose.z + pose.tz * half, 0.6) &&
+          this.clearOfPath(pose.x - pose.tx * half, pose.z - pose.tz * half, 0.6) &&
+          this.clearOfPath(pose.x, pose.z, 0.6);
+        if (ok) logs.push(at(pose.x, pose.z, s, s, pose.heading + (rand() - 0.5) * 0.4));
+      }
     }
     this.placeOnGeos(stumps, [this.nature.stump], rand);
     this.placeOnGeos(logs, [this.nature.log], rand);

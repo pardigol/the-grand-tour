@@ -58,7 +58,22 @@ async function loadModel(name) {
   const geo = mergeGeometries(parts);
   geo.computeBoundingBox();
   const bb = geo.boundingBox;
-  geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  // Am Stammfuß ausrichten: Mitte der untersten Punkte (bei schiefen Bäumen liegt die Krone daneben)
+  const pos = geo.attributes.position;
+  const limit = bb.min.y + (bb.max.y - bb.min.y) * 0.06;
+  let sx = 0;
+  let sz = 0;
+  let n = 0;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) <= limit) {
+      sx += pos.getX(i);
+      sz += pos.getZ(i);
+      n++;
+    }
+  }
+  const cx = n ? sx / n : (bb.min.x + bb.max.x) / 2;
+  const cz = n ? sz / n : (bb.min.z + bb.max.z) / 2;
+  geo.translate(-cx, -bb.min.y, -cz);
   geo.computeBoundingBox();
   return geo;
 }
