@@ -75,6 +75,7 @@ async function boot() {
     world,
     bike,
     composer,
+    config: CONFIG,
     ui,
     input: new Input(),
     audio: new AudioEngine(),

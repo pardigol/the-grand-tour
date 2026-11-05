@@ -184,6 +184,11 @@ export function createRideScene(app) {
             <canvas class="minimap"></canvas>
           </div>
           <div class="view-toast"></div>
+          <div class="draft-badge">
+            <span class="draft-icon">≋</span>
+            <div class="draft-text"><b>Windschatten</b><small class="draft-name"></small></div>
+            <div class="draft-meter"><i></i></div>
+          </div>
           <div class="cruise-badge">${btn('B')} Dauertreten an</div>
           <div class="grade-box"><span class="grade-arrow"></span><b class="grade-val">0 %</b><label>Steigung</label></div>
           <div class="gear-box">
@@ -276,6 +281,7 @@ export function createRideScene(app) {
       });
       app.rideState = st; // zum Ausprobieren in der Konsole
       if (!rivals) rivals = new Rivals(app);
+      app.rivals = rivals; // zum Ausprobieren in der Konsole
       rivals.reset(p.s);
       this.placeBike();
       cam.view = 0;
@@ -366,7 +372,14 @@ export function createRideScene(app) {
       const steer = inp.steer;
       // Sprint: □ / X startet ihn, wenn der Balken voll ist
       const sp = CONFIG.sprint;
-      if ((inp.pressed('x') || inp.pressed('sprint')) && st.sprint === 'ready' && st.phase === 'race') {
+      const sprintKey = inp.pressed('x') || inp.pressed('sprint');
+      // Nochmal □ während des Sprints: abbrechen. Was übrig war, wird beim Aufladen gutgeschrieben.
+      if (sprintKey && st.sprint === 'active') {
+        st.sprint = 'charging';
+        st.sprintT = (st.sprintT / sp.dauer) * sp.aufladen;
+        app.audio.back();
+        app.input.rumble(0.2, 60);
+      } else if (sprintKey && st.sprint === 'ready' && st.phase === 'race') {
         st.sprint = 'active';
         st.sprintT = sp.dauer;
         app.audio.whoosh(1.2);
@@ -427,7 +440,11 @@ export function createRideScene(app) {
       const drive = gd.force;
       st.cad = gd.c;
       st.rpm = throttle > 0.05 ? gd.rpm : 0;
-      const drag = 0.5 * 1.2 * 0.36 * v * v;
+      // Windschatten: dicht hinter einem Gegner bis zu 40 % weniger Luftwiderstand
+      const dr = rivals.draftFor(st.x, st.z);
+      st.draft = damp(st.draft || 0, dr.strength, 5, dt);
+      if (dr.rival) st.draftName = dr.rival.name;
+      const drag = 0.5 * 1.2 * 0.36 * v * v * (1 - CONFIG.windschatten * st.draft);
       const brakeF = brake * 650;
       let a = (drive - drag - roll * MASS * G - MASS * G * Math.sin(st.pitch)) / MASS;
       a -= v > 0.01 ? brakeF / MASS : 0;
@@ -477,13 +494,21 @@ export function createRideScene(app) {
         crankRate = Math.max((st.rpm * Math.PI * 2) / 60, 3 * throttle);
         app.audio.freewheel(dt, 0);
       } else {
-        app.audio.freewheel(dt, Math.min(55, (st.speed / (2 * Math.PI * WHEEL_R)) * 24));
+        app.audio.freewheel(dt, Math.min(30, (st.speed / (2 * Math.PI * WHEEL_R)) * 24));
       }
       this.placeBike();
       app.bike.update(dt, st.speed, crankRate, st.steerVis);
 
       const kmh = st.speed * 3.6;
-      app.audio.setWind(clamp(st.speed / 15, 0, 1));
+      // Im Windschatten ist es auch leiser
+      app.audio.setWind(clamp(st.speed / 15, 0, 1) * (1 - 0.5 * st.draft));
+      rivals.showDraft(dr.rival, dr.strength, dt);
+      const badge = $('.draft-badge');
+      badge.classList.toggle('on', st.draft > 0.08);
+      if (st.draft > 0.08) {
+        $('.draft-name').textContent = `hinter ${st.draftName} · −${Math.round(CONFIG.windschatten * st.draft * 100)} % Wind`;
+        $('.draft-meter i').style.width = `${Math.round(st.draft * 100)}%`;
+      }
       // Keine Speedlines auf der Strecke
       app.fx.uLines.value = 0;
       updateCamera(dt);

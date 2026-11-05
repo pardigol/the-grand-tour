@@ -41,6 +41,8 @@ export const CONFIG = {
 
   // Lautstärke der Geräusche (Menü, Fahrtwind, Freilauf)
   soundVolume: 0.8,
+  // Extra-Regler nur für die Fahrgeräusche (Fahrtwind und Freilaufklicken): 0 = aus, 1 = laut
+  fahrgeraeusche: 0.35,
 
   // Wie stark du in die Pedale trittst (Watt). Mehr = schneller!
   riderPower: 520,
@@ -62,6 +64,9 @@ export const CONFIG = {
     bergkraft: [420, 370, 325, 285, 250, 220, 195, 172, 152, 135, 120],
     maxTrittfrequenz: 120, // Kurbelumdrehungen pro Minute, wenn der Gang "durchdreht"
   },
+
+  // Windschatten: so viel weniger Luftwiderstand ganz dicht hinter einem Gegner (0.4 = 40 %)
+  windschatten: 0.4,
 
   // Wie bergig die Strecke ist (0 = flach, 1 = normal, 1.5 = sehr bergig)
   berge: 1,

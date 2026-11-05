@@ -52,7 +52,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **Y** | **△** | S / ↓ |
-| Sprint (15 s Vollgas, danach 30 s Aufladen) | **X** | **□** | Shift |
+| Sprint (15 s Vollgas, nochmal drücken = abbrechen, danach Aufladen) | **X** | **□** | Shift |
 | Gang runter / hoch (11 Gänge) | **LB / RB** | **L1 / R1** | Q / E |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
@@ -162,6 +162,14 @@ berge: 1,   // 0 = flach, 1 = normal, 1.5 = sehr bergig
 
 Über dem Tacho siehst du die Steigung in Prozent: **+** heißt bergauf, **–** bergab. Rot wird es ab 8 %.
 
+**Windschatten**
+
+Fährst du dicht hinter einem Gegner (bis etwa 8 m), hast du weniger Luftwiderstand. Dann leuchten hinter ihm blaue Pfeile auf der Straße, und oben erscheint „Windschatten“ mit einem Balken für die Stärke. Wie stark er wirkt, stellst du in `src/config.js` ein: `windschatten: 0.4` (0.4 = 40 % weniger Luftwiderstand ganz dicht dahinter).
+
+**Fahrgeräusche leiser oder lauter**
+
+`fahrgeraeusche: 0.35` in `src/config.js` regelt nur Fahrtwind und Freilaufklicken (0 = aus, 1 = laut).
+
 **Sprint einstellen**
 
 ```js
@@ -213,7 +221,6 @@ src/
 
 - 🎨 Mehr Aussehen: Hautfarbe, Frisur, Trikot-Muster, Sonnenbrille
 - 🚲 Mehr am Rad: Laufräder, Sattel, Zeitfahrrad
-- 🏁 **Echte Rennen** gegen computergesteuerte Fahrer mit Windschatten-Effekt
 - ⛰️ **Mehrere Strecken:** Bergetappe mit Serpentinen, Küstenstraße, Stadtkurs mit Kopfsteinpflaster
 - ⚡ **Energie-Leiste:** Sprinten kostet Kraft, Trinkflasche füllt sie auf
 - 🏆 **Trikot-Wertungen** wie bei der Tour de France (Gelb, Grün, Bergtrikot)

@@ -196,7 +196,7 @@ export class AudioEngine {
     let n = 0;
     while (this.fwPhase >= 1 && n < 6) {
       this.fwPhase -= 1;
-      this.noiseBurst(0.006, { vol: 0.32, freq: 4500, when: n * (1 / Math.max(rate, 1)) });
+      this.noiseBurst(0.006, { vol: 0.32 * CONFIG.fahrgeraeusche, freq: 4500, when: n * (1 / Math.max(rate, 1)) });
       n++;
     }
     if (this.fwPhase > 1) this.fwPhase = 0;
@@ -205,8 +205,9 @@ export class AudioEngine {
   setWind(level) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.windGain.gain.setTargetAtTime(level * 0.3, t, 0.15);
-    this.windFilter.frequency.setTargetAtTime(300 + level * 2400, t, 0.2);
+    // Leiser und dumpfer als früher, damit der Fahrtwind Musik und Effekte nicht übertönt
+    this.windGain.gain.setTargetAtTime(level * 0.3 * CONFIG.fahrgeraeusche, t, 0.15);
+    this.windFilter.frequency.setTargetAtTime(250 + level * 1100, t, 0.2);
   }
 
   setMusicLevel(v) {
