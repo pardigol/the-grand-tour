@@ -73,8 +73,6 @@ export class Input {
       if (e.code === 'KeyC') this.queue.push('view');
       if (e.code === 'KeyT') this.queue.push('cruise');
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queue.push('sprint');
-      if (e.code === 'KeyQ') this.queue.push('gearDown');
-      if (e.code === 'KeyE') this.queue.push('gearUp');
       if (e.key === 'Escape') this.queue.push('pause');
       if (e.key === 'Backspace') this.charQueue.push('\b');
       else if (e.key.length === 1) this.charQueue.push(e.key);

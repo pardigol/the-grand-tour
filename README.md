@@ -52,8 +52,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **Y** | **△** | S / ↓ |
-| Sprint (15 s Vollgas, nochmal drücken = abbrechen, danach Aufladen) | **X** | **□** | Shift |
-| Gang runter / hoch (11 Gänge) | **LB / RB** | **L1 / R1** | Q / E |
+| Sprint (15 s Vollgas, danach 30 s Aufladen) | **X** | **□** | Shift |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
 | Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
@@ -76,7 +75,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
    - **Dein Rennrad:** Marke (Canyon, Rose, Colnago oder Cervélo), Lackierung, Rahmenfarbe und Farbe des Lenkerbands. Der Markenname steht groß auf dem Aero-Unterrohr. Lackierung **„Team-Design“**: hinten mattschwarz, vorne die Rahmenfarbe mit gezacktem Übergang, tiefe Felgen mit weißer Schrift, schwarzes Lenkerband – mit Colnago und Weiß sieht das Rad aus wie das Team-Rad aus Pauls Foto.
 
    Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
-5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, unten in der Mitte den Sprint-Balken (□ drücken, wenn „bereit“ dasteht) und darüber deinen Gang, über dem Tacho die Steigung in Prozent, am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
+5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, unten in der Mitte den Sprint-Balken (□ drücken, wenn „bereit“ dasteht), am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
 ---
 
@@ -141,39 +140,6 @@ steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 
 `start` = wie stark das Rad beim kurzen Antippen einlenkt (0.25 = ein Viertel). `vollNach` = nach wie vielen Sekunden Halten die volle Lenkung erreicht ist. Kleinere Zahlen = schnellere, schärfere Lenkung. `stick` = wie stark der linke Stick lenken darf (0.4 = 40 %, 0 = gar nicht, 1 = so stark wie L2/R2).
 
-**Gänge einstellen**
-
-```js
-gaenge: {
-  start: 6,
-  hoechsttempo: [22, 26, 30, 34, 38, 42, 46, 50, 54, 57, 62],
-  bergkraft: [420, 370, 325, 285, 250, 220, 195, 172, 152, 135, 120],
-  maxTrittfrequenz: 120,
-},
-```
-
-Je ein Wert pro Gang (Gang 1 bis 11). `hoechsttempo` = schneller als das geht es in diesem Gang nicht, weil man nicht schneller treten kann. `bergkraft` = wie stark man beim Anfahren und am steilen Berg schiebt. Kleine Gänge kommen gut den Berg hoch, sind aber langsam. Nur in den großen Gängen (10 und 11) erreichst du das Höchsttempo, dafür kommst du mit ihnen am steilen Berg aus dem Stand nur ganz langsam voran. Neben dem Gang steht die Trittfrequenz: **grün** = Gang passt, **orange** = Gang zu schwer, **rot** = Gang zu leicht (du strampelst durch).
-
-**Wie bergig die Strecke ist**
-
-```js
-berge: 1,   // 0 = flach, 1 = normal, 1.5 = sehr bergig
-```
-
-Über dem Tacho siehst du die Steigung in Prozent: **+** heißt bergauf, **–** bergab. Rot wird es ab 8 %.
-
-**Sprint-Haltung und Zuschauer**
-
-Beim Sprint steht dein Fahrer aus dem Sattel auf (Wiegetritt), und das Rad schaukelt im Takt der Pedale. Am Start/Ziel stehen Zuschauer hinter Absperrgittern. Sie jubeln, klatschen und winken, wenn du vorbeifährst. Die Lautstärke regelst du mit `zuschauer: 0.7` in `src/config.js` (0 = aus).
-
-**Windschatten**
-
-Fährst du dicht hinter einem Gegner (bis etwa 8 m), hast du weniger Luftwiderstand. Dann leuchten hinter ihm blaue Pfeile auf der Straße, und oben erscheint „Windschatten“ mit einem Balken für die Stärke. Wie stark er wirkt, stellst du in `src/config.js` ein: `windschatten: 0.4` (0.4 = 40 % weniger Luftwiderstand ganz dicht dahinter).
-
-**Fahrgeräusche leiser oder lauter**
-
-`fahrgeraeusche: 0.35` in `src/config.js` regelt nur Fahrtwind und Freilaufklicken (0 = aus, 1 = laut).
-
 **Sprint einstellen**
 
 ```js
@@ -195,8 +161,6 @@ riderPower: 520,   // mehr Watt = schneller
 - **Alles prozedural:** Landschaft, Straße, Bäume, Gras, Rennrad und Fahrer werden im Code erzeugt. Es werden keine Modelle heruntergeladen. Das spart Ladezeit, funktioniert offline, und es gibt keine Lizenzfragen. Die Schriften (Cinzel, Barlow Condensed) kommen als npm-Pakete mit, also auch offline.
 - **Grafik:** Echte Schatten (Shadow Map, die dem Fahrer folgt), physikalischer Himmel mit Sonnenaufgang, Nebel, Bildbasierte Beleuchtung aus dem Himmel, leuchtende Pollen in der Luft, Bloom, eigener Shader für Bewegungsunschärfe, Speedlines und Vignette, Kantenglättung (MSAA).
 - **Leistung:** Pixeldichte auf 1,5 begrenzt, Bäume und Gras als Instanzen. Läuft auf einem normalen Laptop flüssig.
-- **Bäume:** Laubbäume mit gebogenem Stamm, Ästen und einer Krone aus vielen Blattbüscheln, Nadelbäume mit Etagen aus hängenden Nadelzweigen, dazu Büsche. Alles wird im Code erzeugt (`src/trees.js`), wiegt sich leicht im Wind und wirft Blätterschatten.
-- **Kamera:** Liegt ein Hang zwischen Fahrer und Kamera, rückt die Kamera automatisch näher heran und taucht nie in den Boden ein.
 - **Fahrer-Animation:** Beine und Arme werden per Inverse Kinematik an Pedale und Lenker angepasst.
 - **Ton:** Alle Geräusche und die Musik werden mit der Web Audio API live erzeugt. Browser erlauben Ton erst nach einer Eingabe. Einige Browser zählen einen Controller-Knopf nicht als Eingabe. Falls es still bleibt, einmal eine Taste auf der Tastatur drücken oder ins Fenster klicken.
 - **Charaktererstellung:** In `src/scenes/creator.js` ist sie in Schritte aufgeteilt (`STEPS`). Neue Schritte wie Aussehen oder Rad werden als weiteres Objekt mit `mount`, `update` und `validate` ergänzt. Gespeichert wird im `localStorage` des Browsers.
@@ -227,11 +191,13 @@ src/
 
 - 🎨 Mehr Aussehen: Hautfarbe, Frisur, Trikot-Muster, Sonnenbrille
 - 🚲 Mehr am Rad: Laufräder, Sattel, Zeitfahrrad
+- 🏁 **Echte Rennen** gegen computergesteuerte Fahrer mit Windschatten-Effekt
 - ⛰️ **Mehrere Strecken:** Bergetappe mit Serpentinen, Küstenstraße, Stadtkurs mit Kopfsteinpflaster
+- 🔁 **Gangschaltung** mit LB/RB und Trittfrequenz-Anzeige
 - ⚡ **Energie-Leiste:** Sprinten kostet Kraft, Trinkflasche füllt sie auf
 - 🏆 **Trikot-Wertungen** wie bei der Tour de France (Gelb, Grün, Bergtrikot)
 - 🌦️ **Tageszeiten und Wetter:** Regen, Abendrot, Nacht mit Lampe
 - 👥 **Zwei-Spieler-Modus** mit geteiltem Bildschirm (zwei Controller)
 - 📷 **Fotomodus** mit freier Kamera
-- 🔔 Kuhglocken und Zuschauer auch an den Bergen
+- 🔊 Zuschauer am Straßenrand, Glocken und Jubel
 - 💾 Bestenliste mit allen Rundenzeiten

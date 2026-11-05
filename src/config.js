@@ -41,10 +41,6 @@ export const CONFIG = {
 
   // Lautstärke der Geräusche (Menü, Fahrtwind, Freilauf)
   soundVolume: 0.8,
-  // Lautstärke der Zuschauer an Start/Ziel (Applaus, Jubel, Pfiffe): 0 = aus, 1 = laut
-  zuschauer: 0.7,
-  // Extra-Regler nur für die Fahrgeräusche (Fahrtwind und Freilaufklicken): 0 = aus, 1 = laut
-  fahrgeraeusche: 0.35,
 
   // Wie stark du in die Pedale trittst (Watt). Mehr = schneller!
   riderPower: 520,
@@ -56,22 +52,6 @@ export const CONFIG = {
 
   // Sprint (□ / X): so viele Sekunden lang, danach so viele Sekunden Aufladen, und so viel stärker (1.6 = 60 % mehr Kraft)
   sprint: { dauer: 15, aufladen: 30, kraft: 1.6 },
-
-  // Gangschaltung (L1 = runter, R1 = hoch; Tastatur Q / E). Je ein Wert pro Gang, Gang 1 … 11.
-  gaenge: {
-    start: 6, // mit diesem Gang startest du
-    // Höchsttempo je Gang in km/h: schneller geht es nicht, weil man nicht schneller treten kann
-    hoechsttempo: [22, 26, 30, 34, 38, 42, 46, 50, 54, 57, 62],
-    // Kraft am Berg je Gang in Newton: wie stark du beim Anfahren und am steilen Berg schiebst
-    bergkraft: [420, 370, 325, 285, 250, 220, 195, 172, 152, 135, 120],
-    maxTrittfrequenz: 120, // Kurbelumdrehungen pro Minute, wenn der Gang "durchdreht"
-  },
-
-  // Windschatten: so viel weniger Luftwiderstand ganz dicht hinter einem Gegner (0.4 = 40 %)
-  windschatten: 0.4,
-
-  // Wie bergig die Strecke ist (0 = flach, 1 = normal, 1.5 = sehr bergig)
-  berge: 1,
 
   // Wie viele Runden ein Rennen dauert (eine Runde = etwa 3 bis 4 Minuten)
   raceLaps: 3,

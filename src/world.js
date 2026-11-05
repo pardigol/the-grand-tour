@@ -5,7 +5,6 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeNoise2D, mulberry32, smoothstep, lerp, clamp } from './noise.js';
 import { CONFIG } from './config.js';
-import { makeTreeAssets } from './trees.js';
 
 export const ROAD_HALF = 3.6;
 export const SHOULDER_HALF = 5.0;
@@ -57,7 +56,6 @@ export class World {
     this.buildRoad();
     this.buildVegetation();
     this.buildProps();
-    this.buildCrowd();
     this.buildClouds();
     this.buildMotes();
   }
@@ -177,7 +175,7 @@ export class World {
     // Straßenhöhe = geglättete Geländehöhe
     let h = new Float32Array(N);
     for (let i = 0; i < N; i++) h[i] = this.baseHeight(px[i], pz[i]);
-    const R = 50;
+    const R = 30;
     for (let pass = 0; pass < 3; pass++) {
       const out = new Float32Array(N);
       for (let i = 0; i < N; i++) {
@@ -186,14 +184,6 @@ export class World {
         out[i] = s / (2 * R + 1);
       }
       h = out;
-    }
-    // Lange Anstiege und Abfahrten über die ganze Runde (Stärke in CONFIG.berge).
-    // Cosinus, damit Start/Ziel flach auf einer Kuppe liegt.
-    const bergA = 11 * CONFIG.berge;
-    const bergB = 2.5 * CONFIG.berge;
-    for (let i = 0; i < N; i++) {
-      const th = (i / N) * Math.PI * 2;
-      h[i] += bergA * Math.cos(3 * th) + bergB * Math.cos(7 * th) - (bergA + bergB);
     }
     ph.set(h);
 
@@ -576,16 +566,36 @@ export class World {
     const mtx = (x, y, z, s, sy = s, yaw = rand() * Math.PI * 2) =>
       new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, yaw).clone(), new THREE.Vector3(s, sy, s));
 
-    // Detailreiche Bäume (siehe trees.js)
-    const T = (this.trees = makeTreeAssets());
-    const pines = T.pine.map(() => []);
-    const pineCol = T.pine.map(() => []);
-    const leafs = T.deciduous.map(() => []);
-    const leafCol = T.deciduous.map(() => []);
+    // Baum-Formen
+    const pineCrown = mergeGeometries([
+      new THREE.ConeGeometry(1.9, 4.2, 8).translate(0, 3.6, 0),
+      new THREE.ConeGeometry(1.4, 3.4, 8).translate(0, 5.7, 0),
+      new THREE.ConeGeometry(0.85, 2.4, 8).translate(0, 7.4, 0),
+    ]);
+    const pineTrunk = new THREE.CylinderGeometry(0.16, 0.28, 2.4, 6).translate(0, 1.2, 0);
+    const leafCrown = new THREE.IcosahedronGeometry(2.3, 1);
+    const lp = leafCrown.attributes.position;
+    for (let i = 0; i < lp.count; i++) {
+      const x = lp.getX(i);
+      const y = lp.getY(i);
+      const z = lp.getZ(i);
+      const k = 1 + this.n1(x * 1.3 + 3, z * 1.3 + y) * 0.22;
+      lp.setXYZ(i, x * k, y * k * 0.85, z * k);
+    }
+    leafCrown.translate(0, 4.4, 0);
+    leafCrown.computeVertexNormals();
+    const leafTrunk = new THREE.CylinderGeometry(0.2, 0.32, 3.2, 6).translate(0, 1.6, 0);
+
+    const crownMat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.9 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 });
+
+    const pines = [];
+    const pineCol = [];
+    const leafs = [];
+    const leafCol = [];
     const lim = 860;
     let tries = 0;
-    let count = 0;
-    while (count < 2600 && tries++ < 40000) {
+    while (pines.length + leafs.length < 2600 && tries++ < 40000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
       if (Math.hypot(x, z) > 870) continue;
@@ -596,54 +606,19 @@ export class World {
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
-      const s = 0.7 + rand() * 0.65;
-      count++;
+      const s = 0.75 + rand() * 0.75;
       if (h > 45 || dens > 0.45 || rand() < 0.35) {
-        const v = Math.floor(rand() * T.pine.length);
-        pines[v].push(mtx(x, h - 0.15, z, s, s * (0.9 + rand() * 0.3)));
-        pineCol[v].push(new THREE.Color().setHSL(0.28 + rand() * 0.06, 0.3, 0.72 + rand() * 0.22));
+        pines.push(mtx(x, h - 0.2, z, s, s * (0.9 + rand() * 0.4)));
+        pineCol.push(new THREE.Color().setHSL(0.31 + rand() * 0.05, 0.45, 0.17 + rand() * 0.08));
       } else {
-        const v = Math.floor(rand() * T.deciduous.length);
-        leafs[v].push(mtx(x, h - 0.15, z, s, s * (0.9 + rand() * 0.25)));
-        // vereinzelt schon gelblich angehauchte Bäume
-        const autumn = rand() < 0.12;
-        leafCol[v].push(new THREE.Color().setHSL(autumn ? 0.13 + rand() * 0.04 : 0.22 + rand() * 0.08, autumn ? 0.6 : 0.3, 0.75 + rand() * 0.2));
+        leafs.push(mtx(x, h - 0.2, z, s));
+        leafCol.push(new THREE.Color().setHSL(0.18 + rand() * 0.1, 0.5, 0.25 + rand() * 0.12));
       }
     }
-    const withShadow = (mesh, depth) => {
-      mesh.customDepthMaterial = depth;
-      return mesh;
-    };
-    T.pine.forEach((g, v) => {
-      if (!pines[v].length) return;
-      this.instanced(g.bark, T.pineBarkMat, pines[v]);
-      withShadow(this.instanced(g.leaves, T.needleMat, pines[v], pineCol[v]), T.needleDepth);
-    });
-    T.deciduous.forEach((g, v) => {
-      if (!leafs[v].length) return;
-      this.instanced(g.bark, T.barkMat, leafs[v]);
-      withShadow(this.instanced(g.leaves, T.leafMats[v % 2], leafs[v], leafCol[v]), T.leafDepth[v % 2]);
-    });
-
-    // Büsche an Waldrändern und auf den Wiesen
-    const bushes = [];
-    const bushCol = [];
-    tries = 0;
-    while (bushes.length < 2200 && tries++ < 30000) {
-      const x = (rand() * 2 - 1) * lim;
-      const z = (rand() * 2 - 1) * lim;
-      const dens = this.n3(x * 0.006 + 20, z * 0.006);
-      if (dens < -0.15 && rand() > 0.15) continue;
-      const nr = this.nearest(x, z);
-      if (nr.found && nr.dist < 6.5) continue;
-      if (this.lakeAt(x, z, 2)) continue;
-      const h = this.terrainHeight(x, z);
-      if (h > 90) continue;
-      const s = 0.6 + rand() * 0.9;
-      bushes.push(mtx(x, h - 0.1, z, s, s * (0.7 + rand() * 0.5)));
-      bushCol.push(new THREE.Color().setHSL(0.2 + rand() * 0.1, 0.35, 0.6 + rand() * 0.25));
-    }
-    withShadow(this.instanced(T.bush, T.leafMats[1], bushes, bushCol), T.leafDepth[1]);
+    this.instanced(pineCrown, crownMat, pines, pineCol);
+    this.instanced(pineTrunk, trunkMat, pines);
+    this.instanced(leafCrown, crownMat, leafs, leafCol);
+    this.instanced(leafTrunk, trunkMat, leafs);
 
     // Grasbüschel entlang der Straße
     const blades = [];
@@ -824,140 +799,11 @@ export class World {
         flag.position.set(0, 2.7, 0.35);
         flag.rotation.y = Math.PI / 2;
         f.add(pole, flag);
-        f.position.set(side * (SHOULDER_HALF + 5.5), 0, k * 7);
+        f.position.set(side * (SHOULDER_HALF + 3), 0, k * 7);
         arch.add(f);
       }
     }
     this.scene.add(arch);
-  }
-
-  // ---------- Zuschauer an Start/Ziel ----------
-  buildCrowd() {
-    const rand = mulberry32(2024);
-    const pose = {};
-    const people = [];
-    // Absperrgitter
-    const fence = [];
-    for (let s = -44; s <= 34; s += 2) {
-      for (const side of [-1, 1]) {
-        this.poseAt(s, side * (SHOULDER_HALF + 0.9), pose);
-        const h = this.terrainHeight(pose.x, pose.z);
-        fence.push(
-          new THREE.Matrix4().compose(
-            new THREE.Vector3(pose.x, h + 0.5, pose.z),
-            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), pose.heading),
-            new THREE.Vector3(1, 1, 1),
-          ),
-        );
-      }
-    }
-    const fenceGeo = mergeGeometries([
-      new THREE.BoxGeometry(0.04, 0.05, 1.95).translate(0, 0.45, 0),
-      new THREE.BoxGeometry(0.04, 0.05, 1.95).translate(0, -0.35, 0),
-      ...[-0.75, -0.25, 0.25, 0.75].map((z) => new THREE.BoxGeometry(0.03, 0.8, 0.03).translate(0, 0.05, z)),
-      new THREE.BoxGeometry(0.05, 1.0, 0.05).translate(0, 0, -0.97),
-    ]);
-    this.instanced(fenceGeo, new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.7, roughness: 0.35 }), fence);
-
-    // Zwei bis drei Reihen Leute hinter dem Gitter
-    for (let s = -42; s <= 32; s += 1.15) {
-      for (const side of [-1, 1]) {
-        const rows = rand() < 0.4 ? 3 : 2;
-        for (let row = 0; row < rows; row++) {
-          if (rand() < 0.15) continue;
-          const lat = side * (SHOULDER_HALF + 1.6 + row * 0.85 + rand() * 0.3);
-          this.poseAt(s + (rand() - 0.5) * 0.6, lat, pose);
-          // Blick zur Straße
-          const yaw = side > 0 ? Math.atan2(pose.tz, -pose.tx) : Math.atan2(-pose.tz, pose.tx);
-          people.push({
-            x: pose.x,
-            z: pose.z,
-            y: this.terrainHeight(pose.x, pose.z),
-            yaw: yaw + (rand() - 0.5) * 0.5,
-            scale: 0.85 + rand() * 0.25,
-            phase: rand() * Math.PI * 2,
-            style: rand() < 0.45 ? 'wave' : 'clap',
-            speed: 0.8 + rand() * 0.5,
-          });
-        }
-      }
-    }
-    this.crowd = people;
-    const n = people.length;
-    const shirtCols = ['#d62839', '#2f7cf6', '#f2d14b', '#2bb24c', '#ff7a3d', '#ffffff', '#8a3ffc', '#1fa88f', '#ff6fb5', '#14365c'];
-    const pantsCols = ['#1b1f2a', '#3b4a6b', '#5a4632', '#2a2a2a', '#6b6f78'];
-    const skinCols = ['#f1c7a8', '#e2ad8c', '#c68863', '#8d5a3b', '#f5d6c1'];
-    const pick = (arr) => new THREE.Color(arr[Math.floor(rand() * arr.length)]);
-    const mk = (geo, mat, colorFn) => {
-      const m = new THREE.InstancedMesh(geo, mat, n);
-      for (let i = 0; i < n; i++) m.setColorAt(i, colorFn());
-      m.castShadow = true;
-      m.receiveShadow = true;
-      m.frustumCulled = false;
-      this.scene.add(m);
-      return m;
-    };
-    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
-    const legs = new THREE.CylinderGeometry(0.15, 0.13, 0.82, 8).translate(0, 0.41, 0);
-    const torso = new THREE.CapsuleGeometry(0.2, 0.36, 4, 10).scale(1, 1, 0.75).translate(0, 1.17, 0);
-    const head = new THREE.SphereGeometry(0.12, 12, 10).translate(0, 1.62, 0);
-    // Arm hängt vom Schultergelenk (Ursprung) nach unten
-    const arm = new THREE.CapsuleGeometry(0.055, 0.45, 4, 8).translate(0, -0.27, 0);
-    const skins = Array.from({ length: n }, () => pick(skinCols));
-    let si = 0;
-    let ai = 0;
-    this.crowdMeshes = {
-      legs: mk(legs, mat, () => pick(pantsCols)),
-      torso: mk(torso, mat, () => pick(shirtCols)),
-      head: mk(head, mat, () => skins[si++]),
-      armL: mk(arm, mat, () => skins[ai++ % n]),
-      armR: mk(arm, mat, () => skins[ai++ % n]),
-    };
-    this.poseAt(0, 0, pose);
-    this.crowdCenter = new THREE.Vector3(pose.x, pose.h, pose.z);
-    this.crowdExcite = -1;
-    this.updateCrowd(0, 0);
-  }
-
-  // Animation: excite 0 = ruhig, 1 = alle jubeln (wenn jemand vorbeifährt)
-  updateCrowd(time, excite) {
-    if (excite < 0.02 && this.crowdExcite < 0.02 && this.crowdExcite >= 0) return;
-    this.crowdExcite = excite;
-    const M = this.crowdMeshes;
-    const base = new THREE.Matrix4();
-    const local = new THREE.Matrix4();
-    const out = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    const v = new THREE.Vector3();
-    const sc = new THREE.Vector3();
-    this.crowd.forEach((p, i) => {
-      const t = time * p.speed * 6 + p.phase;
-      const hop = Math.abs(Math.sin(t)) * 0.12 * excite * (p.style === 'wave' ? 1 : 0.5);
-      q.setFromAxisAngle(v.set(0, 1, 0), p.yaw);
-      base.compose(v.set(p.x, p.y + hop, p.z), q, sc.set(p.scale, p.scale, p.scale));
-      M.legs.setMatrixAt(i, base);
-      M.torso.setMatrixAt(i, base);
-      M.head.setMatrixAt(i, base);
-      for (const s of [-1, 1]) {
-        let rx;
-        let rz;
-        if (p.style === 'wave') {
-          // Arme über dem Kopf schwenken
-          rx = -(0.3 + 2.4 * excite);
-          rz = s * (0.25 + Math.sin(t * 1.3 + s) * 0.35 * excite);
-        } else {
-          // Klatschen vor der Brust
-          rx = -(0.25 + 1.1 * excite);
-          rz = -s * (0.15 + (0.5 + 0.5 * Math.sin(t * 2.2)) * 0.45 * excite);
-        }
-        e.set(rx, 0, rz, 'ZXY');
-        local.compose(v.set(s * 0.25, 1.44, 0), q.setFromEuler(e), sc.set(1, 1, 1));
-        out.multiplyMatrices(base, local);
-        (s > 0 ? M.armL : M.armR).setMatrixAt(i, out);
-      }
-    });
-    for (const m of Object.values(M)) m.instanceMatrix.needsUpdate = true;
   }
 
   // ---------- Wolken ----------
@@ -1023,10 +869,6 @@ export class World {
   }
 
   update(dt, focus, camera, time) {
-    if (this.trees) this.trees.wind.value = time;
-    // Zuschauer werden wilder, je näher das Geschehen am Start/Ziel ist
-    const dCrowd = focus.distanceTo(this.crowdCenter);
-    this.updateCrowd(time, smoothstep(110, 15, dCrowd));
     // Schattenkamera folgt dem Geschehen
     this.sun.position.copy(focus).addScaledVector(this.lightDir, 120);
     this.sun.target.position.copy(focus);
