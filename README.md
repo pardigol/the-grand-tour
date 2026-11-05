@@ -195,6 +195,8 @@ riderPower: 520,   // mehr Watt = schneller
 - **Alles prozedural:** Landschaft, Straße, Bäume, Gras, Rennrad und Fahrer werden im Code erzeugt. Es werden keine Modelle heruntergeladen. Das spart Ladezeit, funktioniert offline, und es gibt keine Lizenzfragen. Die Schriften (Cinzel, Barlow Condensed) kommen als npm-Pakete mit, also auch offline.
 - **Grafik:** Echte Schatten (Shadow Map, die dem Fahrer folgt), physikalischer Himmel mit Sonnenaufgang, Nebel, Bildbasierte Beleuchtung aus dem Himmel, leuchtende Pollen in der Luft, Bloom, eigener Shader für Bewegungsunschärfe, Speedlines und Vignette, Kantenglättung (MSAA).
 - **Leistung:** Pixeldichte auf 1,5 begrenzt, Bäume und Gras als Instanzen. Läuft auf einem normalen Laptop flüssig.
+- **Bäume:** Laubbäume mit gebogenem Stamm, Ästen und einer Krone aus vielen Blattbüscheln, Nadelbäume mit Etagen aus hängenden Nadelzweigen, dazu Büsche. Alles wird im Code erzeugt (`src/trees.js`), wiegt sich leicht im Wind und wirft Blätterschatten.
+- **Kamera:** Liegt ein Hang zwischen Fahrer und Kamera, rückt die Kamera automatisch näher heran und taucht nie in den Boden ein.
 - **Fahrer-Animation:** Beine und Arme werden per Inverse Kinematik an Pedale und Lenker angepasst.
 - **Ton:** Alle Geräusche und die Musik werden mit der Web Audio API live erzeugt. Browser erlauben Ton erst nach einer Eingabe. Einige Browser zählen einen Controller-Knopf nicht als Eingabe. Falls es still bleibt, einmal eine Taste auf der Tastatur drücken oder ins Fenster klicken.
 - **Charaktererstellung:** In `src/scenes/creator.js` ist sie in Schritte aufgeteilt (`STEPS`). Neue Schritte wie Aussehen oder Rad werden als weiteres Objekt mit `mount`, `update` und `validate` ergänzt. Gespeichert wird im `localStorage` des Browsers.

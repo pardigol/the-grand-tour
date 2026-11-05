@@ -69,12 +69,26 @@ export function createRideScene(app) {
 
     const c = app.camera;
     const ang = cam.heading + Math.PI + cam.yaw;
-    const flat = Math.cos(cam.pitch) * cam.dist;
-    c.position.set(
-      st.x + Math.sin(ang) * flat,
-      st.h + 0.9 + Math.sin(cam.pitch) * cam.dist,
-      st.z + Math.cos(ang) * flat,
-    );
+    // Kamera darf nicht in Hang oder Berg tauchen: Sichtlinie vom Fahrer zur Kamera prüfen
+    // und die Kamera näher heranholen, wenn Gelände dazwischen liegt.
+    const dx = Math.sin(ang) * Math.cos(cam.pitch);
+    const dy = Math.sin(cam.pitch);
+    const dz = Math.cos(ang) * Math.cos(cam.pitch);
+    let free = 1;
+    for (let k = 1; k <= 16; k++) {
+      const t = k / 16;
+      const px = st.x + dx * cam.dist * t;
+      const py = st.h + 0.9 + dy * cam.dist * t;
+      const pz = st.z + dz * cam.dist * t;
+      if (py < app.world.terrainHeight(px, pz) + 0.5) {
+        free = Math.max(0.12, (k - 1.5) / 16);
+        break;
+      }
+    }
+    const want = cam.dist * free;
+    // schnell heranholen, langsam wieder zurück
+    cam.eff = snap || cam.eff == null ? want : damp(cam.eff, want, want < cam.eff ? 25 : 3, dt);
+    c.position.set(st.x + dx * cam.eff, st.h + 0.9 + dy * cam.eff, st.z + dz * cam.eff);
     const ground = app.world.terrainHeight(c.position.x, c.position.z) + 0.6;
     if (c.position.y < ground) c.position.y = ground;
     // Von hinten etwas nach vorne schauen, sonst direkt auf den Fahrer

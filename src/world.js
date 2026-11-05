@@ -5,6 +5,7 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeNoise2D, mulberry32, smoothstep, lerp, clamp } from './noise.js';
 import { CONFIG } from './config.js';
+import { makeTreeAssets } from './trees.js';
 
 export const ROAD_HALF = 3.6;
 export const SHOULDER_HALF = 5.0;
@@ -575,36 +576,16 @@ export class World {
     const mtx = (x, y, z, s, sy = s, yaw = rand() * Math.PI * 2) =>
       new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, yaw).clone(), new THREE.Vector3(s, sy, s));
 
-    // Baum-Formen
-    const pineCrown = mergeGeometries([
-      new THREE.ConeGeometry(1.9, 4.2, 8).translate(0, 3.6, 0),
-      new THREE.ConeGeometry(1.4, 3.4, 8).translate(0, 5.7, 0),
-      new THREE.ConeGeometry(0.85, 2.4, 8).translate(0, 7.4, 0),
-    ]);
-    const pineTrunk = new THREE.CylinderGeometry(0.16, 0.28, 2.4, 6).translate(0, 1.2, 0);
-    const leafCrown = new THREE.IcosahedronGeometry(2.3, 1);
-    const lp = leafCrown.attributes.position;
-    for (let i = 0; i < lp.count; i++) {
-      const x = lp.getX(i);
-      const y = lp.getY(i);
-      const z = lp.getZ(i);
-      const k = 1 + this.n1(x * 1.3 + 3, z * 1.3 + y) * 0.22;
-      lp.setXYZ(i, x * k, y * k * 0.85, z * k);
-    }
-    leafCrown.translate(0, 4.4, 0);
-    leafCrown.computeVertexNormals();
-    const leafTrunk = new THREE.CylinderGeometry(0.2, 0.32, 3.2, 6).translate(0, 1.6, 0);
-
-    const crownMat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.9 });
-    const trunkMat = new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 1 });
-
-    const pines = [];
-    const pineCol = [];
-    const leafs = [];
-    const leafCol = [];
+    // Detailreiche Bäume (siehe trees.js)
+    const T = (this.trees = makeTreeAssets());
+    const pines = T.pine.map(() => []);
+    const pineCol = T.pine.map(() => []);
+    const leafs = T.deciduous.map(() => []);
+    const leafCol = T.deciduous.map(() => []);
     const lim = 860;
     let tries = 0;
-    while (pines.length + leafs.length < 2600 && tries++ < 40000) {
+    let count = 0;
+    while (count < 2600 && tries++ < 40000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
       if (Math.hypot(x, z) > 870) continue;
@@ -615,19 +596,54 @@ export class World {
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
-      const s = 0.75 + rand() * 0.75;
+      const s = 0.7 + rand() * 0.65;
+      count++;
       if (h > 45 || dens > 0.45 || rand() < 0.35) {
-        pines.push(mtx(x, h - 0.2, z, s, s * (0.9 + rand() * 0.4)));
-        pineCol.push(new THREE.Color().setHSL(0.31 + rand() * 0.05, 0.45, 0.17 + rand() * 0.08));
+        const v = Math.floor(rand() * T.pine.length);
+        pines[v].push(mtx(x, h - 0.15, z, s, s * (0.9 + rand() * 0.3)));
+        pineCol[v].push(new THREE.Color().setHSL(0.28 + rand() * 0.06, 0.3, 0.72 + rand() * 0.22));
       } else {
-        leafs.push(mtx(x, h - 0.2, z, s));
-        leafCol.push(new THREE.Color().setHSL(0.18 + rand() * 0.1, 0.5, 0.25 + rand() * 0.12));
+        const v = Math.floor(rand() * T.deciduous.length);
+        leafs[v].push(mtx(x, h - 0.15, z, s, s * (0.9 + rand() * 0.25)));
+        // vereinzelt schon gelblich angehauchte Bäume
+        const autumn = rand() < 0.12;
+        leafCol[v].push(new THREE.Color().setHSL(autumn ? 0.13 + rand() * 0.04 : 0.22 + rand() * 0.08, autumn ? 0.6 : 0.3, 0.75 + rand() * 0.2));
       }
     }
-    this.instanced(pineCrown, crownMat, pines, pineCol);
-    this.instanced(pineTrunk, trunkMat, pines);
-    this.instanced(leafCrown, crownMat, leafs, leafCol);
-    this.instanced(leafTrunk, trunkMat, leafs);
+    const withShadow = (mesh, depth) => {
+      mesh.customDepthMaterial = depth;
+      return mesh;
+    };
+    T.pine.forEach((g, v) => {
+      if (!pines[v].length) return;
+      this.instanced(g.bark, T.pineBarkMat, pines[v]);
+      withShadow(this.instanced(g.leaves, T.needleMat, pines[v], pineCol[v]), T.needleDepth);
+    });
+    T.deciduous.forEach((g, v) => {
+      if (!leafs[v].length) return;
+      this.instanced(g.bark, T.barkMat, leafs[v]);
+      withShadow(this.instanced(g.leaves, T.leafMats[v % 2], leafs[v], leafCol[v]), T.leafDepth[v % 2]);
+    });
+
+    // Büsche an Waldrändern und auf den Wiesen
+    const bushes = [];
+    const bushCol = [];
+    tries = 0;
+    while (bushes.length < 2200 && tries++ < 30000) {
+      const x = (rand() * 2 - 1) * lim;
+      const z = (rand() * 2 - 1) * lim;
+      const dens = this.n3(x * 0.006 + 20, z * 0.006);
+      if (dens < -0.15 && rand() > 0.15) continue;
+      const nr = this.nearest(x, z);
+      if (nr.found && nr.dist < 6.5) continue;
+      if (this.lakeAt(x, z, 2)) continue;
+      const h = this.terrainHeight(x, z);
+      if (h > 90) continue;
+      const s = 0.6 + rand() * 0.9;
+      bushes.push(mtx(x, h - 0.1, z, s, s * (0.7 + rand() * 0.5)));
+      bushCol.push(new THREE.Color().setHSL(0.2 + rand() * 0.1, 0.35, 0.6 + rand() * 0.25));
+    }
+    withShadow(this.instanced(T.bush, T.leafMats[1], bushes, bushCol), T.leafDepth[1]);
 
     // Grasbüschel entlang der Straße
     const blades = [];
@@ -1007,6 +1023,7 @@ export class World {
   }
 
   update(dt, focus, camera, time) {
+    if (this.trees) this.trees.wind.value = time;
     // Zuschauer werden wilder, je näher das Geschehen am Start/Ziel ist
     const dCrowd = focus.distanceTo(this.crowdCenter);
     this.updateCrowd(time, smoothstep(110, 15, dCrowd));
