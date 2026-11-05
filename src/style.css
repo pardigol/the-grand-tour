@@ -660,6 +660,20 @@ body {
   border-color: var(--gold);
   background: rgba(245, 199, 107, 0.18);
 }
+.group-opt {
+  flex: 1 1 30%;
+  font-size: 19px;
+  font-weight: 700;
+}
+.group-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  vertical-align: middle;
+}
 .paint-opt {
   display: flex;
   align-items: center;
@@ -1250,6 +1264,21 @@ body {
 }
 .sprint-bar.charging .sprint-fill {
   background: linear-gradient(90deg, #555a66, #8a909c);
+}
+/* Ab drei Viertel darf man schon sprinten: Balken wird wieder grün */
+.sprint-bar.charging.usable .sprint-fill {
+  background: linear-gradient(90deg, #3c8f4e, #6fd27f);
+}
+.sprint-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.sprint-bar.active .sprint-mark,
+.sprint-bar.ready .sprint-mark {
+  display: none;
 }
 .sprint-label {
   position: relative;

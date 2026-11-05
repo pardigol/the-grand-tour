@@ -52,7 +52,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
 | Bremsen | **Y** | **△** | S / ↓ |
-| Sprint (15 s Vollgas, danach 30 s Aufladen; nochmal drücken = abbrechen, lädt ab dem Rest weiter) | **X** | **□** | Shift |
+| Sprint (15 s Vollgas, danach 30 s Aufladen; ab ¾ Ladung schon möglich, dann kürzer; nochmal drücken = abbrechen) | **X** | **□** | Shift |
 | Landen nach einem Drop (Cycle Cross) | **LB + RB** gleichzeitig | **L1 + R1** gleichzeitig | Q + E |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
@@ -78,6 +78,8 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 
    Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
 5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, unten in der Mitte den Sprint-Balken (□ drücken, wenn „bereit“ dasteht), am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
+
+   **Schaltung:** Im Rad-Menü wählst du deine Schaltgruppe: Shimano 105, Ultegra, Dura-Ace oder SRAM Rival, Force, Red. Kurbel, Kettenblatt und Schaltwerk bekommen dann die passenden Farben (bei SRAM Red mit roten Akzenten).
 
    **Windschatten:** Fahr dicht hinter einen Gegner, dann hast du bis zu 40 % weniger Luftwiderstand. Hinter dem Gegner leuchten blaue Pfeile auf der Straße, oben erscheint „Windschatten“ mit einem Balken. Die Stärke stellst du in `src/config.js` bei `windschatten` ein.
 

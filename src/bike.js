@@ -1,6 +1,7 @@
 // Prozedurales Rennrad mit Fahrer. Vorwärts = +z, oben = +y, rechts vom Fahrer = -x.
 import * as THREE from 'three';
 import { RiderModel } from './rider-model.js';
+import { groupsetById } from './brands.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
@@ -294,6 +295,10 @@ export class Bike {
       tire: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.9 }),
       cxTire: new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.95 }),
       tape: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
+      // Schaltgruppe (Farben je nach Shimano/SRAM-Modell)
+      crankArm: new THREE.MeshPhysicalMaterial({ color: '#26272c', metalness: 0.6, roughness: 0.3, clearcoat: 1 }),
+      ring: new THREE.MeshStandardMaterial({ color: '#1b1c20', metalness: 0.7, roughness: 0.3 }),
+      groupAccent: new THREE.MeshStandardMaterial({ color: '#b9bdc4', metalness: 0.8, roughness: 0.25 }),
       jersey: fabric({}),
       // Haut: weicher, warmer Schimmer statt Plastik
       skin: new THREE.MeshPhysicalMaterial({
@@ -467,16 +472,16 @@ export class Bike {
     this.crank.position.copy(BB);
     this.root.add(this.crank);
     // Kettenblatt mit Zähnen
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.006, 40), m.alu);
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.006, 40), m.ring);
     ring.rotation.z = Math.PI / 2;
     ring.position.x = -0.065;
     this.crank.add(ring);
-    const spider = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 5), m.black);
+    const spider = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 5), m.crankArm);
     spider.rotation.z = Math.PI / 2;
     spider.position.x = -0.07;
     this.crank.add(spider);
     for (const s of [-1, 1]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, CRANK, 0.03), m.black);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, CRANK, 0.03), m.crankArm);
       arm.position.set(s * -0.085, (-s * CRANK) / 2, 0);
       arm.castShadow = true;
       this.crank.add(arm);
@@ -484,6 +489,29 @@ export class Bike {
     const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.19, 10), m.black);
     axle.rotation.z = Math.PI / 2;
     this.crank.add(axle);
+    // Ziermarke außen auf der Kurbel (z. B. rot bei SRAM Red)
+    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.004, 20), m.groupAccent);
+    badge.rotation.z = Math.PI / 2;
+    badge.position.x = -0.077;
+    this.crank.add(badge);
+    // Schaltwerk am hinteren Ausfallende
+    const rd = new THREE.Group();
+    rd.position.set(-0.07, WHEEL_R - 0.05, -0.47);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.07, 0.04), m.crankArm);
+    body.rotation.x = 0.4;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.035, 0.02), m.groupAccent);
+    plate.position.set(-0.013, 0.005, 0);
+    plate.rotation.x = 0.4;
+    const cage = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.09, 0.03), m.crankArm);
+    cage.position.set(0.004, -0.07, 0.01);
+    rd.add(body, plate, cage);
+    for (const y of [-0.035, -0.105]) {
+      const pulley = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.008, 12), m.black);
+      pulley.rotation.z = Math.PI / 2;
+      pulley.position.set(0.006, y, 0.01);
+      rd.add(pulley);
+    }
+    this.root.add(rd);
     // Kette
     for (const y of [0.105, -0.105]) {
       this.root.add(tube(V(-0.065, BB.y + y, BB.z), V(-0.04, WHEEL_R + y * 0.45, -0.5), 0.004, m.alu));
@@ -807,6 +835,15 @@ export class Bike {
       shorts: c.shorts || DEFAULT_LOOK.shorts,
     });
     this.setBrand(c.brand || DEFAULT_LOOK.brand);
+    this.setGroupset(c.groupset || DEFAULT_LOOK.groupset);
+  }
+
+  setGroupset(id) {
+    const g = groupsetById(id);
+    this.groupset = g.id;
+    this.mats.crankArm.color.set(g.crank);
+    this.mats.ring.color.set(g.ring);
+    this.mats.groupAccent.color.set(g.accent);
   }
 
   // Lackierung anwenden: 'solid' = einfarbig, 'team' = hinten mattschwarz, vorne Rahmenfarbe mit Zacken

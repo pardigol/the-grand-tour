@@ -3,7 +3,7 @@
 // Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
 import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
 import { KITS } from '../kit.js';
-import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
+import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, GROUPSETS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
 const NAME_MAX = 12;
@@ -339,6 +339,8 @@ function choiceStep({ id, title, tab, rows }) {
       const opt = (r, o, oi) => {
         if (r.type === 'brand')
           return `<div class="brand-opt" data-o="${oi}"><span class="brand-logo ${o.serif ? 'serif' : ''} ${o.font.includes('italic') ? 'italic' : ''}">${esc(brandLabel(o))}</span><small>${esc(o.land)}</small></div>`;
+        if (r.type === 'group')
+          return `<div class="brand-opt group-opt" data-o="${oi}"><i class="group-dot" style="--c:${o.accent}"></i><span>${esc(o.name)}</span><small>${esc(o.maker)}</small></div>`;
         if (r.type === 'paint')
           return `<div class="brand-opt paint-opt" data-o="${oi}"><i class="paint-preview ${o.id}"></i><span>${esc(o.name)}</span></div>`;
         return `<div class="swatch ${o.matte ? 'matte' : ''}" data-o="${oi}" style="--c:${o.hex}"></div>`;
@@ -459,6 +461,7 @@ const bikeStep = choiceStep({
     { key: 'paint', label: 'Lackierung', type: 'paint', options: PAINTS },
     { key: 'frame', label: 'Rahmenfarbe', type: 'color', options: FRAME_COLORS },
     { key: 'bar', label: 'Lenkerband', type: 'color', options: BAR_COLORS },
+    { key: 'groupset', label: 'Schaltung', type: 'group', options: GROUPSETS },
   ],
 });
 

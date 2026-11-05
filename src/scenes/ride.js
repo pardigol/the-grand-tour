@@ -212,6 +212,7 @@ export function createRideScene(app) {
           <div class="cruise-badge">${btn('B')} Dauertreten an</div>
           <div class="sprint-bar ready">
             <div class="sprint-fill"></div>
+            <i class="sprint-mark" style="left:${CONFIG.sprint.abLadung * 100}%"></i>
             <div class="sprint-label"><span class="sprint-text">SPRINT</span><span class="sprint-info"></span></div>
           </div>
           <div class="speedo">
@@ -402,9 +403,15 @@ export function createRideScene(app) {
         st.sprint = 'charging';
         st.sprintT = (st.sprintT / sp.dauer) * sp.aufladen;
         app.audio.back();
-      } else if (sprintKey && st.sprint === 'ready' && st.phase === 'race') {
+      } else if (
+        sprintKey &&
+        st.phase === 'race' &&
+        (st.sprint === 'ready' || (st.sprint === 'charging' && st.sprintT / sp.aufladen >= sp.abLadung))
+      ) {
+        // Nicht ganz voll geladen: Sprint dauert nur so lange, wie der Balken voll ist
+        const charge = st.sprint === 'ready' ? 1 : st.sprintT / sp.aufladen;
         st.sprint = 'active';
-        st.sprintT = sp.dauer;
+        st.sprintT = sp.dauer * charge;
         app.audio.whoosh(1.2);
         app.audio.select();
         app.input.rumble(0.7, 300);
@@ -660,8 +667,16 @@ export function createRideScene(app) {
       const bar = $('.sprint-bar');
       const fill = st.sprint === 'active' ? st.sprintT / sp.dauer : st.sprint === 'charging' ? st.sprintT / sp.aufladen : 1;
       $('.sprint-fill').style.width = `${(fill * 100).toFixed(1)}%`;
-      bar.className = `sprint-bar ${st.sprint}`;
-      const info = st.sprint === 'active' ? `${Math.ceil(st.sprintT)} s` : st.sprint === 'charging' ? 'lädt …' : `bereit ${btn('X')}`;
+      const usable = st.sprint === 'charging' && fill >= sp.abLadung;
+      bar.className = `sprint-bar ${st.sprint}${usable ? ' usable' : ''}`;
+      const info =
+        st.sprint === 'active'
+          ? `${Math.ceil(st.sprintT)} s`
+          : usable
+            ? `${Math.round(fill * sp.dauer)} s ${btn('X')}`
+            : st.sprint === 'charging'
+              ? 'lädt …'
+              : `bereit ${btn('X')}`;
       if (info !== st.sprintInfo) {
         st.sprintInfo = info;
         $('.sprint-info').innerHTML = info;

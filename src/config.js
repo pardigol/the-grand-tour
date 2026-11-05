@@ -56,7 +56,8 @@ export const CONFIG = {
   steering: { start: 0.25, vollNach: 1.3, stick: 0.4 },
 
   // Sprint (□ / X): so viele Sekunden lang, danach so viele Sekunden Aufladen, und so viel stärker (1.6 = 60 % mehr Kraft)
-  sprint: { dauer: 15, aufladen: 30, kraft: 1.6 },
+  // abLadung: ab welchem Ladestand man schon sprinten darf (0.75 = drei Viertel). Dann dauert der Sprint entsprechend kürzer.
+  sprint: { dauer: 15, aufladen: 30, kraft: 1.6, abLadung: 0.75 },
 
   // Rollwiderstand je Untergrund (kleiner = rollt besser) für Rennrad und Cycle Cross (CX)
   rollen: {
