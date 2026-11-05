@@ -1,5 +1,6 @@
 // Die 3D-Welt: Himmel bei Sonnenaufgang, Hügel, Rundstrecke, Bäume, Gras und Licht.
 // Alles wird prozedural im Code erzeugt – es werden keine Dateien geladen.
+import { buildVillage } from './village.js';
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -108,6 +109,14 @@ export class World {
     this.buildRoad();
     this.buildVegetation();
     this.buildProps();
+    // Dorf an der Landstraße (nur beim Zeitfahren sichtbar)
+    if (!this.cx) {
+      const v = buildVillage(this);
+      this.village = v.group;
+      this.village.visible = false;
+      this.scene.add(this.village);
+      this.clearAreas(v.footprints);
+    }
     this.buildClouds();
     this.buildMotes();
   }
@@ -917,6 +926,41 @@ export class World {
       new THREE.MeshStandardMaterial({ color: '#d2b15e', roughness: 1 }),
       bales,
     );
+  }
+
+  // Bäume, Büsche, Steine usw. in diesen Kreisen ausblenden (z. B. wo Häuser stehen)
+  clearAreas(areas) {
+    const m = new THREE.Matrix4();
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    // schneller Vorab-Test: Rechteck um alle Kreise
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const a of areas) {
+      x0 = Math.min(x0, a.x - a.r);
+      x1 = Math.max(x1, a.x + a.r);
+      z0 = Math.min(z0, a.z - a.r);
+      z1 = Math.max(z1, a.z + a.r);
+    }
+    this.scene.traverse((o) => {
+      if (!o.isInstancedMesh) return;
+      let changed = false;
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, m);
+        const x = m.elements[12];
+        const z = m.elements[14];
+        if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+        for (const a of areas) {
+          if ((x - a.x) ** 2 + (z - a.z) ** 2 < a.r * a.r) {
+            o.setMatrixAt(i, zero);
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) {
+        o.instanceMatrix.needsUpdate = true;
+        o.computeBoundingSphere?.();
+      }
+    });
   }
 
   // Ist der Kreis (x, z, Radius r) frei vom Weg samt Seitenstreifen? Prüft das nächste Wegstück überhaupt.

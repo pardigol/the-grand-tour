@@ -23,6 +23,7 @@ export function createModeScene(app) {
     root.querySelectorAll('.mode-card').forEach((c, i) => c.classList.toggle('selected', i === index));
     // Das Rad im Hintergrund zeigt gleich die passenden Reifen
     app.bike.setTires(MODES[index].id);
+    if (app.world.village) app.world.village.visible = MODES[index].id === 'tt';
     if (!silent) {
       app.audio.nav();
       app.input.rumble(0.15, 30);

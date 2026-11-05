@@ -288,6 +288,8 @@ export function createRideScene(app) {
       app.bike.setPlate(char.number, char.name);
       app.bike.applyLook(char);
       app.bike.setTires(app.mode);
+      // Dorf gibt es nur beim Zeitfahren
+      if (app.world.village) app.world.village.visible = app.mode === 'tt';
 
       // auf dem schmalen Waldweg weiter in der Mitte starten
       // Online: der Gast startet daneben, damit niemand im anderen steht
