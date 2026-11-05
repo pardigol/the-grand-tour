@@ -44,6 +44,54 @@ function ik(a, c, l1, l2, pole, out) {
   return out.copy(a).addScaledVector(_d, cosA * l1).addScaledVector(_p, sinA * l1);
 }
 
+// Feine Stoffstruktur (Strick) als Normalenkarte: lässt Trikot und Hose wie echten Stoff wirken
+let fabricNormal = null;
+function fabricNormalMap() {
+  if (fabricNormal) return fabricNormal;
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  const h = (x, y) => {
+    x = (x + S) % S;
+    y = (y + S) % S;
+    return 0.25 * Math.sin((x * Math.PI) / 2) * Math.sin((y * Math.PI) / 4) + 0.15 * Math.sin(((x + y) * Math.PI) / 4);
+  };
+  const img = ctx.createImageData(S, S);
+  const n = new THREE.Vector3();
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      n.set(-(h(x + 1, y) - h(x - 1, y)) * 2, -(h(x, y + 1) - h(x, y - 1)) * 2, 1).normalize();
+      const k = (y * S + x) * 4;
+      img.data[k] = (n.x * 0.5 + 0.5) * 255;
+      img.data[k + 1] = (n.y * 0.5 + 0.5) * 255;
+      img.data[k + 2] = (n.z * 0.5 + 0.5) * 255;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  fabricNormal = new THREE.CanvasTexture(c);
+  fabricNormal.wrapS = fabricNormal.wrapT = THREE.RepeatWrapping;
+  fabricNormal.repeat.set(10, 10);
+  return fabricNormal;
+}
+
+// Handschuh mit Fingern, die den Griff umfassen (+y = Richtung Unterarm -> Hand)
+function gloveGeometry(side) {
+  const parts = [new THREE.BoxGeometry(0.058, 0.068, 0.03)];
+  for (let k = 0; k < 4; k++) {
+    const f = new THREE.CapsuleGeometry(0.0095, 0.034, 2, 6);
+    f.rotateX(1.15);
+    f.translate(-0.021 + k * 0.014, 0.046, 0.02);
+    parts.push(f);
+  }
+  const thumb = new THREE.CapsuleGeometry(0.0105, 0.03, 2, 6);
+  thumb.rotateZ(side * 0.9);
+  thumb.translate(side * 0.034, 0.018, 0.012);
+  parts.push(thumb);
+  return mergeGeometries(parts);
+}
+
 // Körperteil mit Muskelform: radius(t) für t = 0 (Anfang) bis 1 (Ende), entlang der Länge len
 function shapedLimb(len, radius, mat, steps = 10) {
   const pts = [];
@@ -220,6 +268,17 @@ export class Bike {
     this.wheelAngle = 0;
     this.crankAngle = 0;
 
+    // Sportstoff: leichter Glanz (sheen) und feine Strickstruktur
+    const fabric = (opts) =>
+      new THREE.MeshPhysicalMaterial({
+        roughness: 0.68,
+        sheen: 0.7,
+        sheenRoughness: 0.45,
+        sheenColor: new THREE.Color('#ffffff'),
+        normalMap: fabricNormalMap(),
+        normalScale: new THREE.Vector2(0.35, 0.35),
+        ...opts,
+      });
     const m = (this.mats = {
       frame: new THREE.MeshPhysicalMaterial({
         color: CONFIG.colors.bikeFrame,
@@ -234,20 +293,35 @@ export class Bike {
       tire: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.9 }),
       cxTire: new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.95 }),
       tape: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
-      jersey: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
-      skin: new THREE.MeshStandardMaterial({ color: '#e2ad8c', roughness: 0.7 }),
-      shorts: new THREE.MeshStandardMaterial({ color: '#16161b', roughness: 0.55 }),
+      jersey: fabric({}),
+      // Haut: weicher, warmer Schimmer statt Plastik
+      skin: new THREE.MeshPhysicalMaterial({
+        color: '#e2ad8c',
+        roughness: 0.55,
+        sheen: 0.35,
+        sheenRoughness: 0.7,
+        sheenColor: new THREE.Color('#ff9f7a'),
+      }),
+      shorts: fabric({ color: '#16161b', roughness: 0.6 }),
       shoe: new THREE.MeshStandardMaterial({ color: '#f4f4f4', roughness: 0.4 }),
       helmet: new THREE.MeshPhysicalMaterial({ roughness: 0.3, clearcoat: 1 }),
       // verspiegelte Brillengläser und schwarzer Rahmen
-      glasses: new THREE.MeshStandardMaterial({ color: '#ff8a2a', roughness: 0.06, metalness: 1, envMapIntensity: 2.2 }),
+      glasses: new THREE.MeshPhysicalMaterial({
+        color: '#ff8a2a',
+        roughness: 0.05,
+        metalness: 1,
+        envMapIntensity: 2.2,
+        iridescence: 1,
+        iridescenceIOR: 1.8,
+        iridescenceThicknessRange: [200, 700],
+      }),
       glassFrame: new THREE.MeshStandardMaterial({ color: '#111114', roughness: 0.4 }),
-      glove: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
+      glove: fabric({ color: '#f1f1ee', roughness: 0.75 }),
       hair: new THREE.MeshStandardMaterial({ color: '#4a3324', roughness: 0.9 }),
-      jerseyPlain: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
+      jerseyPlain: fabric({}),
       sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.6 }),
-      sleeve: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
-      thigh: new THREE.MeshStandardMaterial({ roughness: 0.55 }),
+      sleeve: fabric({}),
+      thigh: fabric({ roughness: 0.6 }),
     });
     // Vorderer, farbiger Teil beim Team-Design (mit gezacktem Übergang)
     const paint = (map) =>
@@ -471,7 +545,11 @@ export class Bike {
       const t = (tp.getY(i) - y0) / (y1 - y0);
       const wide = 1.02 + 0.38 * Math.pow(Math.max(0, (t - 0.25) / 0.75), 1.4);
       tp.setX(i, tp.getX(i) * wide);
-      tp.setZ(i, tp.getZ(i) * (0.9 - 0.12 * t));
+      let z = tp.getZ(i) * (0.9 - 0.12 * t);
+      // runder Rücken in der gebeugten Haltung (-z = Rücken), etwas Brust vorne oben
+      if (z < 0) z -= 0.035 * Math.sin(Math.PI * t);
+      else if (t > 0.55) z += 0.015 * Math.sin(Math.PI * (t - 0.55) / 0.45);
+      tp.setZ(i, z);
     }
     tg.computeVertexNormals();
     this.torso.add(torsoMesh);
@@ -480,7 +558,13 @@ export class Bike {
 
     // Kopf
     this.head = new THREE.Group();
-    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), m.skin);
+    const headGeo = new THREE.SphereGeometry(0.1, 20, 16);
+    headGeo.scale(0.95, 1.08, 1.06);
+    const headMesh = new THREE.Mesh(headGeo, m.skin);
+    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), m.skin);
+    chin.scale.set(1.1, 0.8, 1);
+    chin.position.set(0, -0.07, 0.045);
+    this.head.add(chin);
     headMesh.castShadow = true;
     this.head.add(headMesh);
     const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.125, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), m.helmet);
@@ -541,9 +625,10 @@ export class Bike {
     // Arme und Beine (werden jedes Bild neu ausgerichtet)
     this.arms = [-1, 1].map((s) => ({
       s,
-      upper: limb(0.27, 0.047, m.sleeve),
-      lower: limb(0.26, 0.037, m.skin),
-      hand: new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), m.glove),
+      // Oberarm mit Bizeps, Unterarm zum Handgelenk schmaler
+      upper: shapedLimb(0.27, (t) => 0.044 + 0.009 * Math.sin(Math.PI * Math.min(1, t * 1.1)), m.sleeve),
+      lower: shapedLimb(0.26, (t) => 0.041 - 0.015 * t + 0.006 * Math.exp(-(((t - 0.2) / 0.2) ** 2)), m.skin),
+      hand: new THREE.Mesh(gloveGeometry(s), m.glove),
       elbow: new THREE.Mesh(new THREE.SphereGeometry(0.041, 10, 8), m.skin),
       cap: new THREE.Mesh(new THREE.SphereGeometry(0.054, 12, 8), m.jerseyPlain),
     }));
@@ -557,7 +642,6 @@ export class Bike {
       shoe: new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.24), m.shoe),
     }));
     for (const a of this.arms) {
-      a.hand.scale.set(0.95, 1.4, 0.8);
       a.hand.castShadow = true;
       r.add(a.upper, a.lower, a.hand, a.elbow, a.cap);
     }
@@ -804,6 +888,8 @@ export class Bike {
       const foot = _a.copy(pedal.position);
       foot.y -= bob;
       l.shoe.position.copy(foot).add(_k.set(0, 0.03, 0.02));
+      // Fußspitze zeigt hinten im Tritt nach unten, vorne etwas nach oben (wie bei echten Fahrern)
+      l.shoe.rotation.x = 0.06 + 0.22 * Math.sin(ang);
       const ankle = _b.copy(foot).add(_k.set(0, 0.075, -0.05));
       const hip = _p.copy(this.hip).add(_k.set(s * 0.09, 0, 0));
       const hipC = hip.clone();
