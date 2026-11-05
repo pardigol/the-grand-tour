@@ -1045,7 +1045,7 @@ body {
 .cruise-badge {
   position: absolute;
   right: 36px;
-  bottom: 220px;
+  bottom: 268px;
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 20px;
@@ -1143,6 +1143,107 @@ body {
 .result-time {
   color: #d8cfbf;
   font-variant-numeric: tabular-nums;
+}
+.grade-box {
+  position: absolute;
+  right: 40px;
+  bottom: 214px;
+  min-width: 166px;
+  white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--glass);
+  backdrop-filter: blur(6px);
+  border-bottom: 2px solid #8a909c;
+}
+.grade-box label {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #cbbda4;
+}
+.grade-val {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.grade-arrow {
+  font-size: 16px;
+}
+.grade-box.up { border-color: #f4a12a; }
+.grade-box.up .grade-arrow { color: #f4a12a; }
+.grade-box.steep { border-color: #ff4d4d; box-shadow: 0 0 16px rgba(255, 77, 77, 0.35); }
+.grade-box.steep .grade-arrow, .grade-box.steep .grade-val { color: #ff6b6b; }
+.grade-box.down { border-color: #5aa0d4; }
+.grade-box.down .grade-arrow { color: #7fc0f0; }
+.gear-box {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--glass);
+  backdrop-filter: blur(6px);
+}
+.gear-box .btn {
+  margin: 0;
+}
+.gear-main {
+  min-width: 220px;
+}
+.gear-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.gear-top label {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #cbbda4;
+}
+.gear-num {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--gold);
+  min-width: 1.4em;
+}
+.gear-rpm {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gear-rpm.ok { color: #6fd27f; }
+.gear-rpm.heavy { color: #f4a12a; }
+.gear-rpm.spin { color: #ff6b6b; }
+.gear-pips {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-top: 4px;
+}
+.gear-pips i {
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+/* Kleine Treppe: höhere Gänge = höhere Balken */
+.gear-pips i:nth-child(1) { height: 6px; } .gear-pips i:nth-child(2) { height: 7px; }
+.gear-pips i:nth-child(3) { height: 8px; } .gear-pips i:nth-child(4) { height: 9px; }
+.gear-pips i:nth-child(5) { height: 10px; } .gear-pips i:nth-child(6) { height: 11px; }
+.gear-pips i:nth-child(7) { height: 12px; } .gear-pips i:nth-child(8) { height: 13px; }
+.gear-pips i:nth-child(9) { height: 14px; } .gear-pips i:nth-child(10) { height: 15px; }
+.gear-pips i:nth-child(11) { height: 16px; }
+.gear-pips i.on {
+  background: linear-gradient(180deg, #ffe39e, var(--gold));
 }
 .sprint-bar {
   position: absolute;
@@ -1361,7 +1462,9 @@ body {
 }
 
 @media (max-height: 760px) {
-  .cruise-badge { bottom: 175px; }
+  .cruise-badge { bottom: 222px; }
+  .grade-box { bottom: 172px; right: 20px; min-width: 0; }
+  .grade-box label { display: none; }
   .minimap { width: 150px !important; height: 150px !important; }
   .speedo { width: 150px; height: 150px; }
   .speedo-val b { font-size: 48px; }

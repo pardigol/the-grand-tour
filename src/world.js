@@ -175,7 +175,7 @@ export class World {
     // Straßenhöhe = geglättete Geländehöhe
     let h = new Float32Array(N);
     for (let i = 0; i < N; i++) h[i] = this.baseHeight(px[i], pz[i]);
-    const R = 30;
+    const R = 50;
     for (let pass = 0; pass < 3; pass++) {
       const out = new Float32Array(N);
       for (let i = 0; i < N; i++) {
@@ -184,6 +184,14 @@ export class World {
         out[i] = s / (2 * R + 1);
       }
       h = out;
+    }
+    // Lange Anstiege und Abfahrten über die ganze Runde (Stärke in CONFIG.berge).
+    // Cosinus, damit Start/Ziel flach auf einer Kuppe liegt.
+    const bergA = 11 * CONFIG.berge;
+    const bergB = 2.5 * CONFIG.berge;
+    for (let i = 0; i < N; i++) {
+      const th = (i / N) * Math.PI * 2;
+      h[i] += bergA * Math.cos(3 * th) + bergB * Math.cos(7 * th) - (bergA + bergB);
     }
     ph.set(h);
 

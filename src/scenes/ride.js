@@ -6,10 +6,10 @@ import { WHEEL_R } from '../bike.js';
 import { clamp, damp } from '../noise.js';
 import { Minimap } from '../minimap.js';
 import { Rivals } from '../rivals.js';
+import { gearDrive, gearCount } from '../gears.js';
 
 const MASS = 78;
 const G = 9.81;
-const GEAR = 3.6; // Radumdrehungen pro Kurbelumdrehung
 const CHECKPOINTS = [0.25, 0.5, 0.75];
 const RACE_LAPS = CONFIG.raceLaps;
 
@@ -185,6 +185,15 @@ export function createRideScene(app) {
           </div>
           <div class="view-toast"></div>
           <div class="cruise-badge">${btn('B')} Dauertreten an</div>
+          <div class="grade-box"><span class="grade-arrow"></span><b class="grade-val">0 %</b><label>Steigung</label></div>
+          <div class="gear-box">
+            ${btn('LB')}
+            <div class="gear-main">
+              <div class="gear-top"><label>Gang</label><b class="gear-num"></b><span class="gear-rpm"></span></div>
+              <div class="gear-pips">${Array.from({ length: gearCount() }, (_, i) => `<i data-g="${i + 1}"></i>`).join('')}</div>
+            </div>
+            ${btn('RB')}
+          </div>
           <div class="sprint-bar ready">
             <div class="sprint-fill"></div>
             <div class="sprint-label"><span class="sprint-text">SPRINT</span><span class="sprint-info"></span></div>
@@ -201,6 +210,7 @@ export function createRideScene(app) {
             <div>${btn('B')} Dauertreten an/aus</div>
             <div>${btn('Y')} Bremsen</div>
             <div>${btn('X')} Sprint</div>
+            <div>${btn('LB')}${btn('RB')} Gang runter / hoch</div>
             <div>${btn('LT')}${btn('RT')} Lenken</div>
             <div><span class="btn btn-stick">L</span> leicht lenken</div>
             <div><span class="btn btn-stick">R</span> Kamera drehen</div>
@@ -252,6 +262,10 @@ export function createRideScene(app) {
         cruise: false,
         sprint: 'ready', // 'ready' | 'active' | 'charging'
         sprintT: 0,
+        gear: CONFIG.gaenge.start,
+        rpm: 0,
+        cad: 0,
+        grade: 0,
         phase: 'countdown',
         countdown: 3,
         lastCount: 4,
@@ -260,6 +274,7 @@ export function createRideScene(app) {
         finishTime: null,
         showResult: false,
       });
+      app.rideState = st; // zum Ausprobieren in der Konsole
       if (!rivals) rivals = new Rivals(app);
       rivals.reset(p.s);
       this.placeBike();
@@ -396,8 +411,22 @@ export function createRideScene(app) {
       // Kräfte: Treten, Luftwiderstand, Rollwiderstand, Hangabtrieb, Bremse
       const v = st.speed;
       const roll = ground.surface === 'road' ? 0.005 : ground.surface === 'gravel' ? 0.02 : 0.06;
+      // Schalten: L1 runter, R1 hoch (Tastatur Q / E)
+      if ((inp.pressed('lb') || inp.pressed('gearDown')) && st.gear > 1) {
+        st.gear--;
+        app.audio.tone(900, 0.04, { type: 'square', vol: 0.06 });
+        app.input.rumble(0.15, 30);
+      }
+      if ((inp.pressed('rb') || inp.pressed('gearUp')) && st.gear < gearCount()) {
+        st.gear++;
+        app.audio.tone(1200, 0.04, { type: 'square', vol: 0.06 });
+        app.input.rumble(0.15, 30);
+      }
       const boost = sprinting ? CONFIG.sprint.kraft : 1;
-      const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
+      const gd = gearDrive(st.gear, v, throttle, boost);
+      const drive = gd.force;
+      st.cad = gd.c;
+      st.rpm = throttle > 0.05 ? gd.rpm : 0;
       const drag = 0.5 * 1.2 * 0.36 * v * v;
       const brakeF = brake * 650;
       let a = (drive - drag - roll * MASS * G - MASS * G * Math.sin(st.pitch)) / MASS;
@@ -444,7 +473,8 @@ export function createRideScene(app) {
       // Pedalieren oder Freilauf
       let crankRate = 0;
       if (throttle > 0.05) {
-        crankRate = Math.max(st.speed / WHEEL_R / GEAR, 3 * throttle);
+        // Kurbel dreht so schnell wie die Trittfrequenz im gewählten Gang
+        crankRate = Math.max((st.rpm * Math.PI * 2) / 60, 3 * throttle);
         app.audio.freewheel(dt, 0);
       } else {
         app.audio.freewheel(dt, Math.min(55, (st.speed / (2 * Math.PI * WHEEL_R)) * 24));
@@ -513,6 +543,25 @@ export function createRideScene(app) {
 
       // Anzeige
       $('.speedo-val b').textContent = Math.round(kmh);
+      // Steigung in Prozent über dem Tacho (positiv = bergauf)
+      st.grade = damp(st.grade, Math.tan(st.pitch) * 100, 4, dt);
+      const gr = Math.round(st.grade);
+      if (gr !== st.gradeShown) {
+        st.gradeShown = gr;
+        const gb = $('.grade-box');
+        $('.grade-val').textContent = `${gr > 0 ? '+' : ''}${gr} %`;
+        $('.grade-arrow').textContent = gr > 0 ? '▲' : gr < 0 ? '▼' : '▬';
+        gb.className = `grade-box ${gr >= 8 ? 'steep' : gr > 1 ? 'up' : gr < -1 ? 'down' : 'flat'}`;
+      }
+      // Gang-Anzeige mit Trittfrequenz: grün = passt, orange = Gang zu schwer, rot = dreht durch
+      if (st.gear !== st.gearShown) {
+        st.gearShown = st.gear;
+        $('.gear-num').textContent = st.gear;
+        root.querySelectorAll('.gear-pips i').forEach((p) => p.classList.toggle('on', Number(p.dataset.g) <= st.gear));
+      }
+      const rpmEl = $('.gear-rpm');
+      rpmEl.textContent = st.rpm > 0 ? `${Math.round(st.rpm)} U/min` : '';
+      rpmEl.className = `gear-rpm ${st.cad > 0.85 ? 'spin' : st.cad < 0.5 ? 'heavy' : 'ok'}`;
       // Sprint-Balken unten in der Mitte
       const bar = $('.sprint-bar');
       const fill = st.sprint === 'active' ? st.sprintT / sp.dauer : st.sprint === 'charging' ? st.sprintT / sp.aufladen : 1;
