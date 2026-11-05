@@ -8,20 +8,6 @@ export const MODES = [
   { id: 'cx', name: 'Cycle Cross' },
 ];
 
-// Kleines Rad-Symbol: CX mit Stollen an den Reifen
-function bikeIcon(cx) {
-  const tire = (x) =>
-    cx
-      ? `<circle cx="${x}" cy="62" r="24" fill="none" stroke="currentColor" stroke-width="7" stroke-dasharray="4 3"/>
-         <circle cx="${x}" cy="62" r="20" fill="none" stroke="currentColor" stroke-width="3"/>`
-      : `<circle cx="${x}" cy="62" r="24" fill="none" stroke="currentColor" stroke-width="3.5"/>`;
-  return `<svg viewBox="0 0 160 100" class="mode-icon">
-    ${tire(36)}${tire(124)}
-    <path d="M36 62 L66 62 L96 30 L58 30 Z M66 62 L52 22 M96 30 L124 62 M92 18 L98 30 M46 20 L60 20 M88 18 L104 16"
-      fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-  </svg>`;
-}
-
 export function createModeScene(app) {
   let root;
   let index = 0;
@@ -57,7 +43,6 @@ export function createModeScene(app) {
             ${MODES.map(
               (m, i) => `
               <div class="mode-card" data-i="${i}">
-                ${bikeIcon(m.id === 'cx')}
                 <div class="mode-name">${esc(m.name)}</div>
               </div>`,
             ).join('')}

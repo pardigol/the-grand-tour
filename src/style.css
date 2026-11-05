@@ -536,15 +536,7 @@ body {
   background: linear-gradient(180deg, rgba(60, 42, 14, 0.85), rgba(20, 18, 26, 0.85));
   box-shadow: 0 0 0 4px rgba(245, 199, 107, 0.15), 0 0 34px rgba(245, 199, 107, 0.35);
 }
-.mode-icon {
-  width: 70%;
-  color: #e9dfcc;
-}
-.mode-card.selected .mode-icon {
-  color: var(--gold);
-}
 .mode-name {
-  margin-top: 8px;
   font-family: var(--serif);
   font-weight: 800;
   font-size: clamp(22px, 2.4vw, 32px);
