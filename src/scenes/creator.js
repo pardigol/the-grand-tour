@@ -2,6 +2,7 @@
 // Aufgebaut aus "Schritten".
 // Schritte: Name & Startnummer, Aussehen, Rennrad. Weitere Schritte können in STEPS ergänzt werden.
 import { addCharacter, updateCharacter, newCharacterDraft } from '../storage.js';
+import { KITS } from '../kit.js';
 import { BRANDS, COLORS, FRAME_COLORS, BAR_COLORS, PAINTS, DEFAULT_LOOK, brandLabel } from '../brands.js';
 import { el, esc, btn, hintBar, rideNpc, showcaseCamera } from './common.js';
 
@@ -444,6 +445,7 @@ const looksStep = choiceStep({
   rows: [
     { key: 'helmet', label: 'Helm', type: 'color', options: COLORS },
     { key: 'jersey', label: 'Trikot', type: 'color', options: COLORS },
+    { key: 'kit', label: 'Trikot-Muster', type: 'paint', options: KITS },
     { key: 'shorts', label: 'Hose', type: 'color', options: COLORS },
   ],
 });

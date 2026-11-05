@@ -5,9 +5,9 @@ import { clamp, damp } from './noise.js';
 // ✏️ Hier kannst du die Gegner ändern: Name, Nummer, Farben, Radmarke und Kraft in Watt.
 // Zum Vergleich: Du trittst mit CONFIG.riderPower (520 Watt). Mehr Watt = schnellerer Gegner.
 export const RIVALS = [
-  { name: 'Mia', number: 7, jersey: '#1fa88f', frame: '#f1f1ec', helmet: '#1fa88f', brand: 'canyon', power: 515, lane: -1.6 },
+  { name: 'Mia', number: 7, jersey: '#1fa88f', frame: '#f1f1ec', helmet: '#1fa88f', kit: 'stripes', brand: 'canyon', power: 515, lane: -1.6 },
   { name: 'Leo', number: 21, jersey: '#f4a12a', frame: '#f6f6f6', paint: 'team', bar: '#16161b', helmet: '#16161b', brand: 'colnago', power: 495, lane: 0.3 },
-  { name: 'Emma', number: 33, jersey: '#8a3ffc', frame: '#d8d8de', helmet: '#8a3ffc', brand: 'rose', power: 470, lane: -0.6 },
+  { name: 'Emma', number: 33, jersey: '#8a3ffc', frame: '#d8d8de', helmet: '#8a3ffc', kit: 'stripes', brand: 'rose', power: 470, lane: -0.6 },
   { name: 'Ben', number: 52, jersey: '#2f7cf6', frame: '#b8222c', helmet: '#f6f6f6', brand: 'cervelo', power: 445, lane: 1.4 },
 ];
 const MASS = 78;

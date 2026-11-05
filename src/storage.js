@@ -35,6 +35,7 @@ export function newCharacterDraft(mode = 'road') {
     shorts: DEFAULT_LOOK.shorts,
     brand: DEFAULT_LOOK.brand,
     paint: DEFAULT_LOOK.paint,
+    kit: DEFAULT_LOOK.kit,
     bar: '#f6f6f6',
     mode,
     bestLap: null,

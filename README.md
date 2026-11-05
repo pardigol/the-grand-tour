@@ -73,7 +73,7 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 3. **Hauptmenü** – alle Fahrer mit Name und Startnummer, darunter „Neuer Charakter +“.
 4. **Charaktererstellung** in drei Schritten:
    - **Name & Startnummer:** Name über die Bildschirmtastatur, Startnummer (1–999) mit dem Stick. Das Startnummernschild in der Mitte zeigt alles sofort an.
-   - **Dein Aussehen:** Farben für Helm, Trikot und Hose.
+   - **Dein Aussehen:** Farben für Helm, Trikot und Hose sowie das **Trikot-Muster**: Einfarbig, Streifen oder Weltmeister (Regenbogen auf Brust, Ärmeln und Hosenbeinen).
    - **Dein Rennrad:** Marke (Canyon, Rose, Colnago oder Cervélo), Lackierung, Rahmenfarbe und Farbe des Lenkerbands. Der Markenname steht groß auf dem Aero-Unterrohr. Lackierung **„Team-Design“**: hinten mattschwarz, vorne die Rahmenfarbe mit gezacktem Übergang, tiefe Felgen mit weißer Schrift, schwarzes Lenkerband – mit Colnago und Weiß sieht das Rad aus wie das Team-Rad aus Pauls Foto.
 
    Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
+import { makeKitCanvas, drawTorso, drawSleeve, drawThigh, drawHelmet } from './kit.js';
 import { brandById, brandLabel, contrastColor, isMatte, DEFAULT_LOOK } from './brands.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -221,13 +222,18 @@ export class Bike {
       tire: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.9 }),
       cxTire: new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.95 }),
       tape: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
-      jersey: new THREE.MeshStandardMaterial({ color: CONFIG.colors.jersey, roughness: 0.62 }),
-      jerseyDark: new THREE.MeshStandardMaterial({ color: '#202533', roughness: 0.6 }),
+      jersey: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
       skin: new THREE.MeshStandardMaterial({ color: '#e2ad8c', roughness: 0.7 }),
       shorts: new THREE.MeshStandardMaterial({ color: '#16161b', roughness: 0.55 }),
       shoe: new THREE.MeshStandardMaterial({ color: '#f4f4f4', roughness: 0.4 }),
-      helmet: new THREE.MeshPhysicalMaterial({ color: '#f6f6f6', roughness: 0.3, clearcoat: 1 }),
-      glasses: new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.05, metalness: 1, envMapIntensity: 2 }),
+      helmet: new THREE.MeshPhysicalMaterial({ roughness: 0.3, clearcoat: 1 }),
+      // verspiegelte Brillengläser und schwarzer Rahmen
+      glasses: new THREE.MeshStandardMaterial({ color: '#ff8a2a', roughness: 0.06, metalness: 1, envMapIntensity: 2.2 }),
+      glassFrame: new THREE.MeshStandardMaterial({ color: '#111114', roughness: 0.4 }),
+      glove: new THREE.MeshStandardMaterial({ color: '#f1f1ee', roughness: 0.7 }),
+      sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.6 }),
+      sleeve: new THREE.MeshStandardMaterial({ roughness: 0.62 }),
+      thigh: new THREE.MeshStandardMaterial({ roughness: 0.55 }),
     });
     // Vorderer, farbiger Teil beim Team-Design (mit gezacktem Übergang)
     const paint = (map) =>
@@ -247,6 +253,7 @@ export class Bike {
     this.buildDrivetrain(m);
     this.buildCockpit(m);
     this.buildRider(m);
+    this.buildKit(m);
     this.buildPlates();
     this.buildDecals();
     this.setBrand(DEFAULT_LOOK.brand);
@@ -426,7 +433,8 @@ export class Bike {
     const r = (this.rider = new THREE.Group());
     this.root.add(r);
     this.hip = V(0, 0.98, -0.2);
-    this.shoulder = V(0, 1.3, 0.18);
+    // tief gebeugte, sportliche Haltung: Schultern weit vorne und tief über dem Lenker
+    this.shoulder = V(0, 1.2, 0.25);
 
     // Becken
     const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), m.shorts);
@@ -441,10 +449,6 @@ export class Bike {
     const torsoMesh = limb(torsoLen, 0.15, m.jersey);
     torsoMesh.scale.set(1.25, 1, 0.82);
     this.torso.add(torsoMesh);
-    const sidePanel = limb(torsoLen * 0.9, 0.152, m.jerseyDark);
-    sidePanel.scale.set(1.27, 0.95, 0.4);
-    sidePanel.position.z = 0.06;
-    this.torso.add(sidePanel);
     placeLimb(this.torso, this.hip, this.shoulder);
     r.add(this.torso);
 
@@ -459,37 +463,65 @@ export class Bike {
     helmet.rotation.x = -0.25;
     helmet.castShadow = true;
     this.head.add(helmet);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.3), m.jersey);
-    stripe.position.set(0, 0.135, -0.03);
-    stripe.rotation.x = -0.25;
-    this.head.add(stripe);
-    const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.03), m.glasses);
-    glasses.position.set(0, 0.01, 0.09);
+    const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.02), m.glasses);
+    glasses.position.set(0, 0.01, 0.095);
     this.head.add(glasses);
-    this.head.position.set(0, 1.42, 0.3);
-    this.head.rotation.x = 0.35;
+    const glassFrame = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.012, 0.024), m.glassFrame);
+    glassFrame.position.set(0, 0.036, 0.094);
+    this.head.add(glassFrame);
+    // Kopf tiefer, Blick trotzdem nach vorne auf die Straße
+    this.head.position.set(0, 1.31, 0.39);
+    this.head.rotation.x = 0.05;
     r.add(this.head);
-    r.add(tube(V(0, 1.31, 0.2), V(0, 1.39, 0.27), 0.045, m.skin));
+    r.add(tube(V(0, 1.2, 0.27), V(0, 1.28, 0.35), 0.045, m.skin));
 
     // Arme und Beine (werden jedes Bild neu ausgerichtet)
     this.arms = [-1, 1].map((s) => ({
       s,
-      upper: limb(0.27, 0.045, m.jersey),
+      upper: limb(0.27, 0.047, m.sleeve),
       lower: limb(0.26, 0.037, m.skin),
-      hand: new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), m.black),
+      hand: new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), m.glove),
     }));
     this.legs = [-1, 1].map((s) => ({
       s,
-      thigh: limb(0.44, 0.068, m.shorts),
-      shin: limb(0.43, 0.05, m.skin),
-      sock: limb(0.1, 0.052, m.shoe),
+      thigh: limb(0.44, 0.078, m.thigh),
+      shin: limb(0.43, 0.056, m.skin),
+      sock: limb(0.18, 0.058, m.shoe),
       shoe: new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.24), m.shoe),
     }));
     for (const a of this.arms) r.add(a.upper, a.lower, a.hand);
     for (const l of this.legs) {
       l.shoe.castShadow = true;
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.016, 0.25), m.sole);
+      sole.position.y = -0.033;
+      l.shoe.add(sole);
       r.add(l.thigh, l.shin, l.sock, l.shoe);
     }
+  }
+
+  // Texturen für Trikot, Ärmel, Radhose und Helm
+  buildKit(m) {
+    this.kitTex = {
+      torso: makeKitCanvas(512, 512),
+      sleeve: makeKitCanvas(128, 128),
+      thigh: makeKitCanvas(128, 256),
+      helmet: makeKitCanvas(256, 128),
+    };
+    m.jersey.map = this.kitTex.torso.tex;
+    m.sleeve.map = this.kitTex.sleeve.tex;
+    m.thigh.map = this.kitTex.thigh.tex;
+    m.helmet.map = this.kitTex.helmet.tex;
+    this.kitCol = { jersey: CONFIG.colors.jersey, shorts: '#16161b', helmet: '#f6f6f6' };
+    this.kit = 'plain';
+    this.updateKit();
+  }
+
+  updateKit() {
+    const c = this.kitCol;
+    drawTorso(this.kitTex.torso, c.jersey, this.kit);
+    drawSleeve(this.kitTex.sleeve, c.jersey, this.kit);
+    drawThigh(this.kitTex.thigh, c.shorts, '#' + this.mats.skin.color.getHexString(), this.kit);
+    drawHelmet(this.kitTex.helmet, c.helmet);
   }
 
   buildPlates() {
@@ -574,6 +606,7 @@ export class Bike {
   // Alle Farben und die Marke eines Charakters übernehmen
   applyLook(c = {}) {
     this.design = c.paint || DEFAULT_LOOK.paint;
+    this.kit = c.kit || 'plain';
     // Lenkerband: eigene Farbe, sonst passend zur Lackierung
     this.barColor = c.bar || null;
     this.setColors({
@@ -652,11 +685,16 @@ export class Bike {
   }
 
   setColors({ jersey, frame, helmet, shorts } = {}) {
-    if (jersey) this.mats.jersey.color.set(jersey);
+    // Kleidungsfarben stecken in den Texturen; das Material selbst bleibt weiß
+    if (jersey) this.kitCol.jersey = jersey;
     if (frame) this.frameColor = frame;
     this.applyPaint();
-    if (helmet) this.mats.helmet.color.set(helmet);
-    if (shorts) this.mats.shorts.color.set(shorts);
+    if (helmet) this.kitCol.helmet = helmet;
+    if (shorts) {
+      this.kitCol.shorts = shorts;
+      this.mats.shorts.color.set(shorts);
+    }
+    if (jersey || helmet || shorts) this.updateKit();
     // Schriftfarbe an die Rahmenfarbe anpassen
     if (frame && this.brand) this.setBrand(this.brand);
   }
@@ -694,13 +732,15 @@ export class Bike {
       const dir = ankle.clone().sub(knee).normalize();
       const ankleR = knee.clone().addScaledVector(dir, 0.43);
       placeLimb(l.shin, knee, ankleR);
-      placeLimb(l.sock, ankleR.clone().addScaledVector(dir, -0.06), ankleR.clone().addScaledVector(dir, 0.02));
+      // Socken bis zur Wadenmitte
+      placeLimb(l.sock, ankleR.clone().addScaledVector(dir, -0.16), ankleR.clone().addScaledVector(dir, 0.02));
     }
 
     // Arme zu den Griffen (folgen dem Lenker)
     const steerA = this.steer.rotation.y;
     for (const a of this.arms) {
-      const sh = V(a.s * 0.19, 1.29, 0.16);
+      // Schultern passend zur tiefen Haltung: Arme dadurch stärker angewinkelt
+      const sh = V(a.s * 0.19, 1.19, 0.23);
       const hx = a.s * 0.21;
       const hz = 0.1 + 0.45;
       const hand = V(

@@ -45,6 +45,7 @@ export const DEFAULT_LOOK = {
   shorts: '#16161b',
   brand: 'canyon',
   paint: 'solid',
+  kit: 'plain',
 };
 
 export function brandById(id) {
