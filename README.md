@@ -79,6 +79,10 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
    Oben ist eine Reiterleiste: Mit **R1/R2** springst du zum nächsten Bereich, mit **L1/L2** zurück. Stick ↑↓ wählt die Zeile, ←→ ändert die Farbe. Das Rad rechts zeigt alles sofort. **B** geht einen Schritt zurück. Wählst du im Hauptmenü einen bestehenden Fahrer mit **A/✕**, kannst du „Rennen fahren“ oder „Fahrer bearbeiten“ wählen.
 5. **Rennen auf der Teststrecke** – Du startest gegen vier Gegner (Mia, Leo, Emma und Ben). Nach dem Countdown „3 – 2 – 1 – LOS!“ geht es über drei Runden. Oben siehst du deinen Platz, unten in der Mitte den Sprint-Balken (□ drücken, wenn „bereit“ dasteht), am Ende kommt eine Ergebnisliste mit „Nochmal fahren“. Auf der Karte sind die Gegner als farbige Punkte zu sehen. Die Strecke ist eine 2,3 km lange Runde durch Hügel und Wälder. Mit Seen, Wäldern und Bergen. Dazu Rundenzeit, Bestzeit pro Fahrer und eine Streckenkarte links unten mit Wiesen, Wald, Seen und Bergen: Der Pfeil zeigt, wo du bist, die gefahrene Runde leuchtet golden. Mit dem rechten Stick kannst du dich von allen Seiten anschauen.
 
+   **Windschatten:** Fahr dicht hinter einen Gegner, dann hast du bis zu 40 % weniger Luftwiderstand. Hinter dem Gegner leuchten blaue Pfeile auf der Straße, oben erscheint „Windschatten“ mit einem Balken. Die Stärke stellst du in `src/config.js` bei `windschatten` ein.
+
+   **Fahrerin:** Dein eigener Fahrer ist jetzt Shannon, ein echtes 3D-Modell von Mixamo. Trikot und Hose haben die Farben deines Charakters. Mit `fahrerModell: false` in `src/config.js` kommt die einfache Figur zurück.
+
 ---
 
 ## 🧒 Für Paul: Das Spiel selbst verändern

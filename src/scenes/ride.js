@@ -204,6 +204,11 @@ export function createRideScene(app) {
             <canvas class="minimap"></canvas>
           </div>
           <div class="view-toast"></div>
+          <div class="draft-badge">
+            <span class="draft-icon">≋</span>
+            <div class="draft-text"><b>Windschatten</b><small class="draft-name"></small></div>
+            <div class="draft-meter"><i></i></div>
+          </div>
           <div class="cruise-badge">${btn('B')} Dauertreten an</div>
           <div class="sprint-bar ready">
             <div class="sprint-fill"></div>
@@ -440,7 +445,11 @@ export function createRideScene(app) {
       const roll = ground.surface === 'road' ? R.asphalt : ground.surface === 'gravel' ? R.schotter : R.wiese;
       const boost = sprinting ? CONFIG.sprint.kraft : 1;
       const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
-      const drag = 0.5 * 1.2 * 0.36 * v * v;
+      // Windschatten: dicht hinter einem Gegner bis zu 40 % weniger Luftwiderstand
+      const dr = rivals.draftFor(st.x, st.z);
+      st.draft = damp(st.draft || 0, dr.strength, 5, dt);
+      if (dr.rival) st.draftName = dr.rival.name;
+      const drag = 0.5 * 1.2 * 0.36 * v * v * (1 - CONFIG.windschatten * st.draft);
       const brakeF = brake * 650;
       // In der Luft gibt es weder Rollwiderstand noch Hangabtrieb
       const slope = st.air ? 0 : Math.sin(st.pitch);
@@ -557,7 +566,15 @@ export function createRideScene(app) {
       app.bike.update(dt, st.speed, crankRate, st.steerVis);
 
       const kmh = st.speed * 3.6;
-      app.audio.setWind(clamp(st.speed / 15, 0, 1));
+      // Im Windschatten ist es auch leiser
+      app.audio.setWind(clamp(st.speed / 15, 0, 1) * (1 - 0.5 * st.draft));
+      rivals.showDraft(dr.rival, dr.strength, dt);
+      const badge = $('.draft-badge');
+      badge.classList.toggle('on', st.draft > 0.08);
+      if (st.draft > 0.08) {
+        $('.draft-name').textContent = `hinter ${st.draftName} · −${Math.round(CONFIG.windschatten * st.draft * 100)} % Wind`;
+        $('.draft-meter i').style.width = `${Math.round(st.draft * 100)}%`;
+      }
       // Keine Speedlines auf der Strecke
       app.fx.uLines.value = 0;
       updateCamera(dt);

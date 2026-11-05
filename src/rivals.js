@@ -1,4 +1,5 @@
 // Die computergesteuerten Gegner. Sie fahren auf der Strecke, jeder mit eigenem Tempo.
+import * as THREE from 'three';
 import { Bike, WHEEL_R } from './bike.js';
 import { clamp, damp } from './noise.js';
 
@@ -12,6 +13,60 @@ export const RIVALS = [
 ];
 const MASS = 78;
 const G = 9.81;
+
+// Windschatten: so weit hinter einem Gegner (Meter) wirkt er
+export const DRAFT_LEN = 8;
+
+// Leuchtende Windschatten-Zone auf der Straße: Pfeile, die zum Gegner hin wandern
+let draftTex = null;
+function draftTexture() {
+  if (draftTex) return draftTex;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Pfeilspitze zeigt nach unten = zum Gegner hin
+  ctx.beginPath();
+  ctx.moveTo(18, 40);
+  ctx.lineTo(64, 88);
+  ctx.lineTo(110, 40);
+  ctx.stroke();
+  draftTex = new THREE.CanvasTexture(c);
+  draftTex.wrapS = draftTex.wrapT = THREE.RepeatWrapping;
+  draftTex.repeat.set(1, 5);
+  return draftTex;
+}
+
+function makeDraftZone() {
+  // Zum Ende hin ausblenden: Farbverlauf über Vertex-Farben
+  const geo = new THREE.PlaneGeometry(1.3, DRAFT_LEN - 0.8, 1, 8);
+  const pos = geo.attributes.position;
+  const col = [];
+  for (let i = 0; i < pos.count; i++) {
+    const t = (pos.getY(i) + (DRAFT_LEN - 0.8) / 2) / (DRAFT_LEN - 0.8); // 0 = nah am Gegner, 1 = weit hinten
+    const a = 1 - t;
+    col.push(0.45 * a, 0.9 * a, 1.0 * a);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.rotateX(-Math.PI / 2); // flach hinlegen; +y der Fläche zeigt jetzt nach hinten (-z)
+  const mat = new THREE.MeshBasicMaterial({
+    map: draftTexture(),
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, 0.07, -0.8 - (DRAFT_LEN - 0.8) / 2);
+  mesh.renderOrder = 2;
+  mesh.visible = false;
+  return mesh;
+}
 
 // Startaufstellung: Abstand hinter der Spielerposition (Meter)
 const GRID = [0, 5, 5, 10];
@@ -28,7 +83,9 @@ export class Rivals {
       bike.applyLook(r);
       bike.root.visible = false;
       app.world.scene.add(bike.root);
-      return { ...r, bike, grid: GRID[i], d: 0, v: 0, lat: r.lane, heading: 0, lean: 0, finished: null };
+      const draftZone = makeDraftZone();
+      bike.root.add(draftZone);
+      return { ...r, bike, draftZone, grid: GRID[i], d: 0, v: 0, lat: r.lane, heading: 0, lean: 0, finished: null };
     });
   }
 
@@ -48,8 +105,47 @@ export class Rivals {
     }
   }
 
+  // Fährt jemand bei (x, z) im Windschatten eines Gegners? Stärke 0 … 1 (1 = ganz dicht dahinter)
+  draftFor(x, z) {
+    let best = 0;
+    let who = null;
+    for (const r of this.list) {
+      if (!r.bike.root.visible || r.v < 3) continue;
+      const fx = Math.sin(r.heading);
+      const fz = Math.cos(r.heading);
+      const dx = x - r.x;
+      const dz = z - r.z;
+      const behind = -(dx * fx + dz * fz); // Meter hinter dem Gegner
+      const side = Math.abs(dx * fz - dz * fx); // seitlicher Abstand
+      if (behind < 0.8 || behind > DRAFT_LEN) continue;
+      const width = 0.7 + behind * 0.05;
+      if (side > width) continue;
+      const s = (1 - (behind - 0.8) / (DRAFT_LEN - 0.8)) * (1 - (side / width) * 0.5);
+      if (s > best) {
+        best = s;
+        who = r;
+      }
+    }
+    return { strength: best, rival: who };
+  }
+
+  // Zone hinter dem Gegner aufleuchten lassen, in dessen Windschatten man fährt
+  showDraft(who, strength, dt) {
+    draftTexture().offset.y += dt * 2.2;
+    for (const r of this.list) {
+      const m = r.draftZone.material;
+      const target = r === who ? 0.35 + 0.55 * strength : 0;
+      m.opacity = damp(m.opacity, target, 8, dt);
+      r.draftZone.visible = m.opacity > 0.01;
+    }
+  }
+
   hide() {
-    for (const r of this.list) r.bike.root.visible = false;
+    for (const r of this.list) {
+      r.bike.root.visible = false;
+      r.draftZone.material.opacity = 0;
+      r.draftZone.visible = false;
+    }
   }
 
   // Zurückgelegte Strecke ab der Startlinie

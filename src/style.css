@@ -1273,9 +1273,66 @@ body {
 .sprint-info .btn {
   margin: 0;
 }
+.draft-badge {
+  position: absolute;
+  top: 104px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(10, 40, 60, 0.7);
+  border: 2px solid #6fd3ff;
+  box-shadow: 0 0 22px rgba(111, 211, 255, 0.45);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+.draft-badge.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.draft-icon {
+  font-size: 30px;
+  line-height: 1;
+  color: #8fe0ff;
+  animation: draftFlow 0.8s linear infinite;
+}
+@keyframes draftFlow {
+  0% { transform: translateX(-3px); opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { transform: translateX(3px); opacity: 0.6; }
+}
+.draft-text b {
+  display: block;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #bdeeff;
+}
+.draft-text small {
+  font-size: 14px;
+  color: #d9f3ff;
+}
+.draft-meter {
+  width: 70px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.draft-meter i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #4fb8e8, #b5f0ff);
+}
 .view-toast {
   position: absolute;
-  top: 110px;
+  top: 170px;
   left: 50%;
   transform: translateX(-50%);
   padding: 8px 20px;

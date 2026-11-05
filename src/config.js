@@ -44,6 +44,9 @@ export const CONFIG = {
   // Lautstärke der Geräusche (Menü, Fahrtwind, Freilauf)
   soundVolume: 0.8,
 
+  // Windschatten: so viel weniger Luftwiderstand ganz dicht hinter einem Gegner (0.4 = 40 %)
+  windschatten: 0.4,
+
   // Wie stark du in die Pedale trittst (Watt). Mehr = schneller!
   riderPower: 520,
 
