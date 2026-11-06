@@ -432,6 +432,8 @@ export function createRideScene(app) {
       } else {
         st.raceTime += dt;
       }
+      // Taste K: Fahrradklingel – Kling-Kling!
+      if (inp.pressed('klingel')) app.audio.klingel();
       // ○ / B: Dauertreten ein- und ausschalten
       if (inp.pressed('cruise')) {
         st.cruise = !st.cruise;

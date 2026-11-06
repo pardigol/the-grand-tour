@@ -72,6 +72,7 @@ export class Input {
       if (a) this.queue.push(a);
       if (e.code === 'KeyC') this.queue.push('view');
       if (e.code === 'KeyT') this.queue.push('cruise');
+      if (e.code === 'KeyK' && !e.repeat) this.queue.push('klingel');
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queue.push('sprint');
       if (e.key === 'Escape') this.queue.push('pause');
       if (e.key === 'Backspace') this.charQueue.push('\b');
@@ -230,11 +231,11 @@ export class Input {
     const rate = Math.abs(target) > Math.abs(this.steer) ? 3 : 7;
     this.steer += Math.max(-rate * dt, Math.min(rate * dt, target - this.steer));
 
-    // Kamera auch per Tastatur: J/L drehen, I/K hoch/runter
+    // Kamera auch per Tastatur: J/L drehen, I/Komma hoch/runter (K ist die Fahrradklingel)
     if (k.has('KeyJ')) lookX -= 1;
     if (k.has('KeyL')) lookX += 1;
     if (k.has('KeyI')) lookY -= 1;
-    if (k.has('KeyK')) lookY += 1;
+    if (k.has('Comma')) lookY += 1;
     this.lookX = Math.max(-1, Math.min(1, lookX));
     this.lookY = Math.max(-1, Math.min(1, lookY));
     this.throttle = Math.max(padThrottle, keyThrottle);

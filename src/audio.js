@@ -158,6 +158,31 @@ export class AudioEngine {
       this.tone(noteFreq(n), 0.35, { type: 'triangle', vol: 0.13, when: i * 0.08 }),
     );
   }
+  // Fahrradklingel: zweimal „Kling“ – heller Grundton mit metallischen Obertönen
+  klingel() {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t0 = c.currentTime;
+    for (const when of [0, 0.17]) {
+      for (const [mult, vol] of [
+        [1, 0.16],
+        [2.4, 0.07],
+        [3.9, 0.04],
+      ]) {
+        const o = c.createOscillator();
+        o.frequency.value = 2100 * mult;
+        const g = c.createGain();
+        const t = t0 + when;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+        o.connect(g);
+        g.connect(this.sfx);
+        o.start(t);
+        o.stop(t + 0.75);
+      }
+    }
+  }
   lap() {
     ['G5', 'C6', 'E6'].forEach((n, i) => this.tone(noteFreq(n), 0.4, { type: 'square', vol: 0.05, when: i * 0.1 }));
   }

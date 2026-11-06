@@ -52,12 +52,13 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Charaktererstellung: Bereich wechseln (Name & Nummer · Aussehen · Rennrad) | **LB / RB** oder **LT / RT** | **L1 / R1** oder **L2 / R2** | Bild ↓ / Bild ↑ |
 | Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
 | Dauertreten an/aus | **B** | **○** | T |
+| Fahrradklingel (Kling-Kling) | – | – | K |
 | Bremsen | **Y** | **△** | S / ↓ |
 | Sprint (15 s Vollgas, danach 30 s Aufladen; ab ¾ Ladung schon möglich, dann kürzer; nochmal drücken = abbrechen) | **X** | **□** | Shift |
 | Landen nach einem Drop (Cycle Cross) | **LB + RB** gleichzeitig | **L1 + R1** gleichzeitig | Q + E |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
-| Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / K (hoch/runter) |
+| Kamera drehen | rechter Stick | rechter Stick | J / L (drehen), I / , (hoch/runter) |
 | Kamera-Ansicht wechseln (hinten, Seite, oben, vorne) | rechten Stick drücken | rechten Stick drücken (R3) | C |
 | Pause | Menü-Taste | **Options** | Escape |
 | Ton an/aus | – | – | M |
