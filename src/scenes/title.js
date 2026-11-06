@@ -1,13 +1,25 @@
 // 1. STARTBILDSCHIRM – filmische Kamerafahrt bei Sonnenaufgang
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-import { el, esc, rideNpc } from './common.js';
+import { el, esc, rideNpc, btn } from './common.js';
+import { openWishes } from '../wishes.js';
 
 export function createTitleScene(app) {
   let root;
   let t = 0;
+  let wishOpen = false;
   const camPos = new THREE.Vector3();
   const look = new THREE.Vector3();
+
+  function openWish() {
+    if (wishOpen) return;
+    wishOpen = true;
+    app.audio.select();
+    openWishes(app, () => {
+      // kurz warten, damit der Schließen-Klick nicht das Spiel startet
+      setTimeout(() => (wishOpen = false), 250);
+    });
+  }
 
   return {
     enter() {
@@ -21,10 +33,15 @@ export function createTitleScene(app) {
             <div class="ornament"><span></span><i></i><span></span></div>
             <div class="press-start">${esc(CONFIG.startPrompt)}</div>
           </div>
+          <button class="wish-button">${btn('Y')}<span>🎁 Wunschzettel</span></button>
           <div class="sparkles">${Array.from({ length: 24 }, (_, i) => `<b style="--i:${i};--x:${(i * 37) % 100};--d:${3 + (i % 5)}s"></b>`).join('')}</div>
         </div>`);
       app.ui.append(root);
       app.titleRoot = root;
+      const wb = root.querySelector('.wish-button');
+      // Klick soll nicht gleichzeitig das Spiel starten
+      wb.addEventListener('mousedown', (e) => e.stopPropagation());
+      wb.addEventListener('click', () => openWish());
       app.fx.uFade.value = 1;
       app.fx.uBlur.value = 0;
       app.fx.uLines.value = 0;
@@ -65,6 +82,11 @@ export function createTitleScene(app) {
       app.camera.fov = 42;
       app.camera.updateProjectionMatrix();
 
+      if (wishOpen) return;
+      if (t > 0.5 && app.input.pressed('y')) {
+        openWish();
+        return;
+      }
       if (t > 0.5 && app.input.pressed('any')) {
         app.audio.unlock();
         app.audio.startMusic();

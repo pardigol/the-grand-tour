@@ -7,6 +7,10 @@ export const CONFIG = {
   subtitle: 'Ein Rennrad-Abenteuer',
   startPrompt: 'Beliebige Taste drücken, um zu starten',
 
+  // Wunschzettel auf dem Startbildschirm: Wünsche gehen an diesen geheimen Kanal bei ntfy.sh.
+  // In der ntfy-App (iPhone/Android) diesen Kanal abonnieren, dann kommt jeder Wunsch als Nachricht aufs Handy.
+  wunschzettel: { kanal: 'grandtour-wuensche-8e640057d92d3c19' },
+
   // Farben – als Farbcode (#rrggbb). Tipp: Suche im Internet nach "Color Picker".
   colors: {
     gold: '#f5c76b', // Titel, Rahmen und Hervorhebungen
