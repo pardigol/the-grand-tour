@@ -1788,3 +1788,22 @@ body {
   font-size: 17px;
   color: #a69f92;
 }
+
+/* Zeitfahren: Stoppuhr-Animation im Ziel */
+.hud-zeit.stoppuhr label::after {
+  content: ' ⏱';
+  display: inline-block;
+  animation: stoppuhr-tick 0.5s steps(2, end) infinite;
+}
+.hud-zeit.stoppuhr b {
+  color: #ffd23f;
+  animation: stoppuhr-puls 0.5s ease-in-out infinite;
+}
+@keyframes stoppuhr-tick {
+  0% { transform: rotate(-18deg); }
+  100% { transform: rotate(18deg); }
+}
+@keyframes stoppuhr-puls {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}

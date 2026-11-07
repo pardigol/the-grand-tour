@@ -275,7 +275,7 @@ export function createRideScene(app) {
           <div class="hud-top">
             <div class="hud-box hud-place"><label>Platz</label><b class="place">–</b></div>
             <div class="hud-box"><label>Runde</label><b class="lap">–</b></div>
-            <div class="hud-box"><label>Zeit</label><b class="time">0:00.0</b></div>
+            <div class="hud-box hud-zeit"><label>Zeit</label><b class="time">0:00.0</b></div>
             <div class="hud-box"><label>Bestzeit</label><b class="best">${formatTime(char.bestLap)}</b></div>
           </div>
           <div class="hud-map">
@@ -766,6 +766,8 @@ export function createRideScene(app) {
               app.audio.success();
               app.input.rumble(0.8, 400);
               spawnConfetti(st.x, st.h, st.z);
+              // Zeitfahren: Stoppuhr oben tickert im Ziel
+              if (app.mode === 'tt') $('.hud-zeit').classList.add('stoppuhr');
               setTimeout(() => root && st.phase === 'finished' && showResult(), 2200);
             } else {
               const last = st.lap === RACE_LAPS && st.phase === 'race';
