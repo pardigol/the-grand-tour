@@ -810,6 +810,11 @@ export class Bike {
     drawSleeve(this.kitTex.sleeve, c.jersey, this.kit);
     drawThigh(this.kitTex.thigh, c.shorts, '#' + this.mats.skin.color.getHexString(), this.kit);
     drawHelmet(this.kitTex.helmet, c.helmet);
+    // Goldener Helm glänzt wie echtes Gold
+    const gold = c.helmet.toLowerCase() === '#d4af37';
+    this.mats.helmet.metalness = gold ? 0.85 : 0;
+    this.mats.helmet.roughness = gold ? 0.18 : 0.3;
+    this.mats.helmet.needsUpdate = true;
     this.model?.setKit(c);
   }
 
