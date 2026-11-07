@@ -174,7 +174,8 @@ export function createRideScene(app) {
   }
 
   function renderPause() {
-    root.querySelectorAll('.pause-item').forEach((e, i) => e.classList.toggle('selected', i === pauseIndex));
+    // nur die Einträge des Pause-Menüs (das Ergebnis-Fenster nutzt dieselben Bausteine)
+    root.querySelectorAll('.pause-item:not(.result-item)').forEach((e, i) => e.classList.toggle('selected', i === pauseIndex));
   }
 
   // Zurückgelegte Meter ab der Startlinie (vor dem Start negativ)
@@ -356,7 +357,7 @@ export function createRideScene(app) {
       app.ui.append(root);
       setTimeout(() => root?.querySelectorAll('.controls-help').forEach((h) => h.classList.add('fade')), 12000);
       // iPad: Pause- und Ergebnis-Einträge antippen
-      root.querySelectorAll('.pause-box .pause-item').forEach((e, i) =>
+      root.querySelectorAll('.pause-item:not(.result-item)').forEach((e, i) =>
         e.addEventListener('click', () => {
           pauseIndex = i;
           renderPause();

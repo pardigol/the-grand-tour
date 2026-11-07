@@ -40,8 +40,13 @@ export function createMenuScene(app) {
       </div>`;
     list.querySelectorAll('.card').forEach((c) =>
       c.addEventListener('click', () => {
-        if (actions !== null) return;
-        index = Number(c.dataset.i);
+        const i = Number(c.dataset.i);
+        // Andere Karte angetippt, während Knöpfe offen sind: die alten schließen
+        if (actions !== null) {
+          if (i === index) return;
+          closeActions();
+        }
+        index = i;
         highlight();
         activate();
       }),
@@ -72,7 +77,8 @@ export function createMenuScene(app) {
     }
   }
 
-  const ACTIONS = ['Rennen fahren', 'Online gegen Freund', 'Fahrer bearbeiten'];
+  const ACTIONS = ['Rennen fahren', 'Online gegen Freund', 'Fahrer bearbeiten', 'Löschen'];
+  let deleteArmed = false;
 
   function activate() {
     app.audio.select();
@@ -84,6 +90,7 @@ export function createMenuScene(app) {
   // Zwei Knöpfe in der Karte: fahren oder bearbeiten
   function openActions() {
     actions = 0;
+    deleteArmed = false;
     const card = list.querySelector('.card.selected');
     card.insertAdjacentHTML(
       'beforeend',
@@ -113,7 +120,23 @@ export function createMenuScene(app) {
     app.audio.select();
     if (actions === 0) app.go('ride', { character: c });
     else if (actions === 1) app.go('lobby', { character: c });
-    else app.go('creator', { edit: c });
+    else if (actions === 2) app.go('creator', { edit: c });
+    else if (!deleteArmed) {
+      // Sicherheitsabfrage: ein zweites Mal antippen/bestätigen löscht wirklich
+      deleteArmed = true;
+      const btnEl = list.querySelectorAll('.card-action')[3];
+      if (btnEl) {
+        btnEl.textContent = 'Wirklich löschen? Nochmal!';
+        btnEl.classList.add('danger');
+      }
+      app.audio.back();
+    } else {
+      deleteCharacter(c.id);
+      app.audio.back();
+      app.input.rumble(0.6, 150);
+      actions = null;
+      render();
+    }
   }
 
   return {
@@ -130,7 +153,7 @@ export function createMenuScene(app) {
             ['B', 'Zurück'],
           ])}
         </div>`);
-      root.querySelector('.hints').insertAdjacentHTML('beforeend', `<span class="hint hint-delete">${btn('X')}Löschen</span>`);
+      root.querySelector('.hints').insertAdjacentHTML('beforeend', `<span class="hint hint-delete" data-act="x">${btn('X')}Löschen</span>`);
       app.ui.append(root);
       list = root.querySelector('.menu-list');
       if (params.selectId) {

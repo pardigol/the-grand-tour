@@ -2098,3 +2098,27 @@ body.control-touch .touch-pause {
 body.control-touch .wish-button .btn {
   display: none;
 }
+
+/* iPad: alles Antippbare als „klickbar“ kennzeichnen, sonst schickt Safari keine Klicks */
+.card,
+.card-action,
+.mode-card,
+.brand-opt,
+.swatch,
+.key,
+.step-tab,
+.lobby-opt,
+.lobby-digit,
+.pause-item,
+.done-btn,
+.arrow,
+.hint[data-act],
+.title-control,
+.wish-button,
+.touch-pause {
+  cursor: pointer;
+}
+.card-action.danger {
+  border-color: #d23c3c;
+  background: rgba(210, 60, 60, 0.25);
+}
