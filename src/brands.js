@@ -21,6 +21,7 @@ export const COLORS = [
   { hex: '#14365c', name: 'Dunkelblau' },
   { hex: '#8a3ffc', name: 'Lila' },
   { hex: '#ff6fb5', name: 'Pink' },
+  { hex: '#d4af37', name: 'Gold' },
 ];
 
 // Rahmenfarben: wie COLORS, aber statt Grün ein dunkles, glänzendes Renngrün.

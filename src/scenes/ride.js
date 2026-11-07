@@ -1,4 +1,5 @@
 // 5. TESTSTRECKE – selbst fahren! (Platzhalter für das spätere Spiel)
+import * as THREE from 'three';
 import { modeName } from './mode.js';
 import { CONFIG } from '../config.js';
 import { updateCharacter, loadCharacters } from '../storage.js';
@@ -42,6 +43,59 @@ export function createRideScene(app) {
   const rivalsByWorld = new Map(); // eigene Gegner je Welt (Landstraße / Wald)
   let resultIndex = 0;
   const cam = { view: 0, yawOff: 0, pitchOff: 0, idle: 0, yaw: 0, pitch: 0.32, dist: 4.4, heading: 0 };
+  let confetti = null; // buntes Konfetti im Ziel
+
+  const CONFETTI_COLORS = ['#ff4d6d', '#ffd23f', '#3bceac', '#4daaff', '#ff9f1c', '#c77dff'];
+
+  // Konfetti-Platzen im Ziel: bunte Punkte fliegen nach oben und fallen dann herab
+  function spawnConfetti(x, y, z) {
+    const n = 160;
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    const vel = new Float32Array(n * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y + 1.4;
+      pos[i * 3 + 2] = z;
+      const a = Math.random() * Math.PI * 2;
+      const speed = 1.5 + Math.random() * 2.5;
+      vel[i * 3] = Math.cos(a) * speed;
+      vel[i * 3 + 1] = 3 + Math.random() * 3;
+      vel[i * 3 + 2] = Math.sin(a) * speed;
+      c.set(CONFETTI_COLORS[i % CONFETTI_COLORS.length]);
+      c.toArray(col, i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mat = new THREE.PointsMaterial({ size: 0.12, vertexColors: true, transparent: true, depthWrite: false });
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    app.world.scene.add(points);
+    confetti = { points, vel, age: 0 };
+  }
+
+  function clearConfetti() {
+    if (!confetti) return;
+    app.world.scene.remove(confetti.points);
+    confetti.points.geometry.dispose();
+    confetti.points.material.dispose();
+    confetti = null;
+  }
+
+  function updateConfetti(dt) {
+    if (!confetti) return;
+    confetti.age += dt;
+    const p = confetti.points.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      confetti.vel[i * 3 + 1] -= 2.5 * dt;
+      p.setXYZ(i, p.getX(i) + confetti.vel[i * 3] * dt, p.getY(i) + confetti.vel[i * 3 + 1] * dt, p.getZ(i) + confetti.vel[i * 3 + 2] * dt);
+    }
+    p.needsUpdate = true;
+    confetti.points.material.opacity = Math.max(0, 1 - confetti.age / 3);
+    if (confetti.age > 3.2) clearConfetti();
+  }
 
   // Kamera kreist um den Fahrer: rechter Stick dreht, Klick auf den Stick wechselt die Ansicht
   function updateCamera(dt, snap = false) {
@@ -370,6 +424,7 @@ export function createRideScene(app) {
       const inp = app.input;
       app.fx.uFade.value = damp(app.fx.uFade.value, 0, 3, dt);
       app.fx.uBlur.value = damp(app.fx.uBlur.value, 0, 5, dt);
+      updateConfetti(dt);
 
       if (st.paused) {
         if (inp.pressed('up') || inp.pressed('down')) {
@@ -710,6 +765,7 @@ export function createRideScene(app) {
               banner(!rivals.list.length ? 'Ziel!' : st.place === 1 ? 'Sieg!' : `Platz ${st.place}`, formatTime(st.finishTime));
               app.audio.success();
               app.input.rumble(0.8, 400);
+              spawnConfetti(st.x, st.h, st.z);
               setTimeout(() => root && st.phase === 'finished' && showResult(), 2200);
             } else {
               const last = st.lap === RACE_LAPS && st.phase === 'race';
@@ -775,6 +831,7 @@ export function createRideScene(app) {
     },
 
     exit() {
+      clearConfetti();
       rivals.hide();
       // Rennen verlassen (nicht neu starten): Verbindung beenden, Gegner entfernen
       if (online && !restarting) {
