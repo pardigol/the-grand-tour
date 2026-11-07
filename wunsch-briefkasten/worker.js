@@ -11,12 +11,30 @@ const MAX_NAME = 20;
 // Ganz einfache Bremse gegen Spam: pro Absender-IP höchstens so viele Wünsche pro Stunde (je Worker-Instanz)
 const PRO_STUNDE = 10;
 const zaehler = new Map();
+// Status der Wünsche kurz zwischenspeichern (spart GitHub-Abfragen)
+let statusCache = { zeit: 0, daten: null };
+
+// Liest wunsch-status.json aus dem Projekt (die Claude-Cloud schreibt dort hinein)
+async function wunschStatus(env) {
+  if (statusCache.daten && Date.now() - statusCache.zeit < 10_000) return statusCache.daten;
+  const r = await fetch(`https://api.github.com/repos/${env.REPO}/contents/wunsch-status.json?ref=main`, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github.raw+json',
+      'User-Agent': 'grand-tour-wunsch-briefkasten',
+    },
+  });
+  if (!r.ok) throw new Error('Status nicht lesbar: ' + r.status);
+  const daten = await r.json();
+  statusCache = { zeit: Date.now(), daten };
+  return daten;
+}
 
 function cors(origin, env) {
   const erlaubt = (env.ERLAUBTE_SEITEN || '').split(',').map((s) => s.trim());
   return {
     'Access-Control-Allow-Origin': erlaubt.includes(origin) ? origin : erlaubt[0] || '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
   };
@@ -31,7 +49,23 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const h = cors(origin, env);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
-    if (req.method !== 'POST') return antwort(405, { ok: false, fehler: 'Nur POST' }, h);
+    // Status abfragen: GET ?nr=3,4 → { "3": {status, info, zeit}, … } (unbekannt = "angekommen")
+    if (req.method === 'GET') {
+      const nummern = (new URL(req.url).searchParams.get('nr') || '')
+        .split(',')
+        .map((n) => n.trim())
+        .filter((n) => /^\d{1,6}$/.test(n))
+        .slice(0, 50);
+      try {
+        const alle = await wunschStatus(env);
+        const aus = {};
+        for (const n of nummern) aus[n] = alle[n] || { status: 'angekommen', info: '' };
+        return antwort(200, { ok: true, status: aus }, { ...h, 'Cache-Control': 'no-store' });
+      } catch (e) {
+        return antwort(502, { ok: false, fehler: String(e.message || e) }, h);
+      }
+    }
+    if (req.method !== 'POST') return antwort(405, { ok: false, fehler: 'Nur GET/POST' }, h);
 
     // nur vom Spiel aus
     const erlaubt = (env.ERLAUBTE_SEITEN || '').split(',').map((s) => s.trim());
