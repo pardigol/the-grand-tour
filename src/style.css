@@ -1646,6 +1646,18 @@ body {
   backdrop-filter: blur(6px);
   animation: fadeUp 1s 2.8s both;
 }
+/* Ab und zu wackelt der Knopf fröhlich wie ein Geschenk */
+@keyframes geschenkWackeln {
+  0%, 82%, 100% { rotate: 0deg; scale: 1; }
+  85% { rotate: -6deg; scale: 1.06; }
+  88% { rotate: 6deg; scale: 1.06; }
+  91% { rotate: -4deg; scale: 1.04; }
+  94% { rotate: 4deg; scale: 1.04; }
+  97% { rotate: 0deg; scale: 1; }
+}
+.wish-button {
+  animation: fadeUp 1s 2.8s both, geschenkWackeln 8s 6s infinite;
+}
 .wish-button:hover {
   border-color: var(--gold);
   box-shadow: 0 0 20px rgba(245, 199, 107, 0.5);
