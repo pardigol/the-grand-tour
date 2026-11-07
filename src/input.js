@@ -62,8 +62,7 @@ export class Input {
     this.touchRide = false; // wird von der Rennen-Szene an- und ausgeschaltet
     this.touches = new Map();
     this.touchPedal = false;
-    this.isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-    if (this.isTouch) document.body.classList.add('touch');
+    this.touchEnabled = false; // nur, wenn am Anfang „iPad“ gewählt wurde
     this.setupTouch();
     this.layout = 'xbox';
 
@@ -101,7 +100,7 @@ export class Input {
     window.addEventListener(
       'touchstart',
       (e) => {
-        if (!this.touchRide || e.target.closest('button, .pause-box, .result, .touch-pause')) return;
+        if (!this.touchRide || !this.touchEnabled || e.target.closest('button, .pause-box, .result, .touch-pause')) return;
         e.preventDefault();
         for (const t of e.changedTouches) {
           this.touches.set(t.identifier, { x0: t.clientX, y0: t.clientY, t0: performance.now(), mode: 'steer', side: t.clientX < innerWidth / 2 ? -1 : 1 });
@@ -112,7 +111,7 @@ export class Input {
     window.addEventListener(
       'touchmove',
       (e) => {
-        if (!this.touchRide) return;
+        if (!this.touchRide || !this.touchEnabled) return;
         e.preventDefault();
         for (const t of e.changedTouches) {
           const s = this.touches.get(t.identifier);

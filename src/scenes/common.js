@@ -15,8 +15,10 @@ export function esc(s) {
 
 // PlayStation-Symbole zu den Xbox-Knöpfen. Angezeigt wird per CSS (body.pad-ps) die passende Variante.
 const PS = { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2' };
+// Tastatur-Variante (body.control-keys)
+const KEYS = { A: 'Enter', B: 'Esc', X: 'Entf', Y: 'Y', LB: 'Bild↓', RB: 'Bild↑', LT: 'A', RT: 'D' };
 export const btn = (b) =>
-  `<span class="btn btn-${b.toLowerCase()}"><i class="glyph-xbox">${b}</i><i class="glyph-ps">${PS[b] ?? b}</i></span>`;
+  `<span class="btn btn-${b.toLowerCase()}"><i class="glyph-xbox">${b}</i><i class="glyph-ps">${PS[b] ?? b}</i><i class="glyph-keys">${KEYS[b] ?? b}</i></span>`;
 
 export function hintBar(items) {
   const ACT = { A: 'confirm', B: 'back', X: 'x', Y: 'y', LB: 'lb', RB: 'rb' };

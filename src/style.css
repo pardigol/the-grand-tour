@@ -1967,18 +1967,72 @@ canvas,
 .touch-pause {
   display: none;
 }
-body.touch .touch-help {
+.keys-help {
+  display: none;
+}
+body.control-touch .touch-help,
+body.control-keys .keys-help {
   display: block;
 }
-body.touch .pad-help {
+body.control-touch .pad-help,
+body.control-keys .pad-help {
   display: none;
+}
+.keys-help b {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: #3a3f4c;
+  font-size: 0.85em;
+}
+/* Tastatur: Tasten statt Controller-Knöpfe; iPad: nur der Text (antippbar) */
+.btn .glyph-keys {
+  display: none;
+}
+body.control-keys .btn i {
+  display: none !important;
+}
+body.control-keys .btn .glyph-keys {
+  display: inline !important;
+}
+body.control-keys .btn {
+  width: auto;
+  min-width: 1.7em;
+  padding: 0 0.35em;
+  border-radius: 6px;
+  background: #3a3f4c;
+  color: #fff;
+  font-size: 0.75em;
+}
+body.control-touch .hints .btn {
+  display: none;
+}
+body.control-touch .hint {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.control-icon {
+  font-size: 44px;
+  margin-bottom: 6px;
+}
+.control-sub {
+  margin-top: 6px;
+  font-size: 15px;
+  color: #a69f92;
+  letter-spacing: 0.05em;
+}
+.control-note {
+  margin-top: 4vh;
+  font-size: 16px;
+  color: #cfc7b8;
 }
 .touch-help b {
   display: inline-block;
   min-width: 34px;
   color: var(--gold);
 }
-body.touch .touch-pause {
+body.control-touch .touch-pause {
   display: grid;
   place-items: center;
   position: absolute;

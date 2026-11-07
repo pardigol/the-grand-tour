@@ -69,6 +69,7 @@ export function createModeScene(app) {
           </div>
           ${hintBar([
             ['A', 'Auswählen'],
+            ['Y', 'Steuerung ändern'],
             ['B', 'Zurück'],
           ])}
           <div class="mode-building">Der Wald wird gebaut …</div>
@@ -105,6 +106,10 @@ export function createModeScene(app) {
         index++;
         highlight();
       } else if (inp.pressed('confirm')) choose();
+      else if (inp.pressed('y')) {
+        app.audio.select();
+        app.go('control', { next: 'mode' });
+      }
       else if (inp.pressed('back')) {
         app.audio.back();
         app.go('title');

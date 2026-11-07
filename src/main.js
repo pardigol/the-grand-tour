@@ -17,6 +17,7 @@ import { loadRiderModel } from './rider-model.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Online } from './online.js';
 import { createLobbyScene } from './scenes/lobby.js';
+import { createControlScene, applyControl, savedControl, guess } from './scenes/control.js';
 import { loadNature } from './nature.js';
 import { Bike } from './bike.js';
 import { Input } from './input.js';
@@ -137,7 +138,10 @@ async function boot() {
     creator: createCreatorScene(app),
     ride: createRideScene(app),
     lobby: createLobbyScene(app),
+    control: createControlScene(app),
   };
+  // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
+  applyControl(app, savedControl() || guess(app), !!savedControl());
   window.__game = app; // praktisch zum Ausprobieren in der Browser-Konsole
 
   function resize() {

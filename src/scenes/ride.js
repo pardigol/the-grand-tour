@@ -312,6 +312,16 @@ export function createRideScene(app) {
             <div><b>▼</b> Nach unten wischen: bremsen</div>
             <div><b>◀▶</b> Beide Seiten halten: landen nach Drops</div>
           </div>
+          <div class="controls-help keys-help">
+            <div><b>W</b> / <b>↑</b> Treten</div>
+            <div><b>T</b> Dauertreten an/aus</div>
+            <div><b>S</b> / <b>↓</b> Bremsen</div>
+            <div><b>Shift</b> Sprint</div>
+            <div><b>A</b> <b>D</b> / <b>← →</b> Lenken</div>
+            <div><b>Q</b>+<b>E</b> Landen nach Drops</div>
+            <div><b>C</b> Ansicht wechseln · <b>K</b> Klingel</div>
+            <div><b>Esc</b> Pause</div>
+          </div>
           <div class="controls-help pad-help">
             <div>${btn('A')} Treten</div>
             <div>${btn('B')} Dauertreten an/aus</div>
