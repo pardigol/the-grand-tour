@@ -32,7 +32,8 @@ async function sendWish(from, text) {
       body: JSON.stringify({ von: from || 'Paul', text }),
     });
     if (!res.ok) throw new Error('Senden fehlgeschlagen');
-    return;
+    const data = await res.json().catch(() => ({}));
+    return data.nummer ?? null;
   }
   const res = await fetch(`https://ntfy.sh/${CONFIG.wunschzettel.kanal}`, {
     method: 'POST',
@@ -43,6 +44,69 @@ async function sendWish(from, text) {
     },
   });
   if (!res.ok) throw new Error('Senden fehlgeschlagen');
+  return null;
+}
+
+// ---------- Live-Status: angekommen → Claude arbeitet daran → umgesetzt ----------
+const FERTIG = ['umgesetzt', 'uebersprungen'];
+const offen = (w) => w.sent && w.nr != null && !FERTIG.includes(w.status);
+
+// Fragt beim Briefkasten den Stand aller offenen Wünsche ab. Gibt die Wünsche zurück, die gerade fertig wurden.
+export async function refreshWishStatus() {
+  const box = CONFIG.wunschzettel.briefkasten;
+  const list = loadWishes();
+  const nummern = list.filter(offen).map((w) => w.nr);
+  if (!box || !nummern.length) return [];
+  let data;
+  try {
+    const res = await fetch(`${box}?nr=${nummern.join(',')}`, { cache: 'no-store' });
+    data = await res.json();
+  } catch {
+    return [];
+  }
+  if (!data?.ok) return [];
+  const neuFertig = [];
+  const frisch = loadWishes();
+  for (const w of frisch) {
+    const s = w.nr != null && data.status[w.nr];
+    if (!s) continue;
+    if (s.status !== w.status && FERTIG.includes(s.status)) {
+      neuFertig.push(w);
+      w.seen = false;
+      w.fertigAm = Date.now();
+    }
+    w.status = s.status;
+    w.info = s.info || '';
+  }
+  saveWishes(frisch);
+  return neuFertig;
+}
+
+// Gibt es umgesetzte Wünsche, die Paul noch nicht gesehen hat?
+export function unseenDone() {
+  return loadWishes().filter((w) => FERTIG.includes(w.status) && w.seen === false).length;
+}
+export function hasOpenWishes() {
+  return loadWishes().some(offen);
+}
+
+function statusHtml(w) {
+  if (!w.sent) return '<div class="wish-item-meta">noch nicht verschickt – wird gleich nachgeholt</div>';
+  if (w.nr == null) return '<div class="wish-item-meta">verschickt ✓</div>';
+  const st = w.status || 'angekommen';
+  const stufe = { angekommen: 1, in_arbeit: 2, umgesetzt: 3, uebersprungen: 3 }[st] || 1;
+  const schritte = ['Angekommen', 'Claude arbeitet', st === 'uebersprungen' ? 'Nicht umgesetzt' : 'Umgesetzt'];
+  const track = `<div class="wish-track s${stufe} ${st}">${schritte
+    .map((t, i) => `<span class="${i < stufe ? 'on' : ''} ${i === stufe - 1 ? 'now' : ''}"><i></i>${t}</span>`)
+    .join('')}</div>`;
+  let text = '';
+  if (st === 'angekommen') text = '📬 Dein Wunsch ist bei Claude angekommen und wartet auf die Bearbeitung.';
+  else if (st === 'in_arbeit') text = '🛠️ Claude arbeitet gerade daran<span class="wish-dots"></span>';
+  else if (st === 'umgesetzt') {
+    const frisch = w.fertigAm && Date.now() - w.fertigAm < 3 * 60 * 1000;
+    text = `✅ Umgesetzt! ${esc(w.info || '')}${frisch ? ' <b>In 1–2 Minuten im Spiel – dann die Seite neu laden.</b>' : ''}`;
+  } else text = `💬 ${esc(w.info || 'Diesmal nicht umgesetzt.')}`;
+  return `${track}<div class="wish-item-meta wish-now">${text}</div>`;
 }
 
 const fmt = (t) =>
@@ -86,9 +150,10 @@ export function openWishes(app, onClose) {
           .slice()
           .reverse()
           .map(
-            (w) => `<div class="wish-item ${w.sent ? '' : 'pending'}">
+            (w) => `<div class="wish-item ${w.sent ? '' : 'pending'} st-${w.status || 'neu'} ${w.seen === false ? 'fresh' : ''}">
               <div class="wish-item-text">${esc(w.text)}</div>
-              <div class="wish-item-meta">${fmt(w.at)} · ${w.sent ? 'verschickt ✓' : 'noch nicht verschickt'}</div>
+              <div class="wish-item-time">${fmt(w.at)}</div>
+              ${statusHtml(w)}
             </div>`,
           )
           .join('')
@@ -102,8 +167,9 @@ export function openWishes(app, onClose) {
     for (const w of list) {
       if (w.sent) continue;
       try {
-        await sendWish(w.from, w.text);
+        w.nr = await sendWish(w.from, w.text);
         w.sent = true;
+        w.status = w.nr != null ? 'angekommen' : undefined;
         changed = true;
       } catch {
         break;
@@ -136,13 +202,19 @@ export function openWishes(app, onClose) {
     $('.wish-send').disabled = true;
     $('.wish-status').textContent = 'Wird verschickt …';
     try {
-      await sendWish(from, text);
+      const nr = await sendWish(from, text);
       wish.sent = true;
       const l2 = loadWishes();
       const mine = l2.find((w) => w.at === wish.at);
-      if (mine) mine.sent = true;
+      if (mine) {
+        mine.sent = true;
+        mine.nr = nr;
+        if (nr != null) mine.status = 'angekommen';
+      }
       saveWishes(l2);
-      $('.wish-status').textContent = 'Danke! Dein Wunsch ist angekommen. 🎉';
+      $('.wish-status').textContent =
+        nr != null ? 'Danke! Dein Wunsch ist bei Claude angekommen. 🎉 Unten siehst du, wie weit er ist.' : 'Danke! Dein Wunsch ist angekommen. 🎉';
+      poll();
       app.audio.success();
       textIn.value = '';
     } catch {
@@ -158,7 +230,28 @@ export function openWishes(app, onClose) {
     $('.wish-count').textContent = `${textIn.value.length} / 400`;
   }
 
+  // Solange das Fenster offen ist und Wünsche in Arbeit sind: alle 8 Sekunden nachsehen
+  let timer = null;
+  async function poll() {
+    clearTimeout(timer);
+    const fertig = await refreshWishStatus();
+    if (!root.isConnected) return;
+    if (fertig.some((w) => w.status === 'umgesetzt')) app.audio.success();
+    renderList();
+    // Wer das Fenster offen hat, hat die fertigen Wünsche gesehen
+    const l = loadWishes();
+    if (l.some((w) => w.seen === false)) {
+      setTimeout(() => {
+        const l2 = loadWishes();
+        l2.forEach((w) => w.seen === false && (w.seen = true));
+        saveWishes(l2);
+      }, 4000);
+    }
+    if (hasOpenWishes()) timer = setTimeout(poll, 8000);
+  }
+
   function close() {
+    clearTimeout(timer);
     root.remove();
     window.removeEventListener('keydown', onKey, true);
     onClose?.();
@@ -187,7 +280,7 @@ export function openWishes(app, onClose) {
 
   document.body.append(root);
   renderList();
-  retryPending();
+  retryPending().then(poll);
   setTimeout(() => textIn.focus(), 50);
   return { close };
 }

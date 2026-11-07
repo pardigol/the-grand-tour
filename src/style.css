@@ -1834,3 +1834,98 @@ body {
   0%   { transform: scaleX(1) rotate(-8deg); }
   100% { transform: scaleX(0.35) rotate(8deg); }
 }
+
+/* Live-Status der Wünsche */
+.wish-badge {
+  display: none;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 15px;
+  background: rgba(77, 170, 255, 0.25);
+  color: #cfe8ff;
+}
+.wish-badge.show {
+  display: inline-block;
+}
+.wish-badge.done {
+  background: #2bb24c;
+  color: #fff;
+  animation: wishPulse 1.2s ease-in-out infinite;
+}
+@keyframes wishPulse {
+  50% { box-shadow: 0 0 16px rgba(43, 178, 76, 0.9); }
+}
+.wish-item-time {
+  font-size: 13px;
+  color: #a69f92;
+}
+.wish-item.fresh {
+  border-left-color: #2bb24c;
+  box-shadow: 0 0 18px rgba(43, 178, 76, 0.35);
+}
+.wish-item.st-uebersprungen {
+  border-left-color: #9aa0a6;
+}
+.wish-track {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.wish-track span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6f6a62;
+}
+.wish-track span i {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #6f6a62;
+}
+.wish-track span.on {
+  color: #e9e3d6;
+}
+.wish-track span.on i {
+  border-color: var(--gold);
+  background: var(--gold);
+}
+.wish-track.umgesetzt span.on i {
+  border-color: #2bb24c;
+  background: #2bb24c;
+}
+.wish-track.uebersprungen span.now i {
+  border-color: #9aa0a6;
+  background: #9aa0a6;
+}
+.wish-track.in_arbeit span.now i,
+.wish-track.angekommen span.now i {
+  animation: wishBlink 1s ease-in-out infinite;
+}
+@keyframes wishBlink {
+  50% { opacity: 0.3; }
+}
+.wish-now {
+  font-size: 15px;
+  color: #e9e3d6;
+  line-height: 1.35;
+}
+.wish-now b {
+  color: #bdeeb0;
+}
+.wish-dots::after {
+  content: '';
+  animation: wishDots 1.4s steps(4) infinite;
+}
+@keyframes wishDots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}

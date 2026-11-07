@@ -2,12 +2,33 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { el, esc, rideNpc, btn } from './common.js';
-import { openWishes } from '../wishes.js';
+import { openWishes, refreshWishStatus, unseenDone, hasOpenWishes } from '../wishes.js';
 
 export function createTitleScene(app) {
   let root;
   let t = 0;
   let wishOpen = false;
+  let wishTimer = null;
+
+  // Kleiner Hinweis am Knopf: Wunsch in Arbeit / Wunsch umgesetzt
+  function updateWishBadge() {
+    const b = root?.querySelector('.wish-badge');
+    if (!b) return;
+    const n = unseenDone();
+    b.textContent = n ? `✨ ${n === 1 ? 'Wunsch erledigt!' : `${n} Wünsche erledigt!`}` : hasOpenWishes() ? '🛠️ in Arbeit' : '';
+    b.classList.toggle('show', !!b.textContent);
+    b.classList.toggle('done', n > 0);
+  }
+  async function watchWishes() {
+    clearTimeout(wishTimer);
+    if (!root) return;
+    if (!wishOpen && hasOpenWishes()) {
+      const fertig = await refreshWishStatus();
+      if (fertig.length) app.audio.success();
+    }
+    updateWishBadge();
+    wishTimer = setTimeout(watchWishes, 20000);
+  }
   const camPos = new THREE.Vector3();
   const look = new THREE.Vector3();
 
@@ -18,6 +39,7 @@ export function createTitleScene(app) {
     openWishes(app, () => {
       // kurz warten, damit der Schließen-Klick nicht das Spiel startet
       setTimeout(() => (wishOpen = false), 250);
+      updateWishBadge();
     });
   }
 
@@ -33,7 +55,7 @@ export function createTitleScene(app) {
             <div class="ornament"><span></span><i></i><span></span></div>
             <div class="press-start">${esc(CONFIG.startPrompt)}</div>
           </div>
-          <button class="wish-button">${btn('Y')}<span>🎁 Wunschzettel</span></button>
+          <button class="wish-button">${btn('Y')}<span>🎁 Wunschzettel</span><b class="wish-badge"></b></button>
           <div class="schmetterling" aria-hidden="true"><span>🦋</span></div>
           <div class="sparkles">${Array.from({ length: 24 }, (_, i) => `<b style="--i:${i};--x:${(i * 37) % 100};--d:${3 + (i % 5)}s"></b>`).join('')}</div>
         </div>`);
@@ -43,6 +65,7 @@ export function createTitleScene(app) {
       // Klick soll nicht gleichzeitig das Spiel starten
       wb.addEventListener('mousedown', (e) => e.stopPropagation());
       wb.addEventListener('click', () => openWish());
+      watchWishes();
       app.fx.uFade.value = 1;
       app.fx.uBlur.value = 0;
       app.fx.uLines.value = 0;
@@ -96,6 +119,7 @@ export function createTitleScene(app) {
     },
 
     exit() {
+      clearTimeout(wishTimer);
       // Der Übergang blendet den Titel aus; danach wird er sicher entfernt
       const r = root;
       setTimeout(() => r.remove(), 700);
