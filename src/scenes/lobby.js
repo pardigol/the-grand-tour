@@ -54,7 +54,18 @@ export function createLobbyScene(app) {
         <div class="lobby-digits">${digits
           .map((d, i) => `<span class="lobby-digit ${i === cursor ? 'cursor' : ''}">${d === '' ? '·' : d}</span>`)
           .join('')}</div>
-        <div class="lobby-info">Zahlen tippen – oder mit ↑ ↓ ändern und ← → wechseln.<br>Dann A drücken.</div>`;
+        <div class="lobby-info">Zahlen tippen – oder mit ↑ ↓ ändern und ← → wechseln.<br>Auf dem iPad: Ziffer antippen zählt hoch. Dann A drücken.</div>
+        <div class="card lobby-start selected lobby-join"><div class="card-info"><div class="card-name">Beitreten</div></div><div class="card-go">›</div></div>`;
+      // iPad: Ziffer antippen = eins hochzählen
+      body.querySelectorAll('.lobby-digit').forEach((d, i) =>
+        d.addEventListener('click', () => {
+          cursor = i;
+          digits[i] = String(((digits[i] === '' ? -1 : Number(digits[i])) + 1) % 10);
+          app.audio.nav();
+          render();
+        }),
+      );
+      body.querySelector('.lobby-join').addEventListener('click', confirm);
     } else if (state === 'connecting') {
       body.innerHTML = `<div class="lobby-label">Verbinde mit Code ${esc(digits.join(''))} …</div><div class="lobby-wait"></div>`;
     } else if (state === 'joined') {

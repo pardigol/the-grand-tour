@@ -1941,3 +1941,56 @@ body {
   50% { content: '..'; }
   75% { content: '...'; }
 }
+
+/* ---------- iPad / Touch ---------- */
+html,
+body {
+  touch-action: manipulation; /* kein Doppeltipp-Zoom */
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.wish-name,
+.wish-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+canvas,
+.ride-screen {
+  touch-action: none;
+}
+.hint[data-act] {
+  cursor: pointer;
+}
+.touch-help,
+.touch-pause {
+  display: none;
+}
+body.touch .touch-help {
+  display: block;
+}
+body.touch .pad-help {
+  display: none;
+}
+.touch-help b {
+  display: inline-block;
+  min-width: 34px;
+  color: var(--gold);
+}
+body.touch .touch-pause {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  z-index: 6;
+  pointer-events: auto;
+}

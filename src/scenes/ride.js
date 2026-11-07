@@ -304,7 +304,15 @@ export function createRideScene(app) {
             </svg>
             <div class="speedo-val"><b>0</b><span>km/h</span></div>
           </div>
-          <div class="controls-help">
+          <button class="touch-pause" data-act="pause" aria-label="Pause">❚❚</button>
+          <div class="controls-help touch-help">
+            <div><b>◀ ▶</b> Links oder rechts halten: lenken</div>
+            <div><b>▲</b> Nach oben wischen: losfahren</div>
+            <div><b>▲▲</b> Nochmal nach oben: Sprint</div>
+            <div><b>▼</b> Nach unten wischen: bremsen</div>
+            <div><b>◀▶</b> Beide Seiten halten: landen nach Drops</div>
+          </div>
+          <div class="controls-help pad-help">
             <div>${btn('A')} Treten</div>
             <div>${btn('B')} Dauertreten an/aus</div>
             <div>${btn('Y')} Bremsen</div>
@@ -336,7 +344,22 @@ export function createRideScene(app) {
           </div>
         </div>`);
       app.ui.append(root);
-      setTimeout(() => root?.querySelector('.controls-help')?.classList.add('fade'), 12000);
+      setTimeout(() => root?.querySelectorAll('.controls-help').forEach((h) => h.classList.add('fade')), 12000);
+      // iPad: Pause- und Ergebnis-Einträge antippen
+      root.querySelectorAll('.pause-box .pause-item').forEach((e, i) =>
+        e.addEventListener('click', () => {
+          pauseIndex = i;
+          renderPause();
+          app.input.inject('confirm');
+        }),
+      );
+      root.querySelectorAll('.result-item').forEach((e, i) =>
+        e.addEventListener('click', () => {
+          resultIndex = i;
+          renderResult();
+          app.input.inject('confirm');
+        }),
+      );
       minimap = new Minimap(app.world, $('.minimap'));
 
       app.bike.setPlate(char.number, char.name);
@@ -426,6 +449,8 @@ export function createRideScene(app) {
       app.fx.uBlur.value = damp(app.fx.uBlur.value, 0, 5, dt);
       updateConfetti(dt);
 
+      // Touch-Lenkung nur, solange wirklich gefahren wird (sonst sind Menüs antippbar)
+      inp.touchRide = !st.paused && !st.showResult;
       if (st.paused) {
         if (inp.pressed('up') || inp.pressed('down')) {
           pauseIndex = 1 - pauseIndex;
@@ -833,6 +858,7 @@ export function createRideScene(app) {
     },
 
     exit() {
+      app.input.touchRide = false;
       clearConfetti();
       rivals.hide();
       // Rennen verlassen (nicht neu starten): Verbindung beenden, Gegner entfernen

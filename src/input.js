@@ -58,6 +58,13 @@ export class Input {
     this.brake = 0;
     this.pad = null;
     this.usingPad = false;
+    // Touch (iPad): im Rennen links/rechts halten = lenken, nach oben wischen = treten, nach unten = bremsen
+    this.touchRide = false; // wird von der Rennen-Szene an- und ausgeschaltet
+    this.touches = new Map();
+    this.touchPedal = false;
+    this.isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    if (this.isTouch) document.body.classList.add('touch');
+    this.setupTouch();
     this.layout = 'xbox';
 
     window.addEventListener('keydown', (e) => {
@@ -81,6 +88,58 @@ export class Input {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     window.addEventListener('mousedown', () => this.queue.push('any'));
+    // Hinweis-Knöpfe unten (A Auswählen, B Zurück …) sind auf dem iPad antippbar
+    window.addEventListener('click', (e) => {
+      const h = e.target.closest?.('[data-act]');
+      if (h) this.queue.push(h.dataset.act);
+    });
+  }
+
+  setupTouch() {
+    const SWIPE = 45; // Pixel nach oben/unten = Wischen statt Lenken
+    const opts = { passive: false };
+    window.addEventListener(
+      'touchstart',
+      (e) => {
+        if (!this.touchRide || e.target.closest('button, .pause-box, .result, .touch-pause')) return;
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          this.touches.set(t.identifier, { x0: t.clientX, y0: t.clientY, t0: performance.now(), mode: 'steer', side: t.clientX < innerWidth / 2 ? -1 : 1 });
+        }
+      },
+      opts,
+    );
+    window.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!this.touchRide) return;
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          const s = this.touches.get(t.identifier);
+          if (!s || s.mode !== 'steer') continue;
+          const dy = t.clientY - s.y0;
+          const dx = t.clientX - s.x0;
+          if (Math.abs(dy) > SWIPE && Math.abs(dy) > Math.abs(dx) * 1.3) {
+            if (dy < 0) {
+              // nach oben: losfahren – fährt man schon, ist das der Sprint
+              if (this.touchPedal) this.queue.push('sprint');
+              this.touchPedal = true;
+              s.mode = 'up';
+            } else {
+              // nach unten: aufhören zu treten und bremsen, solange der Finger liegt
+              this.touchPedal = false;
+              s.mode = 'brake';
+            }
+          }
+        }
+      },
+      opts,
+    );
+    const end = (e) => {
+      for (const t of e.changedTouches) this.touches.delete(t.identifier);
+    };
+    window.addEventListener('touchend', end);
+    window.addEventListener('touchcancel', end);
   }
 
   // Für automatische Tests: input.inject('confirm')
@@ -217,8 +276,26 @@ export class Input {
     const keyThrottle = k.has('KeyW') || k.has('ArrowUp') || k.has('Space') ? 1 : 0;
     const keyBrake = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0;
 
+    // Touch: gehaltene Finger links/rechts lenken; beide Seiten gleichzeitig = Landen nach einem Drop
+    let touchSteer = 0;
+    let touchLeft = false;
+    let touchRight = false;
+    let touchBrake = 0;
+    if (this.touchRide) {
+      for (const s of this.touches.values()) {
+        if (s.mode === 'steer') {
+          if (s.side < 0) touchLeft = true;
+          else touchRight = true;
+        } else if (s.mode === 'brake') touchBrake = 1;
+      }
+      touchSteer = (touchRight ? 1 : 0) - (touchLeft ? 1 : 0);
+    } else {
+      this.touchPedal = false;
+      this.touches.clear();
+    }
+
     // Lenkung wächst mit der Haltedauer: kurz tippen = sanft, lange halten = enge Kurve
-    const raw = Math.max(-1, Math.min(1, padSteer + keySteer));
+    const raw = Math.max(-1, Math.min(1, padSteer + keySteer + touchSteer));
     const dir = Math.abs(raw) > 0.05 ? Math.sign(raw) : 0;
     if (dir !== 0 && dir === this.steerDir) this.steerHold += dt;
     else this.steerHold = 0;
@@ -238,11 +315,11 @@ export class Input {
     if (k.has('Comma')) lookY += 1;
     this.lookX = Math.max(-1, Math.min(1, lookX));
     this.lookY = Math.max(-1, Math.min(1, lookY));
-    this.throttle = Math.max(padThrottle, keyThrottle);
-    this.brake = Math.max(padBrake, keyBrake);
+    this.throttle = Math.max(padThrottle, keyThrottle, this.touchRide && this.touchPedal ? 1 : 0);
+    this.brake = Math.max(padBrake, keyBrake, touchBrake);
     // Für die Landung nach einem Drop: L1 und R1 (Tastatur Q und E) gleichzeitig halten
     const isDown = (i) => !!(pad && pad.buttons[i] && pad.buttons[i].pressed);
-    this.l1 = isDown(4) || k.has('KeyQ');
-    this.r1 = isDown(5) || k.has('KeyE');
+    this.l1 = isDown(4) || k.has('KeyQ') || (touchLeft && touchRight);
+    this.r1 = isDown(5) || k.has('KeyE') || (touchLeft && touchRight);
   }
 }

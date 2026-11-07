@@ -19,7 +19,10 @@ export const btn = (b) =>
   `<span class="btn btn-${b.toLowerCase()}"><i class="glyph-xbox">${b}</i><i class="glyph-ps">${PS[b] ?? b}</i></span>`;
 
 export function hintBar(items) {
-  return `<footer class="hints">${items.map(([b, t]) => `<span class="hint">${btn(b)}${t}</span>`).join('')}</footer>`;
+  const ACT = { A: 'confirm', B: 'back', X: 'x', Y: 'y', LB: 'lb', RB: 'rb' };
+  return `<footer class="hints">${items
+    .map(([b, t]) => `<span class="hint" ${ACT[b] ? `data-act="${ACT[b]}"` : ''}>${btn(b)}${t}</span>`)
+    .join('')}</footer>`;
 }
 
 // Ein computergesteuerter Fahrer auf der Strecke (Startbildschirm, Menü)
