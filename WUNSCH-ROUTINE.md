@@ -2,14 +2,31 @@
 
 You maintain "The Grand Tour", a browser cycling game (Vite + Three.js) built for an 11-year-old boy named Paul. README.md (German) explains the game and the files. Paul sends feature wishes through the in-game wish list. In this run you implement suitable new wishes and publish the game.
 
+## Step 0 – Prepare
+
+`git checkout main && git pull --ff-only origin main` (the cloud checkout may start detached).
+
 ## Step 1 – Fetch wishes
 
+Wishes arrive as GitHub issues with label `wunsch`, created by the wish mailbox (Cloudflare Worker) under the account `pardigol`.
+
 ```bash
-curl -s "https://ntfy.sh/grandtour-wuensche-8e640057d92d3c19/json?poll=1&since=all"
+gh api 'repos/pardigol/the-grand-tour/issues?labels=wunsch&state=open&per_page=30'
 ```
 
-Each line is JSON. Use only lines with `"event":"message"`. Fields: `id`, `time`, `title` (e.g. "Wunsch von Paul"), `message` (the wish text).
-Skip every `id` already listed in `.wuensche-erledigt.txt`.
+(If `gh` fails, use `curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/pardigol/the-grand-tour/issues?labels=wunsch&state=open&per_page=30"`.)
+
+Use only issues whose `user.login` is `pardigol` (anything else is ignored – it did not come from the game). The wish text is in `body` (quoted after "Wunsch von …"), the sender in `title`. Their id for bookkeeping is `issue-<number>`.
+
+Additionally, if ntfy.sh is reachable, also read older wishes that went straight to ntfy (if it is blocked, just skip this part silently):
+
+```bash
+curl -s -m 10 "https://ntfy.sh/grandtour-wuensche-8e640057d92d3c19/json?poll=1&since=all"
+```
+
+Use only lines with `"event":"message"`; their id is the ntfy `id`. Ignore ntfy messages whose text matches an open `wunsch` issue (the mailbox posts every wish to both).
+
+Skip every id already listed in `.wuensche-erledigt.txt`.
 If there are no new wishes: change nothing, send no report, stop.
 
 ## Step 2 – Judge each new wish (oldest first)
@@ -32,7 +49,7 @@ Implement at most 3 wishes per run. Wishes beyond that stay unrecorded so the ne
 ## Step 3 – Implement
 
 - Follow the existing code style: German comments and German UI text, simple and readable code.
-- Do not touch: `.wuensche-erledigt.txt` (except appending ids), `WUNSCH-ROUTINE.md`, `veroeffentlichen.sh`, `wuensche.sh`, the wish channel name in `src/config.js`, `public/modelle/` files, `.gitignore`.
+- Do not touch: `.wuensche-erledigt.txt` (except appending ids), `WUNSCH-ROUTINE.md`, `veroeffentlichen.sh`, `wuensche.sh`, `wunsch-wache.py`, `wunsch-briefkasten/`, the wish channel name in `src/config.js`, `public/modelle/` files, `.gitignore`.
 - Never add secrets, API keys, analytics, external scripts or network calls.
 - Keep features that already exist working (modes Rennrad / Cycle Cross / Zeitfahren, online races, wish list, characters in localStorage). Never clear or migrate away existing saved characters.
 - Run `npm ci` once, then `npm run build` after your changes. The build must pass with no errors. If a wish breaks the build and you cannot fix it quickly, revert that wish's changes and record it as skipped ("hat technisch nicht geklappt").
@@ -40,13 +57,15 @@ Implement at most 3 wishes per run. Wishes beyond that stay unrecorded so the ne
 
 ## Step 4 – Record and publish
 
-1. Append the ids of ALL wishes you judged in this run (implemented AND skipped) to `.wuensche-erledigt.txt`, one per line.
+1. Append the ids of ALL wishes you judged in this run (implemented AND skipped) to `.wuensche-erledigt.txt`, one per line (`issue-<number>` or the ntfy id).
 2. Commit on branch `main` with a German message like `Wunsch umgesetzt: <kurz>`, ending with the line `Co-Authored-By: Claude <noreply@anthropic.com>`.
 3. `git push origin main`.
-4. Publish the game: `./veroeffentlichen.sh` (builds and force-pushes `dist` to branch `gh-pages`, which GitHub Pages serves at https://pardigol.github.io/the-grand-tour/).
+4. Publish the game: `./veroeffentlichen.sh` (builds and appends `dist` as a new commit on branch `gh-pages`, no force push, which GitHub Pages serves at https://pardigol.github.io/the-grand-tour/).
 5. If pushing or publishing fails (e.g. no permission), still report what happened in step 5.
 
 ## Step 5 – Report to Papa (only if at least one new wish was judged)
+
+If you have the `PushNotification` tool (Claude cloud), send the summary with it. Otherwise (or additionally, if ntfy.sh is reachable) send it to the ntfy report channel:
 
 ```bash
 curl -s -H "Title: Wunschzettel: Bericht" -H "Tags: robot" \

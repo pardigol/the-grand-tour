@@ -1,0 +1,10 @@
+# Cloudflare Worker "Wunsch-Briefkasten" – Einrichtung siehe README.md (Abschnitt Wunschzettel)
+name = "grand-tour-wunsch"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+REPO = "pardigol/the-grand-tour"
+# Benachrichtigung aufs Handy (gleicher Kanal wie bisher, wird NICHT mehr zum Abholen benutzt)
+NTFY_KANAL = "grandtour-wuensche-8e640057d92d3c19"
+ERLAUBTE_SEITEN = "https://pardigol.github.io,http://localhost:5173"

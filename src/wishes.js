@@ -23,6 +23,17 @@ function saveWishes(list) {
 }
 
 async function sendWish(from, text) {
+  const box = CONFIG.wunschzettel.briefkasten;
+  if (box) {
+    // Wunsch-Briefkasten: legt ein GitHub-Issue an, das die Claude-Cloud sofort bearbeitet
+    const res = await fetch(box, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ von: from || 'Paul', text }),
+    });
+    if (!res.ok) throw new Error('Senden fehlgeschlagen');
+    return;
+  }
   const res = await fetch(`https://ntfy.sh/${CONFIG.wunschzettel.kanal}`, {
     method: 'POST',
     body: text,
