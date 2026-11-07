@@ -87,6 +87,9 @@ export class Input {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     window.addEventListener('mousedown', () => this.queue.push('any'));
+    // iPad/iPhone: ein Antippen löst auf leeren Flächen keinen mousedown aus – daher auch pointerdown/touchstart
+    window.addEventListener('pointerdown', () => this.queue.push('any'));
+    window.addEventListener('touchstart', () => this.queue.push('any'), { passive: true });
     // Hinweis-Knöpfe unten (A Auswählen, B Zurück …) sind auf dem iPad antippbar
     window.addEventListener('click', (e) => {
       const h = e.target.closest?.('[data-act]');

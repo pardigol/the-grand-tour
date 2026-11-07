@@ -1,7 +1,8 @@
 // 1. STARTBILDSCHIRM – filmische Kamerafahrt bei Sonnenaufgang
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-import { el, esc, rideNpc, btn } from './common.js';
+import { el, esc, rideNpc, btn, noStart } from './common.js';
+import { CONTROLS, applyControl } from './control.js';
 import { openWishes, refreshWishStatus, unseenDone, hasOpenWishes } from '../wishes.js';
 
 export function createTitleScene(app) {
@@ -55,6 +56,10 @@ export function createTitleScene(app) {
             <div class="ornament"><span></span><i></i><span></span></div>
             <div class="press-start">${esc(CONFIG.startPrompt)}</div>
           </div>
+          <div class="title-controls" role="group" aria-label="Womit spielst du?">
+            <span class="title-controls-label">Ich spiele mit</span>
+            ${CONTROLS.map((c) => `<button class="title-control" data-c="${c.id}"><span>${c.icon}</span>${esc(c.name)}</button>`).join('')}
+          </div>
           <button class="wish-button">${btn('Y')}<span>🎁 Wunschzettel</span><b class="wish-badge"></b></button>
           <div class="schmetterling" aria-hidden="true"><span>🦋</span></div>
           <div class="sparkles">${Array.from({ length: 24 }, (_, i) => `<b style="--i:${i};--x:${(i * 37) % 100};--d:${3 + (i % 5)}s"></b>`).join('')}</div>
@@ -63,8 +68,26 @@ export function createTitleScene(app) {
       app.titleRoot = root;
       const wb = root.querySelector('.wish-button');
       // Klick soll nicht gleichzeitig das Spiel starten
-      wb.addEventListener('mousedown', (e) => e.stopPropagation());
+      noStart(wb);
       wb.addEventListener('click', () => openWish());
+      // Steuerung gleich auf der ersten Seite wählen (Controller, Tastatur, iPad)
+      const tc = root.querySelector('.title-controls');
+      noStart(tc);
+      const markControl = () => {
+        tc.querySelectorAll('.title-control').forEach((b) => b.classList.toggle('active', b.dataset.c === app.controlChosen));
+        // Auf dem iPad gibt es keine Taste: passenden Hinweis zeigen
+        root.querySelector('.press-start').textContent = app.control === 'touch' ? 'Zum Starten antippen' : CONFIG.startPrompt;
+      };
+      tc.querySelectorAll('.title-control').forEach((b) =>
+        b.addEventListener('click', () => {
+          applyControl(app, b.dataset.c);
+          app.controlChosen = b.dataset.c;
+          app.audio.unlock();
+          app.audio.select();
+          markControl();
+        }),
+      );
+      markControl();
       watchWishes();
       app.fx.uFade.value = 1;
       app.fx.uBlur.value = 0;

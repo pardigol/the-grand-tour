@@ -2048,3 +2048,53 @@ body.control-touch .touch-pause {
   z-index: 6;
   pointer-events: auto;
 }
+
+/* Steuerungs-Auswahl auf dem Startbildschirm */
+.title-controls {
+  position: absolute;
+  left: max(20px, 3vw);
+  bottom: calc(10vh + 16px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  animation: fadeUp 1s 2.8s both;
+}
+.title-controls-label {
+  font: 600 15px 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  margin-right: 2px;
+}
+.title-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 12, 20, 0.55);
+  color: #fff;
+  font: 700 17px 'Barlow Condensed', sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.title-control span {
+  font-size: 19px;
+}
+.title-control.active {
+  border-color: var(--gold);
+  background: rgba(245, 199, 107, 0.22);
+  box-shadow: 0 0 16px rgba(245, 199, 107, 0.4);
+}
+@media (max-width: 760px) {
+  .title-controls-label {
+    display: none;
+  }
+}
+
+body.control-touch .wish-button .btn {
+  display: none;
+}

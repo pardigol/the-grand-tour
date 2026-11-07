@@ -23,6 +23,7 @@ export function savedControl() {
 export function applyControl(app, id, merken = true) {
   const c = CONTROLS.some((x) => x.id === id) ? id : 'pad';
   app.control = c;
+  if (merken) app.controlChosen = c;
   app.input.touchEnabled = c === 'touch';
   for (const x of CONTROLS) document.body.classList.toggle(`control-${x.id}`, x.id === c);
   if (!merken) return;

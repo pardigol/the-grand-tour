@@ -9,6 +9,11 @@ export function el(html) {
   return t.content.firstElementChild;
 }
 
+// Knöpfe/Fenster, deren Antippen nicht gleichzeitig „beliebige Taste“ im Spiel auslösen soll
+export function noStart(node) {
+  for (const t of ['mousedown', 'pointerdown', 'touchstart']) node.addEventListener(t, (e) => e.stopPropagation(), { passive: true });
+}
+
 export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }

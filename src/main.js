@@ -142,6 +142,7 @@ async function boot() {
   };
   // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
   applyControl(app, savedControl() || guess(app), !!savedControl());
+  app.controlChosen = savedControl();
   window.__game = app; // praktisch zum Ausprobieren in der Browser-Konsole
 
   function resize() {

@@ -2,7 +2,7 @@
 // Jeder Wunsch wird an einen geheimen Kanal bei ntfy.sh geschickt (dort kann Papa ihn als
 // Nachricht aufs Handy bekommen) und zusätzlich im Browser gemerkt, damit Paul seine Liste sieht.
 import { CONFIG } from './config.js';
-import { el, esc } from './scenes/common.js';
+import { el, esc, noStart } from './scenes/common.js';
 
 const KEY = 'grandtour.wuensche';
 
@@ -265,7 +265,7 @@ export function openWishes(app, onClose) {
   }
 
   // Klicks und Tasten im Fenster sollen das Spiel nicht starten
-  root.addEventListener('mousedown', (e) => e.stopPropagation());
+  noStart(root);
   root.addEventListener('keydown', (e) => e.stopPropagation());
   $('.wish-close').addEventListener('click', close);
   $('.wish-send').addEventListener('click', submit);
