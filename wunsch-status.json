@@ -19,14 +19,14 @@
     "info": "Wenn du beim Helm die Farbe Gold wählst, glänzt er jetzt wie echtes Gold – du findest es im Fahrer-Editor.",
     "zeit": "2026-11-07T09:11:31Z"
   },
-  "5": {
-    "status": "umgesetzt",
-    "info": "Dein Rad hat jetzt eine goldene Klingel am Lenker, ein rotes Rücklicht und glitzernde Reflektoren in den Rädern – schau es dir im Fahrer-Editor oder beim Fahren an!",
-    "zeit": "2026-11-08T14:55:06Z"
-  },
   "6": {
     "status": "umgesetzt",
     "info": "Die Schmetterlinge auf dem Startbildschirm sind weg – jetzt ist dort Ruhe.",
     "zeit": "2026-11-08T15:35:00Z"
+  },
+  "7": {
+    "status": "umgesetzt",
+    "info": "Dein Rad hat jetzt eine goldene Klingel am Lenker, ein rotes Rücklicht und glitzernde Reflektoren in den Rädern – schau es dir im Fahrer-Editor oder beim Fahren an!",
+    "zeit": "2026-11-08T14:55:06Z"
   }
 }
