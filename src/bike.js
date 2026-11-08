@@ -383,6 +383,13 @@ export class Bike {
     f.add(this.stripe);
     // Sattelstütze und Sattel
     f.add(tube(ST, V(0, 0.92, -0.265), 0.0135, m.black));
+    // Rotes Rücklicht an der Sattelstütze
+    const licht = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.045, 0.02),
+      new THREE.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff0000', emissiveIntensity: 0.8 })
+    );
+    licht.position.set(0, 0.87, -0.285);
+    f.add(licht);
     const saddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.18, 4, 8), m.black);
     saddle.rotation.x = Math.PI / 2 + 0.06;
     saddle.scale.set(1.2, 1, 0.35);
@@ -411,6 +418,14 @@ export class Bike {
     g.add(cx);
     (this.roadTires ||= []).push(tire);
     (this.cxTires ||= []).push(cx);
+    // Goldene Speichenreflektoren
+    for (let k = 0; k < 4; k++) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.008), m.accent);
+      const ang = (k * Math.PI) / 2;
+      r.position.set(0, Math.sin(ang) * 0.2, Math.cos(ang) * 0.2);
+      r.rotation.x = -ang;
+      g.add(r);
+    }
     for (const s of [-1, 1]) {
       const rim = new THREE.Mesh(new THREE.RingGeometry(0.232, 0.306, 56, 1), rimMat);
       rim.rotation.y = (s * Math.PI) / 2;
@@ -564,6 +579,10 @@ export class Bike {
       hood.rotation.x = -0.4;
       road.add(hood);
     }
+    // Fahrradklingel auf dem Vorbau (nur am Rennlenker sichtbar)
+    const klingel = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), m.accent);
+    klingel.position.set(0.05, 0.915, 0.03);
+    road.add(klingel);
     this.buildAeroBars(m);
   }
 
