@@ -1820,34 +1820,6 @@ body {
   50% { transform: scale(1.15); }
 }
 
-/* Startbildschirm: kleiner Schmetterling flattert durchs Bild */
-.schmetterling {
-  position: absolute;
-  left: 0;
-  top: 0;
-  font-size: 34px;
-  pointer-events: none;
-  animation: schmetterling-flug 18s linear infinite;
-}
-.schmetterling span {
-  display: inline-block;
-  animation: schmetterling-flatter 0.35s ease-in-out infinite alternate;
-}
-@keyframes schmetterling-flug {
-  0%   { transform: translate(-8vw, 70vh); }
-  15%  { transform: translate(18vw, 45vh); }
-  30%  { transform: translate(35vw, 62vh); }
-  45%  { transform: translate(52vw, 30vh); }
-  60%  { transform: translate(68vw, 50vh); }
-  75%  { transform: translate(82vw, 22vh); }
-  100% { transform: translate(108vw, 40vh); }
-}
-@keyframes schmetterling-flatter {
-  0%   { transform: scaleX(1) rotate(-8deg); }
-  100% { transform: scaleX(0.35) rotate(8deg); }
-}
-
-/* Live-Status der Wünsche */
 .wish-badge {
   display: none;
   margin-left: 4px;

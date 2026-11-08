@@ -61,7 +61,6 @@ export function createTitleScene(app) {
             ${CONTROLS.map((c) => `<button class="title-control" data-c="${c.id}"><span>${c.icon}</span>${esc(c.name)}</button>`).join('')}
           </div>
           <button class="wish-button">${btn('Y')}<span>🎁 Wunschzettel</span><b class="wish-badge"></b></button>
-          <div class="schmetterling" aria-hidden="true"><span>🦋</span></div>
           <div class="sparkles">${Array.from({ length: 24 }, (_, i) => `<b style="--i:${i};--x:${(i * 37) % 100};--d:${3 + (i % 5)}s"></b>`).join('')}</div>
         </div>`);
       app.ui.append(root);
