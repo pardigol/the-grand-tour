@@ -30,6 +30,34 @@ async function wunschStatus(env) {
   return daten;
 }
 
+// Alle Wünsche (GitHub-Issues mit Label "wunsch", die der Briefkasten angelegt hat) samt Status
+let listeCache = { zeit: 0, daten: null };
+async function alleWuensche(env) {
+  if (listeCache.daten && Date.now() - listeCache.zeit < 20_000) return listeCache.daten;
+  const r = await fetch(`https://api.github.com/repos/${env.REPO}/issues?labels=wunsch&state=all&per_page=100&sort=created&direction=desc`, {
+    headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'grand-tour-wunsch-briefkasten' },
+  });
+  if (!r.ok) throw new Error('Liste nicht lesbar: ' + r.status);
+  const issues = await r.json();
+  const status = await wunschStatus(env).catch(() => ({}));
+  const daten = issues
+    .filter((i) => !i.pull_request && i.user?.login === env.REPO.split('/')[0])
+    .map((i) => {
+      const von = (i.title.match(/^Wunsch von (.+?):/) || [])[1] || 'Unbekannt';
+      // Wunschtext steht im Body als Zitat ("> …")
+      const text = (i.body || '')
+        .split('\n')
+        .filter((z) => z.startsWith('>'))
+        .map((z) => z.replace(/^>\s?/, ''))
+        .join(' ')
+        .trim() || i.title.replace(/^Wunsch von .+?:\s*/, '');
+      const st = status[String(i.number)] || { status: 'angekommen', info: '' };
+      return { nr: i.number, von, text, am: i.created_at, status: st.status, info: st.info || '' };
+    });
+  listeCache = { zeit: Date.now(), daten };
+  return daten;
+}
+
 function cors(origin, env) {
   const erlaubt = (env.ERLAUBTE_SEITEN || '').split(',').map((s) => s.trim());
   return {
@@ -50,6 +78,13 @@ export default {
     const h = cors(origin, env);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
     // Status abfragen: GET ?nr=3,4 → { "3": {status, info, zeit}, … } (unbekannt = "angekommen")
+    if (req.method === 'GET' && new URL(req.url).searchParams.has('liste')) {
+      try {
+        return antwort(200, { ok: true, wuensche: await alleWuensche(env) }, { ...h, 'Cache-Control': 'no-store' });
+      } catch (e) {
+        return antwort(502, { ok: false, fehler: String(e.message || e) }, h);
+      }
+    }
     if (req.method === 'GET') {
       const nummern = (new URL(req.url).searchParams.get('nr') || '')
         .split(',')

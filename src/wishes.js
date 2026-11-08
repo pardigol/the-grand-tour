@@ -109,6 +109,30 @@ function statusHtml(w) {
   return `${track}<div class="wish-item-meta wish-now">${text}</div>`;
 }
 
+// Wünsche aus der Zeit vor dem Briefkasten (gingen direkt an ntfy)
+const FRUEHER = [
+  { von: 'Paul', text: 'ich will einen goldenen helm :-)', am: '2026-11-06T21:05:00Z', status: 'umgesetzt', info: 'Neue Farbe „Gold“ für Helm, Trikot und Hose.' },
+  { von: 'Papa (Test)', text: 'Wenn man im Ziel ankommt, soll buntes Konfetti fliegen.', am: '2026-11-06T20:57:00Z', status: 'umgesetzt', info: 'Im Ziel fliegt buntes Konfetti.' },
+  { von: 'Papa (Test)', text: 'Eine Fahrradklingel auf der Taste K.', am: '2026-11-06T14:23:00Z', status: 'umgesetzt', info: 'Mit K klingelt es beim Fahren.' },
+];
+
+const STATUS_TEXT = {
+  angekommen: ['📬', 'Angekommen'],
+  in_arbeit: ['🛠️', 'Claude arbeitet daran'],
+  umgesetzt: ['✅', 'Umgesetzt'],
+  uebersprungen: ['💬', 'Nicht umgesetzt'],
+};
+
+// Liste aller Wünsche (von allen, die das Spiel spielen) vom Briefkasten holen
+async function loadAllWishes() {
+  const box = CONFIG.wunschzettel.briefkasten;
+  if (!box) return FRUEHER;
+  const res = await fetch(`${box}?liste=1`, { cache: 'no-store' });
+  const data = await res.json();
+  if (!data?.ok) throw new Error(data?.fehler || 'Liste nicht da');
+  return [...data.wuensche, ...FRUEHER];
+}
+
 const fmt = (t) =>
   new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -130,8 +154,12 @@ export function openWishes(app, onClose) {
           <button class="wish-send">Wunsch abschicken</button>
         </div>
         <div class="wish-status"></div>
-        <div class="wish-list-head">Deine Wünsche</div>
+        <div class="wish-tabs">
+          <button class="wish-tab active" data-tab="mine">Meine Wünsche</button>
+          <button class="wish-tab" data-tab="alle">Alle Wünsche</button>
+        </div>
         <div class="wish-list"></div>
+        <div class="wish-all" hidden></div>
       </div>
     </div>`);
   const $ = (s) => root.querySelector(s);
@@ -159,6 +187,47 @@ export function openWishes(app, onClose) {
           .join('')
       : '<div class="wish-empty">Noch keine Wünsche – leg los!</div>';
   }
+
+  // ---------- Reiter „Alle Wünsche“ ----------
+  let allTimer = null;
+  async function renderAll() {
+    clearTimeout(allTimer);
+    const box = $('.wish-all');
+    if (box.hidden || !root.isConnected) return;
+    if (!box.innerHTML) box.innerHTML = '<div class="wish-empty">Lade alle Wünsche …</div>';
+    try {
+      const alle = await loadAllWishes();
+      const fertig = alle.filter((w) => w.status === 'umgesetzt').length;
+      box.innerHTML =
+        `<div class="wish-all-sum">${alle.length} Wünsche · ${fertig} umgesetzt</div>` +
+        alle
+          .map((w) => {
+            const [icon, label] = STATUS_TEXT[w.status] || STATUS_TEXT.angekommen;
+            // nur der Vorname – die Liste kann jeder sehen, der das Spiel öffnet
+            const name = String(w.von || 'Unbekannt').split(/\s+/)[0];
+            return `<div class="wish-item st-${w.status}">
+              <div class="wish-all-head"><b>${esc(name)}</b><span>${fmt(w.am)}</span></div>
+              <div class="wish-item-text">${esc(w.text)}</div>
+              <div class="wish-chip st-${w.status}">${icon} ${label}</div>
+              ${w.info ? `<div class="wish-item-meta wish-now">${esc(w.info)}</div>` : ''}
+            </div>`;
+          })
+          .join('');
+    } catch {
+      box.innerHTML = '<div class="wish-empty">Die Liste lädt gerade nicht – kein Internet? Versuch es gleich nochmal.</div>';
+    }
+    allTimer = setTimeout(renderAll, 15000);
+  }
+  root.querySelectorAll('.wish-tab').forEach((t) =>
+    t.addEventListener('click', () => {
+      root.querySelectorAll('.wish-tab').forEach((x) => x.classList.toggle('active', x === t));
+      const alle = t.dataset.tab === 'alle';
+      $('.wish-list').hidden = alle;
+      $('.wish-all').hidden = !alle;
+      app.audio.nav();
+      if (alle) renderAll();
+    }),
+  );
 
   // Noch nicht verschickte Wünsche (z. B. ohne Internet) nachholen
   async function retryPending() {
@@ -252,6 +321,7 @@ export function openWishes(app, onClose) {
 
   function close() {
     clearTimeout(timer);
+    clearTimeout(allTimer);
     root.remove();
     window.removeEventListener('keydown', onKey, true);
     onClose?.();
