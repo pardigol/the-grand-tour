@@ -93,6 +93,8 @@ Tipp: Chrome oder Edge verwenden. Den Controller per USB oder Bluetooth verbinde
 
    **Schaltung:** Im Rad-Menü wählst du deine Schaltgruppe: Shimano 105, Ultegra, Dura-Ace oder SRAM Rival, Force, Red. Kurbel, Kettenblatt und Schaltwerk bekommen dann die passenden Farben (bei SRAM Red mit roten Akzenten).
 
+   **Zieleinfahrt:** Wie bei der Tour: grüne Streifen mit „GRAND TOUR“ auf der Straße vor dem Ziel, ein weißer Streifen und ein türkiser Bereich hinter der Ziellinie, Banden mit (ausgedachter) Werbung links und rechts und eine gelbe Zielkamera-Kabine. Beim Zeitfahren liegt das Ziel auf der längsten Geraden im Dorf.
+
    **Windschatten:** Fahr dicht hinter einen Gegner, dann hast du bis zu 40 % weniger Luftwiderstand. Hinter dem Gegner leuchten blaue Pfeile auf der Straße, oben erscheint „Windschatten“ mit einem Balken. Die Stärke stellst du in `src/config.js` bei `windschatten` ein.
 
    **Fahrerin:** Dein eigener Fahrer ist jetzt Shannon, ein echtes 3D-Modell von Mixamo. Trikot und Hose haben die Farben deines Charakters. Mit `fahrerModell: false` in `src/config.js` kommt die einfache Figur zurück.

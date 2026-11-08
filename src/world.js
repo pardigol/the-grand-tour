@@ -164,6 +164,7 @@ export class World {
       this.clearAreas(v.footprints);
       this.scene.add(this.village);
     }
+    this.buildFinishZone();
     this.buildClouds();
     this.buildMotes();
   }
@@ -261,6 +262,8 @@ export class World {
     const P = ecken.map(([x, z]) => new THREE.Vector3(x + (r() - 0.5) * 10, 0, z + (r() - 0.5) * 10));
     const pts = [];
     const n = P.length;
+    let bestLen = 0;
+    let startIdx = 0;
     for (let k = 0; k < n; k++) {
       const a = P[(k - 1 + n) % n];
       const b = P[k];
@@ -280,9 +283,16 @@ export class World {
       // lange Geraden bekommen Zwischenpunkte, damit sie gerade bleiben
       const len = c.distanceTo(b);
       // (nur in der Mitte, sonst läge der Punkt hinter dem Kurvenausgang und es gäbe einen Knick)
-      if (len > 60) pts.push(b.clone().lerp(c, 0.5));
+      if (len > 60) {
+        if (len > bestLen) {
+          bestLen = len;
+          startIdx = pts.length;
+        }
+        pts.push(b.clone().lerp(c, 0.5));
+      }
     }
-    return pts;
+    // Start/Ziel in die Mitte der längsten Geraden legen: gerade Zieleinfahrt
+    return [...pts.slice(startIdx), ...pts.slice(0, startIdx)];
   }
 
   buildTrack() {
@@ -1381,6 +1391,149 @@ export class World {
       }
     }
     this.scene.add(arch);
+  }
+
+  // ---------- Zieleinfahrt wie bei der Tour: grüne Streifen auf der Straße, Banden mit Werbung, Zielkamera ----------
+  buildFinishZone() {
+    const pose = {};
+    const g = new THREE.Group();
+    const roadY = 0.075;
+    // Ein flaches Stück, das der Straße folgt (für Bodenstreifen)
+    const band = (s0, s1, mat, lift = 0) => {
+      const pos = [];
+      const uv = [];
+      const idx = [];
+      const steps = Math.max(2, Math.round((s1 - s0) / 1));
+      for (let k = 0; k <= steps; k++) {
+        const s = s0 + ((s1 - s0) * k) / steps;
+        this.poseAt(s, 0, pose);
+        const nr = this.nearest(pose.x, pose.z);
+        const rh = (nr.found ? this.rhArr[nr.i] : this.RH) + 0.25;
+        const sx = -pose.tz;
+        const sz = pose.tx;
+        const y = pose.h - 0.06 + roadY + lift;
+        pos.push(pose.x - sx * rh, y, pose.z - sz * rh, pose.x + sx * rh, y, pose.z + sz * rh);
+        uv.push(0, k / steps, 1, k / steps);
+        if (k > 0) {
+          const a = (k - 1) * 2;
+          idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat);
+      m.receiveShadow = true;
+      g.add(m);
+    };
+    const decal = (tex) =>
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    // Grüne Streifen mit großer Schrift (liest sich für die ankommenden Fahrer)
+    const gruen = '#2fa37a';
+    const schrift = canvasTex(1024, 512, (ctx, w, h) => {
+      ctx.fillStyle = gruen;
+      ctx.fillRect(0, 0, w, h);
+      ctx.translate(w / 2, h / 2); // Schrift lesbar für die ankommenden Fahrer
+      ctx.fillStyle = '#e9fff4';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let size = 250;
+      do ctx.font = `900 ${size}px "Barlow Condensed", Arial, sans-serif`;
+      while (ctx.measureText('GRAND TOUR').width > w * 0.86 && (size -= 8) > 60);
+      ctx.fillText('GRAND TOUR', 0, 10);
+    });
+    const hell = canvasTex(64, 64, (ctx, w, h) => {
+      ctx.fillStyle = '#7fe0bf';
+      ctx.fillRect(0, 0, w, h);
+    });
+    const weiss = canvasTex(64, 64, (ctx, w, h) => {
+      ctx.fillStyle = '#f2f2ee';
+      ctx.fillRect(0, 0, w, h);
+    });
+    const L = this.length;
+    band(L - 52, L - 45, decal(schrift));
+    band(L - 26, L - 19, decal(schrift));
+    band(L - 3.2, L - 1.6, decal(weiss));
+    band(1.2, 9, decal(hell));
+    band(13, 20, decal(schrift));
+
+    // Banden an beiden Seiten mit Werbung (ausgedachte Sponsoren)
+    const werbung = [
+      ['#2fa37a', '#ffffff', 'GRAND TOUR'],
+      ['#1d2433', '#ffffff', 'PAULSDORF • SEIT 2026'],
+      ['#f2f2ee', '#1d2433', 'PEDAL LEGENDS'],
+      ['#2fa37a', '#ffffff', 'GRAND TOUR'],
+      ['#f4c430', '#1d2433', 'ZIELKAMERA'],
+    ].map(([bg, fg, txt]) =>
+      new THREE.MeshStandardMaterial({
+        roughness: 0.6,
+        map: canvasTex(512, 128, (ctx, w, h) => {
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = fg;
+          // Schrift so groß wie möglich, aber passend auf die Tafel
+          let size = 70;
+          do ctx.font = `800 ${size}px "Barlow Condensed", Arial, sans-serif`;
+          while (ctx.measureText(txt).width > w * 0.9 && (size -= 4) > 20);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(txt, w / 2, h / 2 + 2);
+        }),
+      }),
+    );
+    const metall = new THREE.MeshStandardMaterial({ color: '#b9bcc2', metalness: 0.8, roughness: 0.35 });
+    const tafel = new THREE.BoxGeometry(2.3, 0.9, 0.04);
+    const rohr = new THREE.CylinderGeometry(0.03, 0.03, 2.4, 6).rotateZ(Math.PI / 2);
+    const fuss = new THREE.BoxGeometry(0.06, 1.15, 0.5);
+    let k = 0;
+    for (let s = L - 75; s < L + 25; s += 2.45) {
+      for (const sd of [-1, 1]) {
+        this.poseAt(s, 0, pose);
+        const nr = this.nearest(pose.x, pose.z);
+        const lat = (nr.found ? this.shArr[nr.i] : this.SH) + 0.4;
+        this.poseAt(s, sd * lat, pose);
+        if (this.solid && this.solid.some((b) => Math.hypot(b.x - pose.x, b.z - pose.z) < b.r + 0.6)) continue;
+        const bande = new THREE.Group();
+        bande.position.set(pose.x, this.terrainHeight(pose.x, pose.z), pose.z);
+        bande.rotation.y = pose.heading + Math.PI / 2;
+        const t = new THREE.Mesh(tafel, werbung[(k + (sd > 0 ? 2 : 0)) % werbung.length]);
+        t.position.y = 0.62;
+        t.castShadow = true;
+        const r1 = new THREE.Mesh(rohr, metall);
+        r1.position.y = 1.1;
+        const f1 = new THREE.Mesh(fuss, metall);
+        f1.position.set(-1.15, 0.57, 0);
+        bande.add(t, r1, f1);
+        g.add(bande);
+      }
+      k++;
+    }
+
+    // Gelbe Zielkamera-Kabine kurz hinter der Linie
+    for (const lat of [this.SH + 4.5, this.SH + 7, -(this.SH + 4.5)]) {
+      this.poseAt(6, lat, pose);
+      if (this.solid && this.solid.some((b) => Math.hypot(b.x - pose.x, b.z - pose.z) < b.r + 3)) continue;
+      if (!this.clearOfPath(pose.x, pose.z, 2.5)) continue;
+      const kabine = new THREE.Group();
+      kabine.position.set(pose.x, this.terrainHeight(pose.x, pose.z), pose.z);
+      kabine.rotation.y = pose.heading + (lat > 0 ? -Math.PI / 2 : Math.PI / 2);
+      const gelb = new THREE.MeshStandardMaterial({ color: '#f4d21c', roughness: 0.5 });
+      const box = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.6, 2.6), gelb);
+      box.position.y = 1.7;
+      box.castShadow = true;
+      const fenster = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.0, 0.05), new THREE.MeshStandardMaterial({ color: '#1d2433', roughness: 0.1, metalness: 0.6 }));
+      fenster.position.set(0, 2.1, 1.31);
+      const schild = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), werbung[4]);
+      schild.position.set(0, 3.3, 1.31);
+      const sockel = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.4, 2.4), new THREE.MeshStandardMaterial({ color: '#555a62' }));
+      sockel.position.y = 0.2;
+      kabine.add(box, fenster, schild, sockel);
+      g.add(kabine);
+      break;
+    }
+    this.scene.add(g);
   }
 
   // ---------- Wolken ----------
