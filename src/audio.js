@@ -230,8 +230,9 @@ export class AudioEngine {
   setWind(level) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.windGain.gain.setTargetAtTime(level * 0.3, t, 0.15);
-    this.windFilter.frequency.setTargetAtTime(300 + level * 2400, t, 0.2);
+    // deutlich leiser und dumpfer, damit der Wind nicht nervt
+    this.windGain.gain.setTargetAtTime(level * 0.3 * (CONFIG.windLautstaerke ?? 0.3), t, 0.15);
+    this.windFilter.frequency.setTargetAtTime(250 + level * 1100, t, 0.2);
   }
 
   setMusicLevel(v) {

@@ -317,7 +317,7 @@ export function createRideScene(app) {
             <div><b>W</b> / <b>↑</b> Treten</div>
             <div><b>T</b> Dauertreten an/aus</div>
             <div><b>S</b> / <b>↓</b> Bremsen</div>
-            <div><b>Shift</b> Sprint</div>
+            <div><b>Leertaste</b> Sprint</div>
             <div><b>A</b> <b>D</b> / <b>← →</b> Lenken</div>
             <div><b>Q</b>+<b>E</b> Landen nach Drops</div>
             <div><b>C</b> Ansicht wechseln · <b>K</b> Klingel</div>
@@ -852,14 +852,16 @@ export function createRideScene(app) {
       $('.sprint-fill').style.width = `${(fill * 100).toFixed(1)}%`;
       const usable = st.sprint === 'charging' && fill >= sp.abLadung;
       bar.className = `sprint-bar ${st.sprint}${usable ? ' usable' : ''}`;
+      // Tastatur: beim Sprint die Leertaste zeigen, sonst den Controller-Knopf
+      const sprintBtn = app.control === 'keys' ? '<span class="btn key-space">Leertaste</span>' : btn('X');
       const info =
         st.sprint === 'active'
           ? `${Math.ceil(st.sprintT)} s`
           : usable
-            ? `${Math.round(fill * sp.dauer)} s ${btn('X')}`
+            ? `${Math.round(fill * sp.dauer)} s ${sprintBtn}`
             : st.sprint === 'charging'
               ? 'lädt …'
-              : `bereit ${btn('X')}`;
+              : `bereit ${sprintBtn}`;
       if (info !== st.sprintInfo) {
         st.sprintInfo = info;
         $('.sprint-info').innerHTML = info;

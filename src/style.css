@@ -2094,3 +2094,12 @@ body.control-touch .wish-button .btn {
   border-color: #d23c3c;
   background: rgba(210, 60, 60, 0.25);
 }
+
+.btn.key-space {
+  width: auto;
+  padding: 0 0.5em;
+  border-radius: 6px;
+  background: #3a3f4c;
+  color: #fff;
+  font-size: 0.75em;
+}

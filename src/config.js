@@ -49,6 +49,8 @@ export const CONFIG = {
 
   // Lautstärke der Geräusche (Menü, Fahrtwind, Freilauf)
   soundVolume: 0.8,
+  // Lautstärke des Fahrtwinds (0 = aus, 1 = so laut wie früher)
+  windLautstaerke: 0.3,
 
   // Zeitfahren: Luftwiderstand im Vergleich zum Rennrad (0.8 = 20 % weniger dank Aero-Haltung und Zeitfahrrad)
   zeitfahren: { luftwiderstand: 0.8 },

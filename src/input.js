@@ -79,7 +79,8 @@ export class Input {
       if (e.code === 'KeyC') this.queue.push('view');
       if (e.code === 'KeyT') this.queue.push('cruise');
       if (e.code === 'KeyK' && !e.repeat) this.queue.push('klingel');
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queue.push('sprint');
+      // Sprint: Leertaste (oder Shift)
+      if ((e.code === 'Space' && !e.repeat) || e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.queue.push('sprint');
       if (e.key === 'Escape') this.queue.push('pause');
       if (e.key === 'Backspace') this.charQueue.push('\b');
       else if (e.key.length === 1) this.charQueue.push(e.key);
@@ -276,7 +277,7 @@ export class Input {
     let keySteer = 0;
     if (k.has('KeyA') || k.has('ArrowLeft')) keySteer -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) keySteer += 1;
-    const keyThrottle = k.has('KeyW') || k.has('ArrowUp') || k.has('Space') ? 1 : 0;
+    const keyThrottle = k.has('KeyW') || k.has('ArrowUp') ? 1 : 0;
     const keyBrake = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0;
 
     // Touch: gehaltene Finger links/rechts lenken; beide Seiten gleichzeitig = Landen nach einem Drop

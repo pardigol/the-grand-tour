@@ -54,7 +54,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Dauertreten an/aus | **B** | **○** | T |
 | Fahrradklingel (Kling-Kling) | – | – | K |
 | Bremsen | **Y** | **△** | S / ↓ |
-| Sprint (15 s Vollgas, danach 30 s Aufladen; ab ¾ Ladung schon möglich, dann kürzer; nochmal drücken = abbrechen) | **X** | **□** | Shift |
+| Sprint (15 s Vollgas, danach 30 s Aufladen; ab ¾ Ladung schon möglich, dann kürzer; nochmal drücken = abbrechen) | **X** | **□** | Leertaste |
 | Landen nach einem Drop (Cycle Cross) | **LB + RB** gleichzeitig | **L1 + R1** gleichzeitig | Q + E |
 | Lenken (kurz tippen = sanft, länger halten = enge Kurve) | **LT / RT** | **L2 / R2** | A / D / ← / → |
 | Leicht lenken (höchstens 40 %) | linker Stick | linker Stick | – |
