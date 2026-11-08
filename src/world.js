@@ -251,7 +251,7 @@ export class World {
 
   // ---------- Strecke ----------
   // Zeitfahren: eckige, verwinkelte Runde durch die Gassen (etwa 1,5 km).
-  // Jede Ecke bekommt Punkte kurz davor und danach, damit die Kurve eng, aber fahrbar bleibt.
+  // Jede Ecke bekommt Punkte davor und danach, damit die Kurve weich und flüssig fahrbar bleibt.
   villageRoute() {
     const ecken = [
       [-80, -170], [70, -170], [95, -120], [180, -110], [190, -20], [140, 10], [150, 90],
@@ -267,14 +267,20 @@ export class World {
       const c = P[(k + 1) % n];
       const din = b.clone().sub(a);
       const dout = c.clone().sub(b);
-      const rin = Math.min(13, din.length() * 0.3);
-      const rout = Math.min(13, dout.length() * 0.3);
-      pts.push(b.clone().addScaledVector(din.normalize(), -rin));
-      pts.push(b.clone().addScaledVector(din, rin * 0.35).addScaledVector(dout.clone().normalize(), rout * 0.35));
-      pts.push(b.clone().addScaledVector(dout.normalize(), rout));
+      // Kurvenradius: weit genug, dass man flüssig durchfahren kann
+      const rin = Math.min(24, din.length() * 0.4);
+      const rout = Math.min(24, dout.length() * 0.4);
+      // Ecke als weicher Bogen (Bézier-Kurve mit der Ecke als Kontrollpunkt)
+      const pin = b.clone().addScaledVector(din.normalize(), -rin);
+      const pout = b.clone().addScaledVector(dout.normalize(), rout);
+      for (let t = 0; t <= 1.0001; t += 1 / 6) {
+        const u = 1 - t;
+        pts.push(new THREE.Vector3(u * u * pin.x + 2 * u * t * b.x + t * t * pout.x, 0, u * u * pin.z + 2 * u * t * b.z + t * t * pout.z));
+      }
       // lange Geraden bekommen Zwischenpunkte, damit sie gerade bleiben
       const len = c.distanceTo(b);
-      for (let t = 0.35; t < 0.7; t += 0.3) if (len > 60) pts.push(b.clone().lerp(c, t));
+      // (nur in der Mitte, sonst läge der Punkt hinter dem Kurvenausgang und es gäbe einen Knick)
+      if (len > 60) pts.push(b.clone().lerp(c, 0.5));
     }
     return pts;
   }
