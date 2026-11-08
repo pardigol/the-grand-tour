@@ -93,7 +93,7 @@ export function createLobbyScene(app) {
       // Gast fährt immer im Modus des Erstellers
       if (online().role === 'guest' && msg.mode && msg.mode !== app.mode) {
         app.mode = msg.mode;
-        app.useWorld(worldOf(app.mode));
+        app.prepareWorld(worldOf(app.mode));
         app.bike.setTires(app.mode);
       }
       if (online().role === 'guest') setState('joined');

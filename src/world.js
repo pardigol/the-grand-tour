@@ -37,6 +37,48 @@ function speckle(ctx, w, h, rand, base, spread, count, size = 1) {
   }
 }
 
+// Kopfsteinpflaster fürs Dorf: Reihen aus abgerundeten, unterschiedlich grauen Steinen
+function cobbleTexture(rand) {
+  return canvasTex(512, 1024, (ctx, w, h) => {
+    ctx.fillStyle = '#3c3a37';
+    ctx.fillRect(0, 0, w, h);
+    const rows = 40;
+    const rh = h / rows;
+    for (let r = 0; r < rows; r++) {
+      let x = r % 2 ? -rh * 0.6 : 0;
+      while (x < w) {
+        const sw = rh * (0.9 + rand() * 0.7);
+        const v = 105 + Math.floor(rand() * 55);
+        const tint = Math.floor(rand() * 12);
+        ctx.fillStyle = `rgb(${v + tint},${v + tint - 4},${v - 8})`;
+        const pad = 2.2;
+        const rx = x + pad;
+        const ry = r * rh + pad;
+        const ww = sw - pad * 2;
+        const hh = rh - pad * 2;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(rx, ry, ww, hh, 6) : ctx.rect(rx, ry, ww, hh);
+        ctx.fill();
+        // Licht oben, Schatten unten -> gewölbte Steine
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(rx + 2, ry + 1, ww - 4, hh * 0.3);
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.fillRect(rx + 2, ry + hh * 0.72, ww - 4, hh * 0.25);
+        x += sw;
+      }
+    }
+    // Moos und Schmutz in den Fugen, Ränder etwas dunkler
+    speckle(ctx, w, h, rand, 'rgba(0,0,0,0)', 120, 6000, 1.2);
+    const g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, 'rgba(30,28,24,0.45)');
+    g.addColorStop(0.08, 'rgba(30,28,24,0)');
+    g.addColorStop(0.92, 'rgba(30,28,24,0)');
+    g.addColorStop(1, 'rgba(30,28,24,0.45)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
 // Erdweg: braun, zwei ausgefahrene Spuren, Wurzeln und dunkle Pfützen
 function dirtTexture(rand) {
   return canvasTex(256, 1024, (ctx, w, h) => {
@@ -82,16 +124,20 @@ function dirtTexture(rand) {
 export class World {
   // kind: 'road' = Landstraße (Rennrad), 'cx' = Waldweg durch dichten Wald (Cycle Cross)
   // nature = geladene Natur-Modelle (siehe nature.js) oder null
-  constructor(renderer, kind = 'road', nature = null) {
+  // kind 'tt' = Zeitfahren: verwinkelte Runde durch ein Dorf (dorf = geladene Dorf-Modelle, siehe village.js)
+  constructor(renderer, kind = 'road', nature = null, dorf = null) {
     this.kind = kind;
     this.cx = kind === 'cx';
+    this.tt = kind === 'tt';
     this.nature = nature;
+    this.dorf = dorf;
     // Jahreszeit je Welt (CONFIG.jahreszeiten): Rennrad grün, Cycle Cross Herbst
     this.season = (CONFIG.jahreszeiten || {})[this.cx ? 'cx' : 'rennrad'] || (this.cx ? 'herbst' : 'sommer');
     this.autumn = this.season === 'herbst';
     // Größte halbe Weg-/Straßenbreite. Beim Waldweg schwankt die Breite (siehe rhArr in buildTrack).
-    this.RH = this.cx ? 1.6 : 3.6;
-    this.SH = this.cx ? 2.4 : 5.0;
+    // Dorfstraßen sind etwas schmaler als die Landstraße
+    this.RH = this.cx ? 1.6 : this.tt ? 3.2 : 3.6;
+    this.SH = this.cx ? 2.4 : this.tt ? 4.4 : 5.0;
     this.scene = new THREE.Scene();
     this.rand = mulberry32(1337);
     this.n1 = makeNoise2D(11);
@@ -109,13 +155,14 @@ export class World {
     this.buildRoad();
     this.buildVegetation();
     this.buildProps();
-    // Dorf an der Landstraße (nur beim Zeitfahren sichtbar)
-    if (!this.cx) {
-      const v = buildVillage(this);
+    // Zeitfahren: das ganze Dorf entlang der Runde
+    if (this.tt && this.dorf) {
+      const v = buildVillage(this, this.dorf);
       this.village = v.group;
-      this.village.visible = false;
-      this.scene.add(this.village);
+      this.solid = v.solid;
+      // erst Bäume/Büsche unter den Häusern wegräumen, dann das Dorf einsetzen (sonst räumt es sich selbst weg)
       this.clearAreas(v.footprints);
+      this.scene.add(this.village);
     }
     this.buildClouds();
     this.buildMotes();
@@ -139,7 +186,7 @@ export class World {
   // ---------- Seen ----------
   setupLakes() {
     // Positionen so gewählt, dass die Seen mindestens 50 m von der Straße entfernt sind
-    this.lakes = this.cx ? [] : [
+    this.lakes = this.cx || this.tt ? [] : [
       { x: -40, z: -30, r: 120 },
       { x: 180, z: 140, r: 60 },
       { x: -200, z: 170, r: 60 },
@@ -192,6 +239,8 @@ export class World {
   rawHeight(x, z) {
     const r = Math.hypot(x, z);
     let h = this.fbm(x * 0.0035, z * 0.0035) * 16 + this.n2(x * 0.02, z * 0.02) * 1.2;
+    // Dorf: fast flach, nur sanfte Wellen
+    if (this.tt) h *= 0.3;
     const m = smoothstep(660, 880, r);
     if (m > 0) {
       const ridge = 1 - Math.abs(this.fbm(x * 0.0032 + 7, z * 0.0032 - 3));
@@ -201,11 +250,41 @@ export class World {
   }
 
   // ---------- Strecke ----------
-  buildTrack() {
+  // Zeitfahren: eckige, verwinkelte Runde durch die Gassen (etwa 1,5 km).
+  // Jede Ecke bekommt Punkte kurz davor und danach, damit die Kurve eng, aber fahrbar bleibt.
+  villageRoute() {
+    const ecken = [
+      [-80, -170], [70, -170], [95, -120], [180, -110], [190, -20], [140, 10], [150, 90],
+      [60, 120], [20, 175], [-90, 160], [-110, 90], [-190, 70], [-200, -40], [-130, -60], [-120, -130],
+    ];
+    const r = mulberry32(77);
+    const P = ecken.map(([x, z]) => new THREE.Vector3(x + (r() - 0.5) * 10, 0, z + (r() - 0.5) * 10));
     const pts = [];
+    const n = P.length;
+    for (let k = 0; k < n; k++) {
+      const a = P[(k - 1 + n) % n];
+      const b = P[k];
+      const c = P[(k + 1) % n];
+      const din = b.clone().sub(a);
+      const dout = c.clone().sub(b);
+      const rin = Math.min(13, din.length() * 0.3);
+      const rout = Math.min(13, dout.length() * 0.3);
+      pts.push(b.clone().addScaledVector(din.normalize(), -rin));
+      pts.push(b.clone().addScaledVector(din, rin * 0.35).addScaledVector(dout.clone().normalize(), rout * 0.35));
+      pts.push(b.clone().addScaledVector(dout.normalize(), rout));
+      // lange Geraden bekommen Zwischenpunkte, damit sie gerade bleiben
+      const len = c.distanceTo(b);
+      for (let t = 0.35; t < 0.7; t += 0.3) if (len > 60) pts.push(b.clone().lerp(c, t));
+    }
+    return pts;
+  }
+
+  buildTrack() {
+    let pts = [];
+    if (this.tt) pts = this.villageRoute();
     // Waldweg: kürzere, viel kurvigere Runde (etwa 1,4 km)
     const K = this.cx ? 24 : 16;
-    for (let k = 0; k < K; k++) {
+    for (let k = 0; k < (this.tt ? 0 : K); k++) {
       const a = (k / K) * Math.PI * 2;
       const r = this.cx
         ? 200 + 45 * Math.sin(3 * a + 0.6) + 30 * Math.sin(5 * a + 1.9) + 16 * Math.sin(9 * a + 0.4)
@@ -213,7 +292,7 @@ export class World {
       pts.push(new THREE.Vector3(Math.cos(a) * r * 1.18, 0, Math.sin(a) * r * 0.95));
     }
     const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-    const N = this.cx ? 1600 : 2400;
+    const N = this.cx ? 1600 : this.tt ? 1800 : 2400;
     const sp = curve.getSpacedPoints(N);
     this.N = N;
     this.length = curve.getLength();
@@ -624,7 +703,7 @@ export class World {
   buildRoad() {
     const N = this.N;
     const rand = mulberry32(9);
-    const asphalt = this.cx ? dirtTexture(rand) : canvasTex(256, 1024, (ctx, w, h) => {
+    const asphalt = this.cx ? dirtTexture(rand) : this.tt ? cobbleTexture(rand) : canvasTex(256, 1024, (ctx, w, h) => {
       speckle(ctx, w, h, rand, '#45464a', 255, 26000, 1.2);
       // Flicken & Reifenspuren
       for (let i = 0; i < 18; i++) {
@@ -641,6 +720,7 @@ export class World {
       ctx.fillRect(w * 0.49, 0, w * 0.02, h * 0.5);
     });
     asphalt.wrapT = THREE.RepeatWrapping;
+    this.roadTex = asphalt; // das Dorf nutzt das Pflaster auch für den Dorfplatz
     const gravel = canvasTex(
       256,
       256,
@@ -765,7 +845,8 @@ export class World {
     const leafCol = [];
     const lim = this.cx ? 520 : 860;
     let tries = 0;
-    const maxTrees = this.cx ? 5500 : 2600;
+    // Dorf: weniger Bäume, die Häuser brauchen Platz
+    const maxTrees = this.cx ? 5500 : this.tt ? 1300 : 2600;
     while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
@@ -773,7 +854,7 @@ export class World {
       const dens = this.n3(x * 0.006 + 20, z * 0.006);
       if (!this.cx && dens < 0.05 && rand() > 0.08) continue;
       const nr = this.nearest(x, z);
-      if (nr.found && nr.dist < (this.cx ? this.shArr[nr.i] + 1.6 : 11)) continue;
+      if (nr.found && nr.dist < (this.cx ? this.shArr[nr.i] + 1.6 : this.tt ? 26 : 11)) continue;
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
@@ -850,12 +931,14 @@ export class World {
     // Sommer: Blumen. Herbst: Laubhäufchen in Orange, Rot, Gelb und Braun
     const flowerPalette = (this.autumn ? ['#c2461f', '#e07b24', '#e9b13a', '#8a3b1c', '#b5651d'] : ['#f2d14b', '#ffffff', '#e2455b', '#9b6bd6', '#ff9a3c']).map((c) => new THREE.Color(c));
     const pose = {};
-    for (let i = 0; i < 22000; i++) {
+    // Dorf: weniger Gras, und nie auf dem Pflaster (die Runde ist eng, andere Straßenstücke liegen nah)
+    for (let i = 0; i < (this.tt ? 9000 : 22000); i++) {
       const s = rand() * this.length;
       const side = rand() < 0.5 ? -1 : 1;
       const lat = side * (this.SH + 0.3 + Math.pow(rand(), 1.6) * 45);
       this.poseAt(s, lat, pose);
       if (this.lakeAt(pose.x, pose.z, 1)) continue;
+      if (this.tt && !this.clearOfPath(pose.x, pose.z, 0.4)) continue;
       const h = this.terrainHeight(pose.x, pose.z);
       const sc = 0.7 + rand() * 0.9;
       grass.push(mtx(pose.x, h - 0.05, pose.z, sc, sc * (0.8 + rand() * 0.8)));
@@ -907,7 +990,7 @@ export class World {
 
     // Strohballen auf den Feldern (nicht im Wald)
     const bales = [];
-    for (let i = 0; i < (this.cx ? 0 : 60); i++) {
+    for (let i = 0; i < (this.cx || this.tt ? 0 : 60); i++) {
       const s = rand() * this.length;
       const lat = (rand() < 0.5 ? -1 : 1) * (18 + rand() * 60);
       this.poseAt(s, lat, pose);
@@ -1031,7 +1114,8 @@ export class World {
     const at = (x, z, s, sy = s, yaw = rand() * Math.PI * 2) =>
       new THREE.Matrix4().compose(new THREE.Vector3(x, this.terrainHeight(x, z) - 0.05, z), q.setFromAxisAngle(up, yaw).clone(), new THREE.Vector3(s, sy, s));
     const bushes = [];
-    const nBush = this.cx ? 2600 : 1600;
+    // Dorf: nur ein paar Büsche
+    const nBush = this.cx ? 2600 : this.tt ? 260 : 1600;
     for (let i = 0; i < nBush * 2 && bushes.length < nBush; i++) {
       const sd = rand() < 0.5 ? -1 : 1;
       const lat = sd * (this.SH + 1.4 + Math.pow(rand(), 1.4) * (this.cx ? 14 : 55));
@@ -1052,7 +1136,7 @@ export class World {
     this.placeOnGeos(bushes, this.nature.bushes, rand, 1, bushTint);
     const stumps = [];
     const logs = [];
-    for (let i = 0; i < (this.cx ? 260 : 160); i++) {
+    for (let i = 0; i < (this.cx ? 260 : this.tt ? 30 : 160); i++) {
       const sd = rand() < 0.5 ? -1 : 1;
       this.poseAt(rand() * this.length, sd * (this.SH + 2 + rand() * (this.cx ? 12 : 60)), pose);
       if (this.lakeAt(pose.x, pose.z, 2)) continue;
@@ -1203,7 +1287,7 @@ export class World {
       this.buildDropLogs(pose);
       this.buildRocks(pose);
     }
-    for (let s = 0; s < (this.cx ? 0 : this.length); s += 50) {
+    for (let s = 0; s < (this.cx || this.tt ? 0 : this.length); s += 50) {
       for (const side of [-1, 1]) {
         this.poseAt(s, side * (this.SH + 0.5), pose);
         const h = this.terrainHeight(pose.x, pose.z);

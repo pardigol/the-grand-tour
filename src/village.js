@@ -1,257 +1,36 @@
-// Ein kleines Dorf an der Landstraße (wird beim Zeitfahren gezeigt):
-// Häuser mit Satteldach, eine Kirche mit Turm, Gehwege, Laternen, Wimpelketten und Ortsschilder.
+// Das Dorf fürs Zeitfahren: Fachwerkhäuser, Gasthaus, Schmiede, Mühle, Glockenturm,
+// ein Dorfplatz mit Brunnen und Marktständen, Zäune, Fässer und Laternen – entlang der ganzen Runde.
+// Modelle: "Medieval Village Pack" von Quaternius (CC0), geladen in nature.js (loadVillageModels).
 import * as THREE from 'three';
 
 export const VILLAGE_NAME = 'Paulsdorf';
 
-const WALLS = ['#f1e7d3', '#e9d9b8', '#f4f0e6', '#e8c9a6', '#dfe6d6', '#f0d7c8', '#d9e1ea'];
-const ROOFS = ['#9c3b2a', '#7a2f22', '#5b4a42', '#a5512f', '#6d3326'];
-const SHUTTERS = ['#2f5d3a', '#3b4f73', '#7a2f22', '#5a4632'];
-
-// Hausfassade mit Fenstern, Fensterläden und Tür (eine Textur pro Farbe)
-const facadeCache = new Map();
-function facadeTexture(wall, shutter, door) {
-  const key = wall + shutter + door;
-  if (facadeCache.has(key)) return facadeCache.get(key);
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d');
-  g.fillStyle = wall;
-  g.fillRect(0, 0, 256, 256);
-  // leichter Putz-Schmutz unten
-  const grd = g.createLinearGradient(0, 200, 0, 256);
-  grd.addColorStop(0, 'rgba(0,0,0,0)');
-  grd.addColorStop(1, 'rgba(60,45,30,0.25)');
-  g.fillStyle = grd;
-  g.fillRect(0, 200, 256, 56);
-  const win = (x, y) => {
-    g.fillStyle = shutter;
-    g.fillRect(x - 22, y, 14, 44);
-    g.fillRect(x + 36, y, 14, 44);
-    g.fillStyle = '#f7f4ee';
-    g.fillRect(x - 6, y - 4, 40, 52);
-    g.fillStyle = '#2b3646';
-    g.fillRect(x - 2, y, 32, 44);
-    g.fillStyle = 'rgba(180,210,240,0.35)';
-    g.fillRect(x, y + 2, 12, 18);
-    g.fillStyle = '#f7f4ee';
-    g.fillRect(x + 12, y, 4, 44);
-    g.fillRect(x - 2, y + 20, 32, 4);
-    // Blumenkasten
-    g.fillStyle = '#6b4a2e';
-    g.fillRect(x - 6, y + 48, 40, 7);
-    for (let i = 0; i < 6; i++) {
-      g.fillStyle = ['#d62839', '#ff6fb5', '#f2d14b'][i % 3];
-      g.beginPath();
-      g.arc(x - 2 + i * 7, y + 47, 4, 0, Math.PI * 2);
-      g.fill();
-    }
-  };
-  win(40, 40);
-  win(170, 40);
-  win(40, 150);
-  // Tür
-  g.fillStyle = '#e8e0d0';
-  g.fillRect(150, 140, 58, 116);
-  g.fillStyle = door;
-  g.fillRect(156, 146, 46, 110);
-  g.fillStyle = 'rgba(0,0,0,0.25)';
-  g.fillRect(162, 156, 15, 40);
-  g.fillRect(182, 156, 15, 40);
-  g.fillStyle = '#d4b04c';
-  g.beginPath();
-  g.arc(194, 205, 3, 0, Math.PI * 2);
-  g.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  facadeCache.set(key, t);
-  return t;
-}
-
-// Seitenwand: nur zwei Fenster
-const sideCache = new Map();
-function sideTexture(wall, shutter) {
-  const key = wall + shutter;
-  if (sideCache.has(key)) return sideCache.get(key);
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d');
-  g.fillStyle = wall;
-  g.fillRect(0, 0, 256, 256);
-  for (const [x, y] of [
-    [60, 60],
-    [170, 60],
-    [110, 160],
-  ]) {
-    g.fillStyle = shutter;
-    g.fillRect(x - 18, y, 10, 40);
-    g.fillRect(x + 32, y, 10, 40);
-    g.fillStyle = '#f7f4ee';
-    g.fillRect(x - 6, y - 4, 36, 48);
-    g.fillStyle = '#2b3646';
-    g.fillRect(x - 2, y, 28, 40);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  sideCache.set(key, t);
-  return t;
-}
-
-// Dachziegel
-let roofTex = null;
-function roofTexture() {
-  if (roofTex) return roofTex;
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 128, 128);
-  for (let y = 0; y < 128; y += 16) {
-    g.fillStyle = 'rgba(0,0,0,0.28)';
-    g.fillRect(0, y + 13, 128, 3);
-    for (let x = (y / 16) % 2 ? 8 : 0; x < 128; x += 16) {
-      g.fillStyle = 'rgba(0,0,0,0.12)';
-      g.fillRect(x, y, 2, 14);
-    }
-  }
-  roofTex = new THREE.CanvasTexture(c);
-  roofTex.wrapS = roofTex.wrapT = THREE.RepeatWrapping;
-  roofTex.repeat.set(3, 2);
-  return roofTex;
-}
-
-// Satteldach als Prisma (First entlang x)
-function roofGeometry(w, d, h, over = 0.5) {
-  const W = w / 2 + over;
-  const D = d / 2 + over;
-  const g = new THREE.BufferGeometry();
-  const v = [
-    // linke Dachfläche
-    -W, 0, -D, W, 0, -D, W, h, 0, -W, 0, -D, W, h, 0, -W, h, 0,
-    // rechte Dachfläche
-    -W, 0, D, -W, h, 0, W, h, 0, -W, 0, D, W, h, 0, W, 0, D,
-    // Giebel links / rechts
-    -W + over, 0, -D + over, -W + over, h - 0.05, 0, -W + over, 0, D - over,
-    W - over, 0, -D + over, W - over, 0, D - over, W - over, h - 0.05, 0,
-  ];
-  const uv = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0.5, 1, 1, 0, 0, 0, 1, 0, 0.5, 1];
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.addGroup(0, 12, 0);
-  g.addGroup(12, 6, 1);
-  g.computeVertexNormals();
-  return g;
-}
-
-function house(rand, wallMat) {
-  const g = new THREE.Group();
-  const w = 7 + rand() * 4; // entlang der Straße
-  const d = 6 + rand() * 2.5;
-  const h = 4.8 + rand() * 1.6;
-  const wall = WALLS[Math.floor(rand() * WALLS.length)];
-  const shutter = SHUTTERS[Math.floor(rand() * SHUTTERS.length)];
-  const door = ['#6b4a2e', '#7a2f22', '#2f5d3a', '#3b4f73'][Math.floor(rand() * 4)];
-  const plain = wallMat(wall);
-  const front = new THREE.MeshStandardMaterial({ map: facadeTexture(wall, shutter, door), roughness: 0.9 });
-  const side = new THREE.MeshStandardMaterial({ map: sideTexture(wall, shutter), roughness: 0.9 });
-  // Box-Seiten: +x, -x, +y, -y, +z (Front zur Straße), -z
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h + 3, d), [side, side, plain, plain, front, side]);
-  body.position.y = (h + 3) / 2 - 3; // 3 m in den Boden, falls der Hang abfällt
-  body.castShadow = true;
-  body.receiveShadow = true;
-  g.add(body);
-  // Sockel
-  const base = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 3.6, d + 0.12), new THREE.MeshStandardMaterial({ color: '#8f877b', roughness: 1 }));
-  base.position.y = -1.5;
-  g.add(base);
-  const roofCol = ROOFS[Math.floor(rand() * ROOFS.length)];
-  const roofMat = new THREE.MeshStandardMaterial({ color: roofCol, map: roofTexture(), roughness: 0.85 });
-  const roof = new THREE.Mesh(roofGeometry(w, d, 2.6 + rand() * 1.2), [roofMat, plain]);
-  roof.position.y = h;
-  roof.castShadow = true;
-  g.add(roof);
-  // Schornstein
-  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshStandardMaterial({ color: '#7d4b3a', roughness: 1 }));
-  chim.position.set((rand() - 0.5) * w * 0.5, h + 1.8, -d * 0.2);
-  chim.castShadow = true;
-  g.add(chim);
-  return { group: g, w, d };
-}
-
-function church() {
-  const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: '#f3efe6', roughness: 0.9 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: '#4f4a48', map: roofTexture(), roughness: 0.8 });
-  const nave = new THREE.Mesh(new THREE.BoxGeometry(9, 10, 18), white);
-  nave.position.set(0, 2, -6);
-  nave.castShadow = true;
-  g.add(nave);
-  const roof = new THREE.Mesh(roofGeometry(18, 9, 5), [roofMat, white]);
-  roof.rotation.y = Math.PI / 2;
-  roof.position.set(0, 7, -6);
-  roof.castShadow = true;
-  g.add(roof);
-  // Turm mit Zwiebelhaube und Kreuz
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(4.2, 22, 4.2), white);
-  tower.position.set(0, 8, 4.5);
-  tower.castShadow = true;
-  g.add(tower);
-  const green = new THREE.MeshStandardMaterial({ color: '#4c8a6e', roughness: 0.5, metalness: 0.4 });
-  const onion = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 12), green);
-  onion.scale.set(1, 1.15, 1);
-  onion.position.set(0, 20.6, 4.5);
-  g.add(onion);
-  const spire = new THREE.Mesh(new THREE.ConeGeometry(1.2, 5, 12), green);
-  spire.position.set(0, 25, 4.5);
-  g.add(spire);
-  const gold = new THREE.MeshStandardMaterial({ color: '#e0b84c', metalness: 1, roughness: 0.3 });
-  const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.6, 0.15), gold);
-  c1.position.set(0, 28.2, 4.5);
-  const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.15), gold);
-  c2.position.set(0, 28.5, 4.5);
-  g.add(c1, c2);
-  // Uhr
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 128;
-  const x = cv.getContext('2d');
-  x.fillStyle = '#1d2a3a';
-  x.beginPath();
-  x.arc(64, 64, 60, 0, Math.PI * 2);
-  x.fill();
-  x.strokeStyle = '#e0b84c';
-  x.lineWidth = 6;
-  x.stroke();
-  x.lineCap = 'round';
-  x.beginPath();
-  x.moveTo(64, 64);
-  x.lineTo(64, 22);
-  x.moveTo(64, 64);
-  x.lineTo(92, 74);
-  x.stroke();
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const clock = new THREE.Mesh(new THREE.CircleGeometry(1.4, 24), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
-  clock.position.set(0, 15, 6.62);
-  g.add(clock);
-  // Kirchenfenster
-  const glass = new THREE.MeshStandardMaterial({ color: '#3a4a6a', roughness: 0.3, metalness: 0.3 });
-  for (const sx of [-1, 1]) {
-    for (let k = 0; k < 3; k++) {
-      const wdw = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 3.2), glass);
-      wdw.position.set(sx * 4.52, 4.2, -12 + k * 5);
-      wdw.rotation.y = (sx * Math.PI) / 2;
-      g.add(wdw);
-    }
-  }
-  const doorM = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 3), new THREE.MeshStandardMaterial({ color: '#5a3a24' }));
-  doorM.position.set(0, 1.5, 6.62);
-  g.add(doorM);
-  return g;
-}
+// Wie groß die Modelle im Spiel sind (die Originale sind sehr klein)
+const GROESSE = 2.9;
+// Auf welcher Seite die Haustür liegt: Drehung, damit die Vorderseite zur Straße zeigt
+const VORNE = {
+  House_1: 0,
+  House_2: 0,
+  House_3: 0,
+  House_4: 0,
+  Inn: 0,
+  Blacksmith: 0,
+  Stable: 0,
+  Sawmill: 0,
+  Mill: 0,
+  Bell_Tower: 0,
+};
+// Häufigkeit der Gebäude an der Straße
+const MISCHUNG = [
+  ['House_1', 5],
+  ['House_2', 5],
+  ['House_3', 3],
+  ['House_4', 2],
+  ['Inn', 1],
+  ['Blacksmith', 1.2],
+  ['Stable', 0.8],
+  ['Sawmill', 0.6],
+];
 
 function townSign(name, crossed) {
   const c = document.createElement('canvas');
@@ -280,15 +59,9 @@ function townSign(name, crossed) {
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  const grey = new THREE.MeshStandardMaterial({ color: '#cfcfcf' });
   const s = new THREE.Group();
-  const board = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 0.05), [
-    null,
-    null,
-    null,
-    null,
-    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }),
-    new THREE.MeshStandardMaterial({ color: '#cfcfcf' }),
-  ].map((m) => m || new THREE.MeshStandardMaterial({ color: '#cfcfcf' })));
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 0.05), [grey, grey, grey, grey, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }), grey]);
   board.position.y = 2.2;
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6), new THREE.MeshStandardMaterial({ color: '#bfc3c8', metalness: 0.8, roughness: 0.3 }));
   pole.position.y = 1.3;
@@ -296,165 +69,267 @@ function townSign(name, crossed) {
   return s;
 }
 
-function lamp() {
-  const g = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: '#2b2e33', metalness: 0.6, roughness: 0.4 });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 4.2, 8), dark);
-  pole.position.y = 2.1;
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.18, 0.5, 6), dark);
-  head.position.y = 4.4;
-  const light = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffcf6a', emissiveIntensity: 1.2 }));
-  light.position.y = 4.25;
-  g.add(pole, head, light);
-  return g;
+// Laterne im alten Stil: Holzmast, Arm und warm leuchtende Glaskugel
+function lampGeometry() {
+  return {
+    pole: new THREE.CylinderGeometry(0.07, 0.1, 3.6, 6).translate(0, 1.8, 0),
+    arm: new THREE.BoxGeometry(0.08, 0.08, 0.7).translate(0, 3.5, 0.3),
+    glas: new THREE.SphereGeometry(0.17, 10, 8).translate(0, 3.25, 0.6),
+  };
 }
 
-// Baut das Dorf an die ruhigste (geradeste) Stelle der Strecke. Gibt die Gruppe und die Grundflächen zurück.
-export function buildVillage(world) {
-  let seed = 4711;
+export function buildVillage(world, M) {
+  let seed = 2024;
   const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-  const L = world.length;
-  const LEN = 300;
-  // Abschnitt mit der geringsten Krümmung suchen (nicht am Start/Ziel)
-  const pose = {};
-  let best = null;
-  for (let s0 = L * 0.18; s0 < L * 0.8 - LEN; s0 += 10) {
-    let turn = 0;
-    let lake = false;
-    world.poseAt(s0, 0, pose);
-    let prev = pose.heading;
-    for (let s = s0; s <= s0 + LEN; s += 10) {
-      world.poseAt(s, 0, pose);
-      turn += Math.abs(Math.atan2(Math.sin(pose.heading - prev), Math.cos(pose.heading - prev)));
-      prev = pose.heading;
-      if (world.lakeAt(pose.x, pose.z, 30)) lake = true;
-    }
-    if (!lake && (!best || turn < best.turn)) best = { s0, turn };
-  }
-  const s0 = best ? best.s0 : L * 0.4;
   const root = new THREE.Group();
   root.name = 'dorf';
-  const footprints = [];
-  const wallMats = new Map();
-  const wallMat = (c) => {
-    if (!wallMats.has(c)) wallMats.set(c, new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
-    return wallMats.get(c);
-  };
+  const L = world.length;
   const SH = world.SH;
-  const place = (obj, s, lat, yawExtra = 0) => {
-    world.poseAt(s, lat, pose);
-    const sd = Math.sign(lat) || 1;
-    // Vorderseite (+z) zur Straße drehen
-    const fx = sd * pose.tz;
-    const fz = -sd * pose.tx;
-    obj.position.set(pose.x, world.terrainHeight(pose.x, pose.z), pose.z);
-    obj.rotation.y = Math.atan2(fx, fz) + yawExtra;
-    root.add(obj);
-    return { x: pose.x, z: pose.z };
+  const pose = {};
+  const footprints = [];
+  const placed = []; // {x, z, r} schon gebaut – nichts darf sich überlappen
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+  const inst = new Map(); // Modellname -> Matrizen (InstancedMesh, spart Zeichenaufrufe)
+  const add = (name, x, z, yaw, s, y = null) => {
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(x, y ?? world.terrainHeight(x, z) - 0.05, z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw),
+      new THREE.Vector3(s, s, s),
+    );
+    if (!inst.has(name)) inst.set(name, []);
+    inst.get(name).push(m);
+  };
+  const size = (name, s) => {
+    const bb = M[name].boundingBox;
+    return { w: (bb.max.x - bb.min.x) * s, d: (bb.max.z - bb.min.z) * s };
+  };
+  const frei = (x, z, r) => world.clearOfPath(x, z, r) && placed.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + r);
+  // Ausrichtung: Vorderseite (+z des Modells) zeigt zur Straße
+  const zurStrasse = (sd) => Math.atan2(sd * pose.tz, -sd * pose.tx);
+
+  const pick = () => {
+    const sum = MISCHUNG.reduce((a, [, w]) => a + w, 0);
+    let r = rand() * sum;
+    for (const [n, w] of MISCHUNG) if ((r -= w) <= 0) return n;
+    return 'House_1';
   };
 
-  // Häuser links und rechts, mit kleinen Lücken
-  const churchS = s0 + LEN * 0.55;
-  for (const sd of [-1, 1]) {
-    let s = s0 + 25 + rand() * 6;
-    while (s < s0 + LEN - 25) {
-      if (sd > 0 && Math.abs(s - churchS) < 22) {
-        s = churchS + 22;
-        continue;
-      }
-      const h = house(rand, wallMat);
-      const lat = sd * (SH + 3.2 + h.d / 2 + rand() * 1.5);
-      world.poseAt(s + h.w / 2, lat, pose);
-      // nicht auf eine andere Stelle der Strecke bauen
-      if (world.clearOfPath(pose.x, pose.z, Math.max(h.w, h.d) / 2 + 1)) {
-        const at = place(h.group, s + h.w / 2, lat);
-        footprints.push({ x: at.x, z: at.z, r: Math.hypot(h.w, h.d) / 2 + 1.5 });
-      }
-      s += h.w + 2.5 + rand() * 7;
+  // ---------- Dorfplatz: auf der längsten Geraden ----------
+  let platzS = 0;
+  let best = Infinity;
+  for (let s = 60; s < L - 60; s += 10) {
+    const t = world.turnBetween(Math.round((s - 30) / world.ds), Math.round((s + 30) / world.ds));
+    if (t < best && Math.abs(s - L * 0.5) < L * 0.4) {
+      best = t;
+      platzS = s;
     }
   }
-  // Kirche rechts
+  const platzSeite = 1;
   {
-    const lat = SH + 14;
-    world.poseAt(churchS, lat, pose);
-    if (world.clearOfPath(pose.x, pose.z, 13)) {
-      const at = place(church(), churchS, lat);
-      footprints.push({ x: at.x, z: at.z, r: 16 });
+    // Glockenturm hinten am Platz, davor Brunnen, Marktstände, Wagen, Bänke und Fässer
+    world.poseAt(platzS, platzSeite * (SH + 17), pose);
+    if (frei(pose.x, pose.z, 5)) {
+      add('Bell_Tower', pose.x, pose.z, zurStrasse(platzSeite), GROESSE * 1.15);
+      placed.push({ x: pose.x, z: pose.z, r: 4.5 });
+      footprints.push({ x: pose.x, z: pose.z, r: 6 });
+    }
+    const dinge = [
+      ['Well', 0, 7, 0, GROESSE],
+      ['MarketStand_1', -11, 6, 0.3, GROESSE],
+      ['MarketStand_2', -6, 10.5, -0.2, GROESSE],
+      ['MarketStand_1', 7, 10, 0.5, GROESSE],
+      ['MarketStand_2', 11, 5.5, -0.4, GROESSE],
+      ['Cart', -14, 11, 1.2, GROESSE],
+      ['Bench_1', -3, 3.2, 0, GROESSE],
+      ['Bench_1', 4, 3.2, 0, GROESSE],
+      ['Barrel', 9, 13, 0, GROESSE],
+      ['Barrel', 9.8, 13.4, 0, GROESSE],
+      ['Crate', -9, 13, 0.4, GROESSE],
+      ['Hay', 13, 12, 0.2, GROESSE],
+      ['Bags', -12, 8.5, 0, GROESSE],
+      ['Bonfire_Lit', 2, 14, 0, GROESSE],
+    ];
+    for (const [n, ds, lat, yaw, s] of dinge) {
+      world.poseAt(platzS + ds, platzSeite * (SH + lat), pose);
+      if (!world.clearOfPath(pose.x, pose.z, 0.8)) continue;
+      add(n, pose.x, pose.z, zurStrasse(platzSeite) + yaw, s);
+      footprints.push({ x: pose.x, z: pose.z, r: 2.5 });
+    }
+    // Pflaster für den ganzen Platz, Gras dort wegräumen
+    world.poseAt(platzS, platzSeite * (SH + 9.5), pose);
+    placed.push({ x: pose.x, z: pose.z, r: 13 });
+    footprints.push({ x: pose.x, z: pose.z, r: 15 });
+    if (world.roadTex) {
+      const tex = world.roadTex.clone();
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 2.2);
+      tex.needsUpdate = true;
+      const platz = new THREE.Mesh(
+        new THREE.CircleGeometry(15, 40),
+        new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1 }),
+      );
+      platz.rotation.x = -Math.PI / 2;
+      platz.rotation.z = pose.heading;
+      platz.position.set(pose.x, world.terrainHeight(pose.x, pose.z) + 0.04, pose.z);
+      platz.receiveShadow = true;
+      root.add(platz);
     }
   }
-  // Gehwege mit Bordstein auf beiden Seiten
-  const walkMat = new THREE.MeshStandardMaterial({ color: '#a7a39b', roughness: 0.95 });
+
+  // ---------- Häuser an beiden Straßenseiten, die ganze Runde entlang ----------
   for (const sd of [-1, 1]) {
-    const pos = [];
-    const idx = [];
-    let n = 0;
-    for (let s = s0 + 15; s <= s0 + LEN - 15; s += 2) {
-      for (const lat of [SH + 0.2, SH + 2.6]) {
-        world.poseAt(s, sd * lat, pose);
-        pos.push(pose.x, Math.max(pose.h, world.terrainHeight(pose.x, pose.z)) + 0.12, pose.z);
-      }
-      if (n > 0) {
-        const a = (n - 1) * 2;
-        if (sd > 0) idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
-        else idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-      }
-      n++;
+    let s = 25 + rand() * 8;
+    while (s < L - 20) {
+      const name = pick();
+      const sc = GROESSE * (0.92 + rand() * 0.16);
+      const { w, d } = size(name, sc);
+      const lat = sd * (SH + 1.6 + d / 2 + rand() * 2.2);
+      world.poseAt(s + w / 2, lat, pose);
+      const r = Math.max(w, d) * 0.5;
+      if (frei(pose.x, pose.z, r * 0.9)) {
+        // leicht schief – alte Dörfer sind nie ganz gerade
+        const yaw = zurStrasse(sd) + VORNE[name] + (rand() - 0.5) * 0.18;
+        add(name, pose.x, pose.z, yaw, sc);
+        placed.push({ x: pose.x, z: pose.z, r: r * 0.9 });
+        footprints.push({ x: pose.x, z: pose.z, r: r + 2 });
+        // Kleinkram neben der Tür
+        if (rand() < 0.55) {
+          const off = (rand() < 0.5 ? -1 : 1) * (w / 2 + 0.8);
+          world.poseAt(s + w / 2 + off, sd * (SH + 1.4 + rand() * 1.2), pose);
+          const kram = ['Barrel', 'Crate', 'Hay', 'Package_1', 'Bags'][Math.floor(rand() * 5)];
+          if (world.clearOfPath(pose.x, pose.z, 0.6)) add(kram, pose.x, pose.z, rand() * 6, GROESSE);
+        }
+        s += w + 1.2 + rand() * 4;
+        // ab und zu eine Gasse oder ein Garten mit Zaun
+        if (rand() < 0.22) {
+          const gap = 9 + rand() * 9;
+          if (rand() < 0.6) {
+            for (let f = 0.8; f < gap - 0.8; f += 2.3) {
+              world.poseAt(s + f, sd * (SH + 1.3), pose);
+              if (world.clearOfPath(pose.x, pose.z, 0.3)) add('Fence', pose.x, pose.z, pose.heading + Math.PI / 2, GROESSE);
+            }
+          }
+          s += gap;
+        }
+      } else s += 4;
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setIndex(idx);
-    geo.computeVertexNormals();
-    const walk = new THREE.Mesh(geo, walkMat);
-    walk.receiveShadow = true;
-    root.add(walk);
   }
-  // Laternen und Wimpelketten über die Straße
-  for (let s = s0 + 30; s < s0 + LEN - 30; s += 28) {
-    for (const sd of [-1, 1]) place(lamp(), s + (sd > 0 ? 14 : 0), sd * (SH + 2.9));
+
+  // ---------- zweite und dritte Reihe: das Dorf zieht sich über die ganze Karte ----------
+  for (const reihe of [17, 31]) {
+    for (const sd of [-1, 1]) {
+      let s = rand() * 10;
+      while (s < L) {
+        const name = pick();
+        const sc = GROESSE * (0.9 + rand() * 0.2);
+        const { w, d } = size(name, sc);
+        world.poseAt(s, sd * (SH + reihe + rand() * 5), pose);
+        const r = Math.max(w, d) * 0.5;
+        if (rand() < (reihe < 20 ? 0.75 : 0.5) && frei(pose.x, pose.z, r)) {
+          // hintere Häuser stehen kreuz und quer – so entstehen Winkel und kleine Höfe
+          const yaw = zurStrasse(sd) + [0, Math.PI / 2, -Math.PI / 2, 0.3][Math.floor(rand() * 4)] + (rand() - 0.5) * 0.3;
+          add(name, pose.x, pose.z, yaw, sc);
+          placed.push({ x: pose.x, z: pose.z, r: r * 0.9 });
+          footprints.push({ x: pose.x, z: pose.z, r: r + 2 });
+        }
+        s += w + 3 + rand() * 9;
+      }
+    }
   }
+
+  // ---------- Mühle und Sägewerk etwas abseits ----------
+  for (const [name, f, lat] of [
+    ['Mill', 0.27, 30],
+    ['Mill', 0.71, -34],
+  ]) {
+    world.poseAt(L * f, lat + Math.sign(lat) * SH, pose);
+    if (frei(pose.x, pose.z, 6)) {
+      add(name, pose.x, pose.z, zurStrasse(Math.sign(lat)), GROESSE * 1.2);
+      placed.push({ x: pose.x, z: pose.z, r: 5 });
+      footprints.push({ x: pose.x, z: pose.z, r: 7 });
+    }
+  }
+
+  // ---------- Laternen am Straßenrand ----------
+  const lg = lampGeometry();
+  const holz = new THREE.MeshStandardMaterial({ color: '#4a3424', roughness: 0.9 });
+  const glas = new THREE.MeshStandardMaterial({ color: '#fff1c4', emissive: '#ffbf5a', emissiveIntensity: 1.4 });
+  const lampen = [];
+  for (let s = 18, k = 0; s < L - 10; s += 26, k++) {
+    const sd = k % 2 ? 1 : -1;
+    world.poseAt(s, sd * (SH + 0.7), pose);
+    if (!world.clearOfPath(pose.x, pose.z, 0.5)) continue;
+    // Arm zeigt über die Straße
+    lampen.push(
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(pose.x, world.terrainHeight(pose.x, pose.z), pose.z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), zurStrasse(sd)),
+        new THREE.Vector3(1, 1, 1),
+      ),
+    );
+  }
+  for (const [geo, m] of [
+    [lg.pole, holz],
+    [lg.arm, holz],
+    [lg.glas, glas],
+  ]) {
+    const im = new THREE.InstancedMesh(geo, m, lampen.length);
+    lampen.forEach((mx, i) => im.setMatrixAt(i, mx));
+    im.castShadow = m === holz;
+    root.add(im);
+  }
+
+  // ---------- Wimpelketten quer über die Straße ----------
   const flagCols = ['#d62839', '#f6f6f6', '#2f7cf6', '#f2d14b', '#2bb24c'];
-  for (let s = s0 + 45; s < s0 + LEN - 40; s += 55) {
+  for (const f of [0.08, platzS / L, 0.62, 0.9]) {
     const a = {};
     const b = {};
-    world.poseAt(s, -(SH + 2.9), a);
-    world.poseAt(s, SH + 2.9, b);
-    const pa = new THREE.Vector3(a.x, a.h + 5.2, a.z);
-    const pb = new THREE.Vector3(b.x, b.h + 5.2, b.z);
+    world.poseAt(L * f, -(SH + 0.7), a);
+    world.poseAt(L * f, SH + 0.7, b);
+    const pa = new THREE.Vector3(a.x, a.h + 4.6, a.z);
+    const pb = new THREE.Vector3(b.x, b.h + 4.6, b.z);
     const mid = pa.clone().lerp(pb, 0.5);
-    mid.y -= 0.9;
+    mid.y -= 0.8;
     const curve = new THREE.QuadraticBezierCurve3(pa, mid, pb);
     root.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.015, 4), new THREE.MeshStandardMaterial({ color: '#333' })));
-    for (let i = 1; i < 18; i++) {
-      const p = curve.getPoint(i / 18);
-      const flag = new THREE.Mesh(
-        new THREE.ConeGeometry(0.18, 0.45, 3),
-        new THREE.MeshStandardMaterial({ color: flagCols[i % flagCols.length], side: THREE.DoubleSide }),
-      );
+    for (let i = 1; i < 16; i++) {
+      const p = curve.getPoint(i / 16);
+      const flag = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 3), new THREE.MeshStandardMaterial({ color: flagCols[i % flagCols.length], side: THREE.DoubleSide }));
       flag.position.copy(p);
       flag.position.y -= 0.25;
       flag.rotation.x = Math.PI;
       root.add(flag);
     }
   }
-  // Ortsschilder am Ein- und Ausgang (rechts in Fahrtrichtung)
+
+  // ---------- Ortsschild am Start ----------
   {
-    // Schild schaut der ankommenden Fahrerin entgegen
-    for (const [s, crossed] of [
-      [s0 + 8, false],
-      [s0 + LEN - 8, true],
-    ]) {
-      const sign = townSign(VILLAGE_NAME, crossed);
-      place(sign, s, SH + 1.2);
-      world.poseAt(s, 0, pose);
-      sign.rotation.y = Math.atan2(-pose.tx, -pose.tz);
+    world.poseAt(L - 30, SH + 1.1, pose);
+    const sign = townSign(VILLAGE_NAME, false);
+    sign.position.set(pose.x, world.terrainHeight(pose.x, pose.z), pose.z);
+    sign.rotation.y = Math.atan2(-pose.tx, -pose.tz);
+    root.add(sign);
+  }
+
+  // alle Modelle als InstancedMesh in die Szene – aufgeteilt in Bezirke von 90 m,
+  // damit nur gezeichnet wird, was die Kamera gerade sieht (spart viel Leistung, wichtig fürs iPad)
+  const BEZIRK = 90;
+  for (const [name, mats] of inst) {
+    const zellen = new Map();
+    for (const m of mats) {
+      const key = `${Math.floor(m.elements[12] / BEZIRK)},${Math.floor(m.elements[14] / BEZIRK)}`;
+      if (!zellen.has(key)) zellen.set(key, []);
+      zellen.get(key).push(m);
+    }
+    for (const liste of zellen.values()) {
+      const im = new THREE.InstancedMesh(M[name], mat, liste.length);
+      liste.forEach((m, i) => im.setMatrixAt(i, m));
+      im.castShadow = true;
+      im.receiveShadow = true;
+      im.computeBoundingSphere();
+      root.add(im);
     }
   }
-  // Büsche und Bäume am Gehweg wegnehmen
-  for (let s = s0 + 10; s <= s0 + LEN - 10; s += 4) {
-    for (const sd of [-1, 1]) {
-      world.poseAt(s, sd * (SH + 1.6), pose);
-      footprints.push({ x: pose.x, z: pose.z, r: 2.4 });
-    }
-  }
-  return { group: root, footprints, s0, len: LEN };
+  // Häuser sind fest: daran prallt man ab (siehe ride.js)
+  return { group: root, footprints, platzS, solid: placed.filter((p) => p.r > 0) };
 }

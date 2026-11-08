@@ -18,7 +18,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Online } from './online.js';
 import { createLobbyScene } from './scenes/lobby.js';
 import { createControlScene, applyControl, savedControl, guess } from './scenes/control.js';
-import { loadNature } from './nature.js';
+import { loadNature, loadVillageModels } from './nature.js';
 import { Bike } from './bike.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
@@ -108,7 +108,7 @@ async function boot() {
     worlds: { road: world },
     // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
     useWorld(kind) {
-      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature);
+      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature, kind === 'tt' ? this.dorf : null);
       const w = this.worlds[kind];
       if (w === this.world) return;
       this.world.scene.remove(this.bike.root);
@@ -118,6 +118,11 @@ async function boot() {
       this.npc.s = w.length * 0.1;
       // Auf dem schmalen Waldweg fährt der Vorführ-Fahrer weiter in der Mitte
       this.npc.lateral = w.cx ? 0.5 : 1.5;
+    },
+    // Welt vorbereiten: fürs Zeitfahren erst die Dorf-Modelle laden (nur beim ersten Mal)
+    async prepareWorld(kind) {
+      if (kind === 'tt' && !this.dorf) this.dorf = await loadVillageModels();
+      this.useWorld(kind);
     },
     time: 0,
     scenes: {},

@@ -11,7 +11,7 @@ export const MODES = [
 
 export const modeName = (id) => (MODES.find((m) => m.id === id) || MODES[0]).name;
 // Zeitfahren fährt auf der Landstraße, Cycle Cross im Wald
-export const worldOf = (mode) => (mode === 'cx' ? 'cx' : 'road');
+export const worldOf = (mode) => (mode === 'cx' ? 'cx' : mode === 'tt' ? 'tt' : 'road');
 
 export function createModeScene(app) {
   let root;
@@ -23,32 +23,34 @@ export function createModeScene(app) {
     root.querySelectorAll('.mode-card').forEach((c, i) => c.classList.toggle('selected', i === index));
     // Das Rad im Hintergrund zeigt gleich die passenden Reifen
     app.bike.setTires(MODES[index].id);
-    if (app.world.village) app.world.village.visible = MODES[index].id === 'tt';
     if (!silent) {
       app.audio.nav();
       app.input.rumble(0.15, 30);
     }
   }
 
-  function choose() {
+  async function choose() {
     if (busy) return;
     app.mode = MODES[index].id;
     app.audio.select();
     app.input.rumble(0.35, 80);
-    if (app.worlds[worldOf(app.mode)]) {
-      app.useWorld(worldOf(app.mode));
+    const kind = worldOf(app.mode);
+    if (app.worlds[kind]) {
+      app.useWorld(kind);
       app.go('menu');
       return;
     }
-    // Der Wald wird beim ersten Mal gebaut: kurz einen Hinweis zeigen, damit es nicht hängt
+    // Wald bzw. Dorf werden beim ersten Mal gebaut: kurz einen Hinweis zeigen, damit es nicht hängt
     busy = true;
-    root.querySelector('.mode-building').classList.add('show');
-    setTimeout(() => {
-      app.useWorld(worldOf(app.mode));
-      busy = false;
-      app.go('menu');
-    }, 60);
+    const note = root.querySelector('.mode-building');
+    note.textContent = kind === 'tt' ? 'Das Dorf wird gebaut …' : 'Der Wald wird gebaut …';
+    note.classList.add('show');
+    await new Promise((r) => setTimeout(r, 60));
+    await app.prepareWorld(kind);
+    busy = false;
+    app.go('menu');
   }
+
 
   return {
     enter(params = {}) {

@@ -376,8 +376,6 @@ export function createRideScene(app) {
       app.bike.setPlate(char.number, char.name);
       app.bike.applyLook(char);
       app.bike.setTires(app.mode);
-      // Dorf gibt es nur beim Zeitfahren
-      if (app.world.village) app.world.village.visible = app.mode === 'tt';
 
       // auf dem schmalen Waldweg weiter in der Mitte starten
       // Online: der Gast startet daneben, damit niemand im anderen steht
@@ -636,6 +634,20 @@ export function createRideScene(app) {
         }
       }
 
+      // Dorf: Häuser sind fest – man rutscht an der Wand entlang statt hindurchzufahren
+      if (w.solid) {
+        for (const b of w.solid) {
+          const dx = st.x - b.x;
+          const dz = st.z - b.z;
+          const d = Math.hypot(dx, dz);
+          const rr = b.r + 0.5;
+          if (d < rr && d > 0.001) {
+            st.x = b.x + (dx / d) * rr;
+            st.z = b.z + (dz / d) * rr;
+            st.speed *= 0.9;
+          }
+        }
+      }
       // Weltgrenze
       const r = Math.hypot(st.x, st.z);
       if (r > 830) {

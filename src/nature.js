@@ -3,7 +3,7 @@
 // wir machen daraus Vertex-Farben, damit jeder Baumtyp mit nur einem Material gezeichnet wird.
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const BASE = 'modelle/natur/';
 
@@ -12,26 +12,28 @@ const SETS = {
   herbst: { common: 'CommonTree_Autumn', birch: 'BirchTree_Autumn', willow: 'Willow_Autumn', pine: 'PineTree', pineAlt: 'PineTree_Autumn' },
 };
 
-function parseMtl(text) {
+function parseMtl(text, hell = 1.6) {
   const colors = {};
   let name = null;
   for (const line of text.split('\n')) {
     const p = line.trim().split(/\s+/);
     if (p[0] === 'newmtl') name = p[1];
     // Werte aus Blender sind linear und recht dunkel -> etwas aufhellen, damit die Farben leuchten
-    else if (p[0] === 'Kd' && name) colors[name] = new THREE.Color(Math.min(1, p[1] * 1.6), Math.min(1, p[2] * 1.6), Math.min(1, p[3] * 1.6));
+    else if (p[0] === 'Kd' && name) colors[name] = new THREE.Color(Math.min(1, p[1] * hell), Math.min(1, p[2] * hell), Math.min(1, p[3] * hell));
   }
   return colors;
 }
 
 // Eine OBJ-Datei -> eine Geometrie mit Farben, unten auf y = 0, mittig
-async function loadModel(name) {
+// base = Ordner, hell = Aufhellung der Farben, fuss = am Stammfuß ausrichten (Bäume) statt an der Mitte (Häuser)
+export async function loadModel(name, base = BASE, hell = 1.6, fuss = true) {
   const [objText, mtlText] = await Promise.all([
-    fetch(BASE + name + '.obj').then((r) => r.text()),
-    fetch(BASE + name + '.mtl').then((r) => r.text()),
+    fetch(base + name + '.obj').then((r) => r.text()),
+    fetch(base + name + '.mtl').then((r) => r.text()),
   ]);
-  const colors = parseMtl(mtlText);
-  const group = new OBJLoader().parse(objText);
+  const colors = parseMtl(mtlText, hell);
+  // Einzelne Linien („l …“) entfernen – sonst macht der Loader aus dem ganzen Modell Linien
+  const group = new OBJLoader().parse(objText.replace(/^l .*$/gm, ''));
   const parts = [];
   group.traverse((o) => {
     if (!o.isMesh) return;
@@ -71,11 +73,13 @@ async function loadModel(name) {
       n++;
     }
   }
-  const cx = n ? sx / n : (bb.min.x + bb.max.x) / 2;
-  const cz = n ? sz / n : (bb.min.z + bb.max.z) / 2;
+  const cx = n && fuss ? sx / n : (bb.min.x + bb.max.x) / 2;
+  const cz = n && fuss ? sz / n : (bb.min.z + bb.max.z) / 2;
   geo.translate(-cx, -bb.min.y, -cz);
-  geo.computeBoundingBox();
-  return geo;
+  // gleiche Eckpunkte zusammenlegen: viel weniger Arbeit für die Grafikkarte (wichtig fürs iPad)
+  const out = mergeVertices(geo, 1e-4);
+  out.computeBoundingBox();
+  return out;
 }
 
 const range = (name, n) => Array.from({ length: n }, (_, i) => `${name}_${i + 1}`);
@@ -110,6 +114,21 @@ export async function loadNature() {
     };
   } catch (e) {
     console.warn('Natur-Modelle konnten nicht geladen werden, nutze einfache Bäume.', e);
+    return null;
+  }
+}
+
+// Dorf fürs Zeitfahren: "Medieval Village Pack" von Quaternius (CC0), liegt in public/modelle/dorf
+export const DORF_HAEUSER = ['House_1', 'House_2', 'House_3', 'House_4', 'Inn', 'Blacksmith', 'Stable', 'Sawmill', 'Mill', 'Bell_Tower'];
+export const DORF_DINGE = ['Well', 'MarketStand_1', 'MarketStand_2', 'Cart', 'Barrel', 'Crate', 'Fence', 'Bench_1', 'Gazebo', 'Hay', 'Bags', 'Package_1', 'Bonfire_Lit'];
+export async function loadVillageModels() {
+  try {
+    const base = 'modelle/dorf/';
+    const all = [...DORF_HAEUSER, ...DORF_DINGE];
+    const geos = await Promise.all(all.map((n) => loadModel(n, base, 1.9, false)));
+    return Object.fromEntries(all.map((n, i) => [n, geos[i]]));
+  } catch (e) {
+    console.warn('Dorf-Modelle konnten nicht geladen werden.', e);
     return null;
   }
 }
