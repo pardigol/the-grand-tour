@@ -120,7 +120,9 @@ export default {
       return antwort(400, { ok: false, fehler: 'Ungültige Daten' }, h);
     }
     const text = String(daten.text || '').trim().slice(0, MAX_TEXT);
-    const von = String(daten.von || 'Paul').trim().slice(0, MAX_NAME) || 'Paul';
+    // nur der Vorname (das Projekt ist öffentlich) – Zusätze in Klammern wie „(Test)“ bleiben erhalten
+    const roh = String(daten.von || 'Paul').trim().slice(0, MAX_NAME);
+    const von = (roh.match(/^[^\s(]+(\s*\([^)]*\))?/) || ['Paul'])[0] || 'Paul';
     if (text.length < 3) return antwort(400, { ok: false, fehler: 'Wunsch ist zu kurz' }, h);
 
     // GitHub-Issue anlegen
