@@ -50,7 +50,7 @@ Xbox- und PlayStation-Controller (PS4/PS5) funktionieren beide. Bei einem PlaySt
 | Buchstabe löschen (Namenseingabe) | **X** | **□** | Rücktaste |
 | Leerzeichen (Namenseingabe) | **Y** | **△** | Leertaste |
 | Charaktererstellung: Bereich wechseln (Name & Nummer · Aussehen · Rennrad) | **LB / RB** oder **LT / RT** | **L1 / R1** oder **L2 / R2** | Bild ↓ / Bild ↑ |
-| Treten (halten) | **A** | **✕** | W / ↑ / Leertaste |
+| Treten (halten) | **A** | **✕** | W / ↑ |
 | Dauertreten an/aus | **B** | **○** | T |
 | Fahrradklingel (Kling-Kling) | – | – | K |
 | Bremsen | **Y** | **△** | S / ↓ |
