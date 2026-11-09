@@ -382,18 +382,18 @@ export class Bike {
     this.stripe = tube(V(0, 0.812, -0.15), V(0, 0.845, 0.2), 0.0175, m.accent, 0.0175);
     f.add(this.stripe);
     // Sattelstütze und Sattel
-    f.add(tube(ST, V(0, 0.92, -0.265), 0.0135, m.black));
+    f.add(tube(ST, V(0, 0.88, -0.265), 0.0135, m.black));
     // Rotes Rücklicht an der Sattelstütze
     const licht = new THREE.Mesh(
       new THREE.BoxGeometry(0.03, 0.045, 0.02),
       new THREE.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff0000', emissiveIntensity: 0.8 })
     );
-    licht.position.set(0, 0.87, -0.285);
+    licht.position.set(0, 0.83, -0.285);
     f.add(licht);
     const saddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.18, 4, 8), m.black);
     saddle.rotation.x = Math.PI / 2 + 0.06;
     saddle.scale.set(1.2, 1, 0.35);
-    saddle.position.set(0, 0.935, -0.25);
+    saddle.position.set(0, 0.895, -0.25);
     saddle.castShadow = true;
     f.add(saddle);
     // Trinkflasche am Sitzrohr, damit der Schriftzug auf dem Unterrohr frei bleibt
@@ -666,7 +666,7 @@ export class Bike {
   buildRider(m) {
     const r = (this.rider = new THREE.Group());
     this.root.add(r);
-    this.hip = V(0, 0.98, -0.2);
+    this.hip = V(0, 0.94, -0.2); // etwas tiefer sitzen (Wunsch)
     // tief gebeugte, sportliche Haltung: Schultern weit vorne und tief über dem Lenker
     this.shoulder = V(0, 1.2, 0.25);
 
