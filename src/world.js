@@ -1511,8 +1511,8 @@ export class World {
       k++;
     }
 
-    // Gelbe Zielkamera-Kabine kurz hinter der Linie
-    for (const lat of [this.SH + 4.5, this.SH + 7, -(this.SH + 4.5)]) {
+    // Gelbe Zielkamera-Kabine kurz hinter der Linie (im Cycle Cross nicht, Paul wollte sie dort weg)
+    for (const lat of this.cx ? [] : [this.SH + 4.5, this.SH + 7, -(this.SH + 4.5)]) {
       this.poseAt(6, lat, pose);
       if (this.solid && this.solid.some((b) => Math.hypot(b.x - pose.x, b.z - pose.z) < b.r + 3)) continue;
       if (!this.clearOfPath(pose.x, pose.z, 2.5)) continue;
