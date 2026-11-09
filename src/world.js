@@ -862,7 +862,7 @@ export class World {
     const lim = this.cx ? 520 : 860;
     let tries = 0;
     // Dorf: weniger Bäume, die Häuser brauchen Platz
-    const maxTrees = this.cx ? 5500 : this.tt ? 1300 : 2600;
+    const maxTrees = this.cx ? 5500 : this.tt ? 2600 : 2600;
     while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
@@ -870,7 +870,7 @@ export class World {
       const dens = this.n3(x * 0.006 + 20, z * 0.006);
       if (!this.cx && dens < 0.05 && rand() > 0.08) continue;
       const nr = this.nearest(x, z);
-      if (nr.found && nr.dist < (this.cx ? this.shArr[nr.i] + 1.6 : this.tt ? 26 : 11)) continue;
+      if (nr.found && nr.dist < (this.cx ? this.shArr[nr.i] + 1.6 : this.tt ? 15 : 11)) continue;
       if (this.lakeAt(x, z, 6)) continue;
       const h = this.terrainHeight(x, z);
       if (h > 120) continue;
