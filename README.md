@@ -224,3 +224,4 @@ src/
 - 📷 **Fotomodus** mit freier Kamera
 - 🔊 Zuschauer am Straßenrand, Glocken und Jubel
 - 💾 Bestenliste mit allen Rundenzeiten
+- Schaltung beeinflusst die Fahrleistung leicht (Dura-Ace/Red AXS am besten, 105 in der Mitte).

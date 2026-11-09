@@ -5,6 +5,7 @@ import { CONFIG } from '../config.js';
 import { updateCharacter, loadCharacters } from '../storage.js';
 import { el, esc, btn, formatTime } from './common.js';
 import { WHEEL_R } from '../bike.js';
+import { groupsetById } from '../brands.js';
 import { clamp, damp } from '../noise.js';
 import { Minimap } from '../minimap.js';
 import { Rivals, RIVALS } from '../rivals.js';
@@ -600,7 +601,9 @@ export function createRideScene(app) {
       const R = CONFIG.rollen[app.mode === 'cx' ? 'cx' : 'rennrad'];
       const roll = ground.surface === 'road' ? R.asphalt : ground.surface === 'gravel' ? R.schotter : R.wiese;
       const boost = sprinting ? CONFIG.sprint.kraft : 1;
-      const drive = Math.min((CONFIG.riderPower * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
+      // Bessere Schaltung = etwas mehr Schwung (105 ist die Mitte)
+      const schaltKraft = groupsetById(char?.groupset).kraft || 1;
+      const drive = Math.min((CONFIG.riderPower * schaltKraft * boost) / Math.max(v, 2.5), 340 * boost) * throttle;
       // Windschatten: dicht hinter einem Gegner bis zu 40 % weniger Luftwiderstand
       const dr = rivals.draftFor(st.x, st.z);
       st.draft = damp(st.draft || 0, dr.strength, 5, dt);

@@ -88,5 +88,10 @@
     "status": "umgesetzt",
     "info": "Du sitzt jetzt etwas tiefer: Sattel und Fahrer sind 4 cm weiter unten – schau es dir beim Fahren oder im Fahrer-Editor an!",
     "zeit": "2026-11-09T18:15:00Z"
+  },
+  "20": {
+    "status": "umgesetzt",
+    "info": "Die Schaltung zählt jetzt: Dura-Ace und Red AXS machen dich am schnellsten, 105 ist in der Mitte – such sie im Fahrer-Editor unter „Schaltung“!",
+    "zeit": "2026-11-09T17:52:11Z"
   }
 }

@@ -42,14 +42,15 @@ export const PAINTS = [
 ];
 
 // Schaltgruppen: Farbe von Kurbel, Kettenblatt und Schaltwerk
+// kraft: wie gut die Schaltung ist (1 = normal, 105 ist die Mitte). Dura-Ace und Red AXS sind am besten.
 // ✏️ Weitere Gruppen einfach ergänzen
 export const GROUPSETS = [
-  { id: '105', name: '105', maker: 'Shimano', crank: '#26272c', ring: '#1b1c20', accent: '#b9bdc4' },
-  { id: 'ultegra', name: 'Ultegra', maker: 'Shimano', crank: '#55585f', ring: '#3d4046', accent: '#d5d8dd' },
-  { id: 'duraace', name: 'Dura-Ace', maker: 'Shimano', crank: '#2e3036', ring: '#a9aeb6', accent: '#e8eaee' },
-  { id: 'rival', name: 'Rival AXS', maker: 'SRAM', crank: '#141416', ring: '#141416', accent: '#6f747c' },
-  { id: 'force', name: 'Force AXS', maker: 'SRAM', crank: '#3a3d43', ring: '#2a2c31', accent: '#a3a8b0' },
-  { id: 'red', name: 'Red AXS', maker: 'SRAM', crank: '#101012', ring: '#101012', accent: '#c8102e' },
+  { id: '105', name: '105', maker: 'Shimano', crank: '#26272c', ring: '#1b1c20', accent: '#b9bdc4', kraft: 1.0 },
+  { id: 'ultegra', name: 'Ultegra', maker: 'Shimano', crank: '#55585f', ring: '#3d4046', accent: '#d5d8dd', kraft: 1.02 },
+  { id: 'duraace', name: 'Dura-Ace', maker: 'Shimano', crank: '#2e3036', ring: '#a9aeb6', accent: '#e8eaee', kraft: 1.05 },
+  { id: 'rival', name: 'Rival AXS', maker: 'SRAM', crank: '#141416', ring: '#141416', accent: '#6f747c', kraft: 0.97 },
+  { id: 'force', name: 'Force AXS', maker: 'SRAM', crank: '#3a3d43', ring: '#2a2c31', accent: '#a3a8b0', kraft: 1.02 },
+  { id: 'red', name: 'Red AXS', maker: 'SRAM', crank: '#101012', ring: '#101012', accent: '#c8102e', kraft: 1.05 },
 ];
 
 // Reifenfarben fürs Zeitfahrrad
