@@ -28,7 +28,7 @@ export const CONFIG = {
 
   // Der Fahrer auf dem Startbildschirm
   // true = echte Fahrerin (Shannon von Mixamo) statt der einfachen Figur
-  fahrerModell: true,
+  fahrerModell: false,
   titleRider: { number: 11, name: 'PAUL', brand: 'canyon' },
 
   // Musik

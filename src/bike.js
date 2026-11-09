@@ -690,10 +690,7 @@ export class Bike {
     const headGeo = new THREE.SphereGeometry(0.1, 20, 16);
     headGeo.scale(0.95, 1.08, 1.06);
     const headMesh = new THREE.Mesh(headGeo, m.skin);
-    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), m.skin);
-    chin.scale.set(1.1, 0.8, 1);
-    chin.position.set(0, -0.07, 0.045);
-    this.head.add(chin);
+    // (kein extra Kinn mehr – der Kopf ist ein runder Ball)
     headMesh.castShadow = true;
     this.head.add(headMesh);
     const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.125, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), m.helmet);
