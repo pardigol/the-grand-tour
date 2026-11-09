@@ -406,7 +406,7 @@ export class Bike {
 
   makeWheel(m, rimMat) {
     const g = new THREE.Group();
-    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.322, 0.018, 10, 56), m.tire);
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.317, 0.023, 14, 64), m.tire);
     tire.rotation.y = Math.PI / 2;
     tire.castShadow = true;
     g.add(tire);
@@ -432,17 +432,23 @@ export class Bike {
       rim.position.x = s * 0.012;
       g.add(rim);
     }
+    // Felgenrand: runde Kante außen und innen, damit die Felge nicht mehr flach wirkt
+    for (const rr of [0.3, 0.234]) {
+      const edge = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.006, 6, 56), m.alu);
+      edge.rotation.y = Math.PI / 2;
+      g.add(edge);
+    }
     const band = new THREE.Mesh(new THREE.CylinderGeometry(0.306, 0.306, 0.024, 56, 1, true), m.black);
     band.rotation.z = Math.PI / 2;
     g.add(band);
     const spokes = [];
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2;
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
       const side = i % 2 ? 1 : -1;
       const start = V(side * 0.03, Math.cos(a) * 0.025, Math.sin(a) * 0.025);
       const end = V(side * 0.006, Math.cos(a) * 0.234, Math.sin(a) * 0.234);
       const len = start.distanceTo(end);
-      const sg = new THREE.CylinderGeometry(0.0016, 0.0016, len, 3);
+      const sg = new THREE.CylinderGeometry(0.0022, 0.0022, len, 4);
       sg.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, end.clone().sub(start).normalize()));
       sg.translate((start.x + end.x) / 2, (start.y + end.y) / 2, (start.z + end.z) / 2);
       spokes.push(sg);
@@ -451,6 +457,17 @@ export class Bike {
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.1, 12), m.alu);
     hub.rotation.z = Math.PI / 2;
     g.add(hub);
+    // Nabenflansche (die kleinen Scheiben, an denen die Speichen hängen)
+    for (const sd of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.008, 16), m.alu);
+      fl.rotation.z = Math.PI / 2;
+      fl.position.x = sd * 0.03;
+      g.add(fl);
+    }
+    // Ventil am Reifen
+    const valve = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.03, 6), m.alu);
+    valve.position.set(0, 0.29, 0);
+    g.add(valve);
     return g;
   }
 
