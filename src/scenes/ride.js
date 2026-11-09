@@ -568,7 +568,8 @@ export function createRideScene(app) {
           st.sprintT = 0;
         }
       } else if (st.sprint === 'charging') {
-        st.sprintT += dt;
+        // Im Windschatten lädt der Sprint-Balken bis zu 1,5-mal so schnell (st.draft = 0…1)
+        st.sprintT += dt * (1 + (sp.windschattenBonus - 1) * (st.draft || 0));
         if (st.sprintT >= sp.aufladen) {
           st.sprint = 'ready';
           app.audio.nav();
