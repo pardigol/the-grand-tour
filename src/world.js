@@ -399,7 +399,7 @@ export class World {
     if (this.cx) {
       const rr = mulberry32(99);
       let tries = 0;
-      while (this.rocks.length < 16 && tries++ < 800) {
+      while (this.rocks.length < 0 && tries++ < 800) { // Wunsch von Paul: keine Felsblöcke mehr im Cycle Cross
         const i = Math.floor(rr() * N);
         const s = i * this.ds;
         if (Math.min(i, N - i) * this.ds < 50) continue;
@@ -899,7 +899,7 @@ export class World {
       const gPineCol = [];
       const pose = {};
       for (const side of [-1, 1]) {
-        for (let s = rand() * 6; s < this.length; s += 6 + rand() * 6) {
+        for (let s = rand() * 6; s < this.length; s += 4 + rand() * 5) {
           const lat = side * (this.shAt(s) + 1.0 + rand() * 2.5);
           this.poseAt(s, lat, pose);
           const h = this.terrainHeight(pose.x, pose.z);
