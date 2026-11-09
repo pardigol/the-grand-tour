@@ -157,7 +157,7 @@ export function buildVillage(world, M) {
     }
     // Pflaster für den ganzen Platz, Gras dort wegräumen
     world.poseAt(platzS, platzSeite * (SH + 9.5), pose);
-    placed.push({ x: pose.x, z: pose.z, r: 13 });
+    placed.push({ x: pose.x, z: pose.z, r: 13, flach: true }); // nur Pflaster: Häuser halten Abstand, aber man fährt hindurch
     footprints.push({ x: pose.x, z: pose.z, r: 15 });
     if (world.roadTex) {
       const tex = world.roadTex.clone();
@@ -331,5 +331,5 @@ export function buildVillage(world, M) {
     }
   }
   // Häuser sind fest: daran prallt man ab (siehe ride.js)
-  return { group: root, footprints, platzS, solid: placed.filter((p) => p.r > 0) };
+  return { group: root, footprints, platzS, solid: placed.filter((p) => p.r > 0 && !p.flach) };
 }
