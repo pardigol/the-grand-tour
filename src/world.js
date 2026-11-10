@@ -805,6 +805,35 @@ export class World {
       new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.6 }),
     );
     roadMesh.receiveShadow = true;
+    // Rennrad-Strecke: echte Asphalt-Textur (Road011A von ambientCG, CC0) mit gelben Linien.
+    // Bis sie geladen ist, bleibt die gemalte Straße.
+    if (!this.cx && !this.tt) {
+      const L = new THREE.TextureLoader();
+      const mat = roadMesh.material;
+      const prep = (t, srgb) => {
+        t.wrapS = THREE.ClampToEdgeWrapping;
+        t.wrapT = THREE.RepeatWrapping;
+        t.anisotropy = 8;
+        if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+        // Textur ist quadratisch: ein Bild = 14 m Straße (Gerüst-UV: 12 m)
+        t.repeat.set(1, 12 / 14);
+        return t;
+      };
+      L.load('texturen/strasse/farbe.jpg', (t) => {
+        mat.map = prep(t, true);
+        mat.needsUpdate = true;
+      });
+      L.load('texturen/strasse/normal.jpg', (t) => {
+        mat.normalMap = prep(t, false);
+        mat.normalScale.set(0.8, 0.8);
+        mat.needsUpdate = true;
+      });
+      L.load('texturen/strasse/rauheit.jpg', (t) => {
+        mat.roughnessMap = prep(t, false);
+        mat.roughness = 1;
+        mat.needsUpdate = true;
+      });
+    }
     const shMesh = new THREE.Mesh(
       mk(sh, shUv, shIdx),
       new THREE.MeshStandardMaterial({ map: gravel, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1 }),

@@ -794,6 +794,10 @@ export function createStoryScene(app) {
       const crankRate = tritt || (rennen && st.v > 1) || st.phase === 'anfahrt' && st.v > 0.3 ? Math.max(st.v / WHEEL_R / GEAR, tritt ? 3 : 0) : 0;
       if (crankRate > 0) app.audio.freewheel(dt, 0);
       else app.audio.freewheel(dt, Math.min(55, (st.v / (2 * Math.PI * WHEEL_R)) * 24));
+      // Wiegetritt: im Schlusssprint und beim Versuch auszureißen
+      app.bike.stand = (st.phase === 'sprint' && st.sprint) || st.surge > 0 ? 1 : 0;
+      // Jonas sprintet auch im Stehen
+      leader().r.bike.stand = st.phase === 'sprint' && st.sprintT > 0.3 ? 1 : 0;
       placeMe(dt, crankRate);
       updateTeam(dt);
       updateFeld(dt);
@@ -824,6 +828,7 @@ export function createStoryScene(app) {
 
     exit() {
       app.input.touchRide = false;
+      app.bike.stand = 0;
       team?.hide();
       if (feld) feld.visible = false;
       if (deko) deko.visible = false;

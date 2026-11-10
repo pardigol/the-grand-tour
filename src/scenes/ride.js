@@ -576,6 +576,8 @@ export function createRideScene(app) {
         }
       }
       const sprinting = st.sprint === 'active';
+      // beim Sprint aus dem Sattel gehen (Wiegetritt)
+      app.bike.stand = sprinting && st.phase !== 'finished' ? 1 : 0;
 
       // Beim Bremsen wird nicht getreten, Dauertreten und Sprint laufen danach weiter
       let throttle = inp.brake > 0.1 ? 0 : st.cruise || sprinting ? 1 : inp.throttle;
@@ -888,6 +890,7 @@ export function createRideScene(app) {
 
     exit() {
       app.input.touchRide = false;
+      app.bike.stand = 0;
       clearConfetti();
       rivals.hide();
       // Rennen verlassen (nicht neu starten): Verbindung beenden, Gegner entfernen

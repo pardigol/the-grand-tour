@@ -151,7 +151,7 @@ export class RiderModel {
 
   // Knochen bekommen Werte aus dem Rad (alles in Rad-Koordinaten, Meter)
   // pedals[0] = rechtes Pedal, pedals[1] = linkes Pedal; hands[0] = rechte, hands[1] = linke Hand
-  pose({ hip, pedals, angles, hands, bob, aero = false }) {
+  pose({ hip, pedals, angles, hands, bob, aero = false, stand = 0 }) {
     const S = 1 / SCALE;
     const B = this.bones;
     this.scene.updateMatrixWorld(true);
@@ -170,7 +170,12 @@ export class RiderModel {
     // Becken nach vorne gekippt, Rücken rund nach vorne, Kopf schaut nach vorne
     const dir = (a) => _d.set(0, Math.cos(a), Math.sin(a));
     // Zeitfahren: Rücken fast waagerecht, Kopf tief zwischen den Schultern
-    const A = aero ? [0.75, 1.3, 1.45, 1.5, 1.0, 0.45] : [0.55, 0.95, 1.1, 1.2, 0.6, 0.12];
+    let A = aero ? [0.75, 1.3, 1.45, 1.5, 1.0, 0.45] : [0.55, 0.95, 1.1, 1.2, 0.6, 0.12];
+    // Wiegetritt: Becken aufrechter, Oberkörper über dem Lenker
+    if (stand > 0) {
+      const S2 = [0.2, 0.85, 1.05, 1.15, 0.55, 0.1];
+      A = A.map((a, i) => a + (S2[i] - a) * stand);
+    }
     this.aim('Hips', dir(A[0]));
     this.aim('Spine', dir(A[1]));
     this.aim('Spine1', dir(A[2]));
@@ -235,6 +240,33 @@ export class RiderModel {
     }
     if (jersey && this.tinted.Shirt) this.tinted.Shirt.color.set(jersey);
     if (shorts && this.tinted.Shorts) this.tinted.Shorts.color.set(shorts);
+  }
+
+  // Rennradschuhe an die Füße: Turnschuhe ausblenden, neuen Schuh im Fuß-Koordinatensystem anbringen.
+  // Fuß-Rahmen (aus aim): y = Knöchel -> Fußballen, x = seitlich, -z = oben.
+  attachShoes(make) {
+    if (this.meshes.Shoes) this.meshes.Shoes.visible = false;
+    const lenM = this.foot * SCALE; // Knöchel bis Fußballen in Metern
+    const a = 0.42; // Sohle ist flacher als die Linie Knöchel–Ballen
+    const up = new THREE.Vector3(0, -Math.sin(a), -Math.cos(a));
+    const fwd = new THREE.Vector3(0, Math.cos(a), -Math.sin(a));
+    const basis = new THREE.Matrix4().makeBasis(X, up, fwd);
+    this.shoes = [];
+    for (const n of ['LeftFoot', 'RightFoot']) {
+      const bone = this.bones[n];
+      const r = this.rest.get(bone);
+      if (!bone || !r) continue;
+      const wrap = new THREE.Group();
+      wrap.quaternion.copy(r.off).invert();
+      wrap.scale.setScalar(1 / SCALE);
+      const shoe = make();
+      shoe.quaternion.setFromRotationMatrix(basis);
+      // Schuhplatte unter dem Fußballen (der Ballen liegt 2,6 cm über dem Pedal)
+      shoe.position.set(0, lenM, 0).addScaledVector(up, -0.026);
+      wrap.add(shoe);
+      bone.add(wrap);
+      this.shoes.push(shoe);
+    }
   }
 
   // An Knochen etwas anhängen (Helm, Rückennummer); Maße in Metern

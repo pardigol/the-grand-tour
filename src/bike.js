@@ -1,6 +1,7 @@
 // Prozedurales Rennrad mit Fahrer. Vorwärts = +z, oben = +y, rechts vom Fahrer = -x.
 import * as THREE from 'three';
 import { RiderModel } from './rider-model.js';
+import { buildShoe, shoeMaterials } from './shoe.js';
 import { groupsetById } from './brands.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
@@ -15,6 +16,8 @@ const _p = new THREE.Vector3();
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _k = new THREE.Vector3();
+const _xAxis = new THREE.Vector3(1, 0, 0);
+const _standOff = new THREE.Vector3();
 
 export const WHEEL_R = 0.34;
 const BB = V(0, 0.27, -0.08);
@@ -788,6 +791,8 @@ export class Bike {
       elbow: new THREE.Mesh(new THREE.SphereGeometry(0.041, 10, 8), m.skin),
       cap: new THREE.Mesh(new THREE.SphereGeometry(0.054, 12, 8), m.jerseyPlain),
     }));
+    // Rennradschuhe: Riemen und Zierstreifen in Trikotfarbe
+    this.shoeMats = { ...shoeMaterials(), accent: m.jerseyPlain };
     this.legs = [-1, 1].map((s) => ({
       s,
       // Oberschenkel oben kräftig, zum Knie schmaler; Wade mit Muskel
@@ -795,26 +800,13 @@ export class Bike {
       shin: shapedLimb(0.43, (t) => 0.044 + 0.02 * Math.exp(-(((t - 0.3) / 0.17) ** 2)) - 0.008 * t, m.skin),
       knee: new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 8), m.skin),
       sock: limb(0.18, 0.058, m.shoe),
-      shoe: new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.24), m.shoe),
+      shoe: buildShoe(this.shoeMats),
     }));
     for (const a of this.arms) {
       a.hand.castShadow = true;
       r.add(a.upper, a.lower, a.hand, a.elbow, a.cap);
     }
     for (const l of this.legs) {
-      l.shoe.castShadow = true;
-      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.016, 0.25), m.sole);
-      sole.position.y = -0.033;
-      l.shoe.add(sole);
-      // zwei Klettriemen und ein Drehverschluss
-      for (const z of [0.05, -0.02]) {
-        const strap = new THREE.Mesh(new THREE.BoxGeometry(0.086, 0.012, 0.03), m.sole);
-        strap.position.set(0, 0.031, z);
-        l.shoe.add(strap);
-      }
-      const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 10), m.glassFrame);
-      dial.position.set(0, 0.035, -0.07);
-      l.shoe.add(dial);
       r.add(l.thigh, l.shin, l.sock, l.shoe, l.knee);
     }
   }
@@ -871,6 +863,8 @@ export class Bike {
     this.backPlate.rotation.set(0, Math.PI, 0);
     model.attach('Spine1', this.backPlate);
     model.setKit(this.kitCol);
+    // eigene Rennradschuhe statt der Turnschuhe des Modells
+    model.attachShoes(() => buildShoe(this.shoeMats));
     this.update(0, 0, 0, 0);
   }
 
@@ -1086,7 +1080,18 @@ export class Bike {
 
     const ca = this.crankAngle;
     const bob = Math.sin(ca * 2) * 0.006 * Math.min(1, Math.abs(crankRate) / 4);
-    this.rider.position.y = bob;
+    // Wiegetritt (aus dem Sattel, z. B. beim Sprint): this.stand = 0 sitzen … 1 stehen
+    this.standK = (this.standK || 0) + ((this.stand || 0) - (this.standK || 0)) * (1 - Math.exp(-6 * dt));
+    const st = this.aero ? 0 : this.standK;
+    // Becken hebt sich vom Sattel und geht nach vorne, der Oberkörper richtet sich etwas auf
+    const th = -0.2 * st;
+    this.rider.rotation.x = th;
+    const pivot = _standOff.copy(this.hip).applyAxisAngle(_xAxis, th);
+    this.rider.position.set(0, bob + 0.1 * st, 0.11 * st).add(this.hip).sub(pivot);
+    this.rider.updateMatrix();
+    const toRider = (this._toRider ||= new THREE.Matrix4()).copy(this.rider.matrix).invert();
+    // Rad schaukelt im Takt der Pedale hin und her
+    if (st > 0.01) this.root.rotation.z += Math.sin(ca) * 0.11 * st;
     this.torso.rotation.y = 0;
 
     // Pedale und Beine
@@ -1096,12 +1101,14 @@ export class Bike {
       const ang = s > 0 ? ca + Math.PI : ca;
       const pedal = this.pedals[s > 0 ? 1 : 0];
       pedal.position.set(s * 0.12, BB.y - CRANK * Math.cos(ang), BB.z - CRANK * Math.sin(ang));
-      const foot = _a.copy(pedal.position);
-      foot.y -= bob;
-      l.shoe.position.copy(foot).add(_k.set(0, 0.03, 0.02));
+      const foot = _a.copy(pedal.position).applyMatrix4(toRider);
+      // Schuhplatte sitzt auf dem Pedal
+      l.shoe.position.copy(foot).add(_k.set(0, 0.008, 0));
       // Fußspitze zeigt hinten im Tritt nach unten, vorne etwas nach oben (wie bei echten Fahrern)
-      l.shoe.rotation.x = 0.06 + 0.22 * Math.sin(ang);
-      const ankle = _b.copy(foot).add(_k.set(0, 0.075, -0.05));
+      const tilt = 0.06 + 0.22 * Math.sin(ang);
+      l.shoe.rotation.x = tilt;
+      // Knöchel sitzt hinter und über dem Fußballen
+      const ankle = _b.copy(foot).add(_k.set(0, 0.095, -0.12).applyAxisAngle(_xAxis, tilt));
       const hip = _p.copy(this.hip).add(_k.set(s * 0.09, 0, 0));
       const hipC = hip.clone();
       const knee = ik(hipC, ankle, 0.44, 0.43, _k.set(s * 0.12, 0.1, 1), new THREE.Vector3());
@@ -1131,24 +1138,27 @@ export class Bike {
         this.aero ? 0.95 : 0.94,
         0.45 - ax * Math.sin(steerA) + (az - 0.45) * Math.cos(steerA),
       );
+      const handBike = hand.clone();
+      hand.applyMatrix4(toRider);
       // Ellbogen eng am Körper: zeigen nach unten/hinten, nicht nach außen
       const elbow = ik(sh, hand, 0.27, 0.26, _k.set(a.s * 0.05, -0.75, -0.35), new THREE.Vector3());
       placeLimb(a.upper, sh, elbow);
       placeLimb(a.lower, elbow, hand);
       a.hand.position.copy(hand);
-      hands[a.s > 0 ? 1 : 0].copy(hand);
+      hands[a.s > 0 ? 1 : 0].copy(handBike);
       a.hand.quaternion.copy(a.lower.quaternion);
       a.elbow.position.copy(elbow);
       a.cap.position.copy(sh).add(_k.set(-a.s * 0.01, -0.012, 0));
     }
     if (this.model) {
       this.model.pose({
-        hip: this.hip,
+        hip: (this._hipS ||= new THREE.Vector3()).copy(this.hip).add(_k.set(0, 0.1 * st, 0.11 * st)),
         pedals: [this.pedals[0].position, this.pedals[1].position],
         angles: [ca, ca + Math.PI],
         hands,
         bob,
         aero: this.aero,
+        stand: st,
       });
     }
   }
