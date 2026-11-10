@@ -184,7 +184,10 @@ export function createStoryScene(app) {
         const schild = new THREE.Group();
         schild.position.set(pose.x, w.terrainHeight(pose.x, pose.z), pose.z);
         schild.rotation.y = pose.heading + Math.PI;
-        const tafel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.05), [0, 0, 0, 0, 1, 1].map((k) => (k ? new THREE.MeshStandardMaterial({ map: tex }) : new THREE.MeshStandardMaterial({ color: '#ffffff' }))));
+        // Schrift nur vorne, Rückseite und Kanten grau wie bei echten Schildern
+        const grau = new THREE.MeshStandardMaterial({ color: '#9a9ea4', roughness: 0.5, metalness: 0.3 });
+        const vorne = new THREE.MeshStandardMaterial({ map: tex });
+        const tafel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.05), [grau, grau, grau, grau, vorne, grau]);
         tafel.position.y = 2.0;
         tafel.castShadow = true;
         const pfahl = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.0, 6), new THREE.MeshStandardMaterial({ color: '#b9bcc2', metalness: 0.7, roughness: 0.4 }));
@@ -908,27 +911,27 @@ export function createStoryScene(app) {
               $('.story-phase').textContent = 'Berg!';
             }
             // Jonas attackiert am Berg: nur Felix und Noah können folgen
-            if (S && !st.bergAttacke && kopf().s > S.sStart + (S.sTop - S.sStart) * 0.35) {
+            if (!st.bergAttacke && (S ? kopf().s > S.sStart + (S.sTop - S.sStart) * 0.35 : restL < 1500)) {
               st.bergAttacke = true;
               const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
               for (const t of st.team) t.weg = t !== J && !helfer.includes(t);
               st.reihe = [J, ...helfer];
-              st.konterBoost = 1.9;
+              st.konterBoost = S ? 1.9 : 2.6;
               st.konterT = 8;
               st.konterOk = false;
               st.zurueck = false;
-              banner('Jonas attackiert am Berg!', `Nur ${BERG_HELFER.join(' und ')} kommen mit – SPRINT (${sprintText()})!`);
+              banner(S ? 'Jonas attackiert am Berg!' : 'Jonas attackiert!', `Nur ${BERG_HELFER.join(' und ')} kommen mit – SPRINT (${sprintText()})!`);
               app.audio.whoosh(1.5);
               app.input.rumble(0.8, 400);
               herz(4);
             }
             // Oben: Felix übernimmt die Führung, Jonas fährt an zweiter Stelle
-            if (S && st.bergAttacke && !st.bergOben && J.s > S.sTop + 30) {
+            if (st.bergAttacke && !st.bergOben && (S ? J.s > S.sTop + 30 : restL < 1250)) {
               st.bergOben = true;
               const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
               st.reihe = [helfer[0], J, helfer[1]];
-              banner('Oben!', `${BERG_HELFER[0]} führt jetzt, Jonas sitzt an zweiter Stelle`);
-              $('.story-phase').textContent = 'Abfahrt';
+              banner(S ? 'Oben!' : 'Neu sortiert!', `${BERG_HELFER[0]} führt jetzt, Jonas sitzt an zweiter Stelle`);
+              if (S) $('.story-phase').textContent = 'Abfahrt';
             }
             // nie ganz abgehängt
             if (st.s < hinten - 30) vT = Math.max(vT, L.v + 0.8);

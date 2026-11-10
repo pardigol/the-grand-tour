@@ -453,10 +453,10 @@ export class World {
         : 360 + 80 * Math.sin(3 * a + 0.6) + 45 * Math.sin(5 * a + 1.9) + 25 * Math.sin(7 * a);
       pts.push(new THREE.Vector3(Math.cos(a) * r * 1.18, 0, Math.sin(a) * r * 0.95));
     }
-    // Rennrad-Strecke: Anstieg mit Serpentinen einbauen
-    if (!this.cx && !this.tt) pts = this.serpentinenRoute(pts);
+    // Serpentinen-Anstieg: auf Pauls Wunsch wieder ausgebaut (Code bleibt, falls er zurück soll)
+    if (CONFIG.serpentinen && !this.cx && !this.tt) pts = this.serpentinenRoute(pts);
     const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-    const N = this.cx ? 1600 : this.tt ? 1800 : 3000;
+    const N = this.cx ? 1600 : this.tt ? 1800 : this.serp ? 3000 : 2400;
     const sp = curve.getSpacedPoints(N);
     this.N = N;
     this.length = curve.getLength();
@@ -1734,6 +1734,9 @@ export class World {
       }),
     );
     const metall = new THREE.MeshStandardMaterial({ color: '#b9bcc2', metalness: 0.8, roughness: 0.35 });
+    const kante = new THREE.MeshStandardMaterial({ color: '#d9d9d4', roughness: 0.6 });
+    // Schrift vorne und hinten, die schmalen Kanten einfarbig (sonst wird die Schrift dort verzerrt)
+    const werbungSeiten = werbung.map((m) => [kante, kante, kante, kante, m, m]);
     const tafel = new THREE.BoxGeometry(2.3, 0.9, 0.04);
     const rohr = new THREE.CylinderGeometry(0.03, 0.03, 2.4, 6).rotateZ(Math.PI / 2);
     const fuss = new THREE.BoxGeometry(0.06, 1.15, 0.5);
@@ -1748,7 +1751,7 @@ export class World {
         const bande = new THREE.Group();
         bande.position.set(pose.x, this.terrainHeight(pose.x, pose.z), pose.z);
         bande.rotation.y = pose.heading + Math.PI / 2;
-        const t = new THREE.Mesh(tafel, werbung[(k + (sd > 0 ? 2 : 0)) % werbung.length]);
+        const t = new THREE.Mesh(tafel, werbungSeiten[(k + (sd > 0 ? 2 : 0)) % werbung.length]);
         t.position.y = 0.62;
         t.castShadow = true;
         const r1 = new THREE.Mesh(rohr, metall);

@@ -877,9 +877,22 @@ export class Bike {
     this.plateTex.anisotropy = 8;
     const mat = new THREE.MeshStandardMaterial({ map: this.plateTex, roughness: 0.6 });
 
-    // Rückennummer auf dem Trikot
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.225), mat);
-    back.position.set(0, 0.02, -0.132);
+    // Rückennummer auf dem Trikot: gebogen, damit sie genau auf dem runden Rücken anliegt
+    // (ein flaches Schild steckte halb im Körper, nur die Ecken schauten heraus)
+    const body = this.torso.children.find((c) => c.isMesh);
+    body.geometry.computeBoundingBox();
+    const bb = body.geometry.boundingBox;
+    const rx = Math.max(-bb.min.x, bb.max.x) + 0.006;
+    const rz = -bb.min.z + 0.006;
+    const pg = new THREE.PlaneGeometry(0.26, 0.2, 20, 1);
+    const pp = pg.attributes.position;
+    for (let i = 0; i < pp.count; i++) {
+      const x = pp.getX(i);
+      pp.setZ(i, rz * Math.sqrt(Math.max(0, 1 - (x / rx) ** 2)));
+    }
+    pg.computeVertexNormals();
+    const back = new THREE.Mesh(pg, mat);
+    back.position.set(0, 0.02, 0);
     back.rotation.set(0, Math.PI, 0);
     this.torso.add(back);
     this.backPlate = back;
