@@ -35,7 +35,7 @@ const MEIN_TRIKOT = '#efeee9';
 const N_FELD = 46; // + 4 vom Team Blitz = 50 andere Fahrer
 const RENNEN = 2000; // Meter vom Start bis ins Ziel
 const ATTACKE_NACH = 600; // Meter: dann reißt Team Blitz aus
-const SPRINT_AB = 320; // Meter vor dem Ziel: Schlusssprint
+const SPRINT_AB = 260; // Meter vor dem Ziel: Schlusssprint
 const V_FELD = 11.5; // m/s ≈ 41 km/h
 const V_FELD_HINTEN = 10.8;
 const V_TEAM = 13.2;
