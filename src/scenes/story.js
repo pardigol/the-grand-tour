@@ -291,6 +291,7 @@ export function createStoryScene(app) {
       einKm: false,
       foto: false,
       fotoNach: null,
+      fotoCamDa: false,
       slow: 1,
       slowZiel: 1,
       schild200: false,
@@ -528,13 +529,21 @@ export function createStoryScene(app) {
   const _foto = new THREE.Vector3();
   function fotoCamera(dt) {
     const w = app.world;
-    w.poseAt(st.sZiel + 1, (w.RH || 3.6) + 3.2, pose);
-    _foto.set(pose.x, pose.h + 1.3, pose.z);
-    app.camera.position.lerp(_foto, 1 - Math.exp(-6 * dt));
+    // am Straßenrand vor der Bande, genau auf Höhe der Ziellinie (wie die echte Zielkamera)
+    w.poseAt(st.sZiel, 0, pose);
+    const nr = w.nearest(pose.x, pose.z);
+    const rand = (nr.found ? w.rhArr[nr.i] : w.RH) + 0.9;
+    w.poseAt(st.sZiel - 0.8, rand, pose);
+    _foto.set(pose.x, pose.h + 1.25, pose.z);
+    if (!st.fotoCamDa) {
+      st.fotoCamDa = true;
+      app.camera.position.copy(_foto);
+    } else app.camera.position.lerp(_foto, 1 - Math.exp(-6 * dt));
     const L = leader().r.bike.root.position;
     const me = app.bike.root.position;
-    app.camera.lookAt((L.x + me.x) / 2, (L.y + me.y) / 2 + 0.8, (L.z + me.z) / 2);
-    app.camera.fov = damp(app.camera.fov, 38, 4, dt);
+    // vor allem dich im Bild, Jonas knapp davor
+    app.camera.lookAt(me.x + (L.x - me.x) * 0.07, me.y + 0.9, me.z + (L.z - me.z) * 0.07);
+    app.camera.fov = damp(app.camera.fov, 62, 4, dt);
     app.camera.updateProjectionMatrix();
   }
 
@@ -990,9 +999,14 @@ export function createStoryScene(app) {
       if (crankRate > 0) app.audio.freewheel(dt, 0);
       else app.audio.freewheel(dt, Math.min(55, (st.v / (2 * Math.PI * WHEEL_R)) * 24));
       // Wiegetritt: im Schlusssprint und beim Versuch auszureißen
-      app.bike.stand = (st.phase === 'sprint' && st.sprint) || st.surge > 0 ? 1 : 0;
+      // Fotofinish: beide voll im Sprint und mit Radwurf an der Linie
+      const fotoAn = st.foto && (st.slow < 0.95 || st.fotoNach != null);
+      const wurf = (s) => clamp(1 - Math.abs(st.sZiel + 1 - s) / 7, 0, 1);
+      app.bike.stand = (st.phase === 'sprint' && st.sprint) || st.surge > 0 || fotoAn ? 1 : 0;
+      app.bike.wurf = fotoAn ? wurf(st.s) : 0;
+      leader().r.bike.wurf = st.foto ? wurf(leader().s) : 0;
       // Jonas sprintet auch im Stehen
-      leader().r.bike.stand = st.phase === 'sprint' && st.sprintT > 0.3 ? 1 : 0;
+      leader().r.bike.stand = (st.phase === 'sprint' && st.sprintT > 0.3) || (st.foto && (st.slow < 0.95 || st.fotoNach != null)) ? 1 : 0;
       placeMe(dt, crankRate);
       updateTeam(dt);
       updateFeld(dt);
@@ -1030,6 +1044,8 @@ export function createStoryScene(app) {
     exit() {
       app.input.touchRide = false;
       app.bike.stand = 0;
+      app.bike.wurf = 0;
+      if (leader()?.r) leader().r.bike.wurf = 0;
       // wieder in den eigenen Farben
       if (char) app.bike.applyLook(char);
       team?.hide();
