@@ -727,7 +727,10 @@ export function createRideScene(app) {
       } else st.shake = 0;
 
       // beim Sturz kippt das Rad zur Seite, in der Luft geht die Nase etwas runter
-      st.lean = damp(st.lean, crashed ? 1.35 : steer * clamp(st.speed / 9, 0, 1) * 0.42, crashed ? 10 : 6, dt);
+      // In die Kurve legen wie ein echter Radfahrer (nur fürs Aussehen – Lenken und Tempo bleiben gleich):
+      // je schneller und enger die Kurve, desto schräger
+      const kurvenLage = clamp(Math.atan((st.speed * steer * turn) / 9.81) * 0.85, -0.6, 0.6);
+      st.lean = damp(st.lean, crashed ? 1.35 : kurvenLage, crashed ? 10 : 6, dt);
       // Sprung: Nase hoch beim Absprung, runter vor der Landung (folgt der Flugbahn)
       if (st.air) st.pitch = damp(st.pitch, Math.atan2(st.vy, Math.max(st.speed, 3)) * 1.1, 5, dt);
       st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.speed / 14, 0, 0.85)), 10, dt);

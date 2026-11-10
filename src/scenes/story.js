@@ -280,6 +280,7 @@ export function createStoryScene(app) {
       showResult: false,
       feldWeg: false,
       tippAttacke: 0,
+      hPrev: null,
       konterT: 0,
       konterDone: false,
       konterOk: false,
@@ -354,7 +355,11 @@ export function createStoryScene(app) {
       // wer der Kamera zu nahe kommt, wird kurz nach unten weggeblendet (sonst sieht man nur ein Trikot)
       const cp = app.camera.position;
       const nah = Math.hypot(pose.x - cp.x, pose.z - cp.z) < 1.6 && st.phase !== 'aufstellen' && st.phase !== 'countdown';
-      feld.set(i, pose.x, pose.h - (nah ? 5 : 0), pose.z, pose.heading, pose.pitch, 0, r.v, dt, r.v > 0.3);
+      // in die Kurven legen
+      const dreh = r.hPrev == null || dt <= 0 ? 0 : Math.atan2(Math.sin(pose.heading - r.hPrev), Math.cos(pose.heading - r.hPrev)) / dt;
+      r.hPrev = pose.heading;
+      r.lean = damp(r.lean || 0, clamp(-Math.atan((r.v * dreh) / 9.81), -0.5, 0.5), 4, dt);
+      feld.set(i, pose.x, pose.h - (nah ? 5 : 0), pose.z, pose.heading, pose.pitch, r.lean, r.v, dt, r.v > 0.3);
     }
     feld.commit();
   }
@@ -969,7 +974,12 @@ export function createStoryScene(app) {
       const nr = app.world.nearest(st.x ?? 0, st.z ?? 0);
       const rh = (nr.found ? app.world.rhArr[nr.i] : app.world.RH) - 0.5;
       if (st.phase !== 'aufstellen' && st.phase !== 'countdown') st.lat = clamp(st.lat + steer * 2.4 * dt * clamp(st.v / 4, 0.3, 1), -rh, rh);
-      st.lean = damp(st.lean, steer * clamp(st.v / 9, 0, 1) * 0.3, 6, dt);
+      // In die Kurven legen (nur Aussehen): aus der Kurve der Straße plus etwas Lenken
+      const hNow = app.bike.root.rotation.y;
+      const dreh = st.hPrev == null || dt <= 0 ? 0 : Math.atan2(Math.sin(hNow - st.hPrev), Math.cos(hNow - st.hPrev)) / dt;
+      st.hPrev = hNow;
+      const kurvenLage = clamp(-Math.atan((st.v * dreh) / 9.81) * 1.1 + steer * clamp(st.v / 9, 0, 1) * 0.25, -0.6, 0.6);
+      st.lean = damp(st.lean, kurvenLage, 4, dt);
       st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.v / 14, 0, 0.85)) * 0.5, 10, dt);
       // nicht in Team-Blitz-Fahrer hineinfahren
       for (const tm of st.team) {
