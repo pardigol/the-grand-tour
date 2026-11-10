@@ -240,6 +240,10 @@ export class World {
   rawHeight(x, z) {
     const r = Math.hypot(x, z);
     let h = this.fbm(x * 0.0035, z * 0.0035) * 16 + this.n2(x * 0.02, z * 0.02) * 1.2;
+    if (this.serp) {
+      const b = this.serpBump(x, z);
+      h = lerp(h, this.serp.h0, this.serp.k * 0.9) + b;
+    }
     // Dorf: fast flach, nur sanfte Wellen
     if (this.tt) h *= 0.3;
     const m = smoothstep(660, 880, r);
@@ -295,6 +299,114 @@ export class World {
     return [...pts.slice(startIdx), ...pts.slice(0, startIdx)];
   }
 
+  // Serpentinen: Ein Stück der Runde wird durch einen Zickzack-Anstieg mit Haarnadelkurven ersetzt.
+  // Gerechnet wird in (u, v): u = Weg entlang der alten Runde, v = seitlicher Abstand davon.
+  // Der Berg selbst (Höhe) hängt nur von u ab – so passen Straße und Gelände an jeder Stelle zusammen.
+  serpentinenRoute(ctrl) {
+    const c0 = new THREE.CatmullRomCurve3(ctrl, true, 'centripetal');
+    const L0 = c0.getLength();
+    const U0 = 1480; // Beginn des Anstiegs auf der alten Runde
+    const D = 40; // Abstand der Kehren entlang der Runde
+    const W = 45; // halbe Breite des Zickzacks
+    const KEHREN = 5;
+    const R = 16; // Kurvenradius in den Kehren
+    const STEIG = 0.13; // Steigung des Berghangs (entlang u) -> etwa 7–8 % auf der Straße
+    const U1 = U0 + KEHREN * D;
+    const at = (u) => c0.getPointAt((((u % L0) + L0) % L0) / L0);
+    const tan = (u) => c0.getTangentAt((((u % L0) + L0) % L0) / L0);
+    const uv = (u, v) => {
+      const p = at(u);
+      const t = tan(u);
+      return new THREE.Vector3(p.x - t.z * v, 0, p.z + t.x * v);
+    };
+    // Eckpunkte des Zickzacks
+    const ecken = [[U0 - 60, 0], [U0, 0]];
+    for (let k = 0; k < KEHREN; k++) ecken.push([U0 + D / 2 + k * D, k % 2 === 0 ? W : -W]);
+    ecken.push([U1, 0], [U1 + 60, 0]);
+    // Weg mit runden Kurven an jeder Ecke
+    const weg = [];
+    const gerade = (a, b) => {
+      const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 10));
+      for (let i = 1; i < n; i++) weg.push([a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n]);
+    };
+    let last = ecken[0];
+    weg.push(last);
+    for (let k = 1; k < ecken.length - 1; k++) {
+      const [a, c, nx] = [ecken[k - 1], ecken[k], ecken[k + 1]];
+      let din = [c[0] - a[0], c[1] - a[1]];
+      let dout = [nx[0] - c[0], nx[1] - c[1]];
+      const li = Math.hypot(...din);
+      const lo = Math.hypot(...dout);
+      din = [din[0] / li, din[1] / li];
+      dout = [dout[0] / lo, dout[1] / lo];
+      const phi = Math.acos(Math.max(-1, Math.min(1, din[0] * dout[0] + din[1] * dout[1])));
+      const sign = Math.sign(din[0] * dout[1] - din[1] * dout[0]) || 1;
+      const r = k === 1 || k === ecken.length - 2 ? 30 : R;
+      const t = Math.min(r * Math.tan(phi / 2), li * 0.48, lo * 0.48);
+      const rr = t / Math.tan(phi / 2);
+      const A = [c[0] - din[0] * t, c[1] - din[1] * t];
+      const B = [c[0] + dout[0] * t, c[1] + dout[1] * t];
+      gerade(last, A);
+      const cen = [A[0] - din[1] * rr * sign, A[1] + din[0] * rr * sign];
+      const a0 = Math.atan2(A[1] - cen[1], A[0] - cen[0]);
+      const steps = Math.max(3, Math.round((phi * rr) / 4));
+      for (let i = 0; i <= steps; i++) {
+        const ang = a0 + sign * phi * (i / steps);
+        weg.push([cen[0] + Math.cos(ang) * rr, cen[1] + Math.sin(ang) * rr]);
+      }
+      last = B;
+    }
+    gerade(last, ecken[ecken.length - 1]);
+    weg.push(ecken[ecken.length - 1]);
+
+    // Für die Berghöhe: Punkte der alten Runde im Bereich des Bergs
+    const proben = [];
+    for (let u = U0 - 160; u <= U1 + 660; u += 3) {
+      const p = at(u);
+      const t = tan(u);
+      proben.push({ u, x: p.x, z: p.z, tx: t.x, tz: t.z });
+    }
+    const mitte = at((U0 + U1) / 2 + 150);
+    const p0 = at(U0);
+    // natürliche Geländehöhe am Fuß des Bergs: darauf steht der ganze Berg (ohne Hügel und Dellen)
+    const h0 = this.fbm(p0.x * 0.0035, p0.z * 0.0035) * 16;
+    this.serp = { U0, U1, W, H: STEIG * (U1 - U0), h0, proben, cx: mitte.x, cz: mitte.z, rad: 650, k: 0 };
+
+    // neue Punktliste: alte Runde bis vor den Berg, Zickzack, alte Runde danach
+    const out = [];
+    for (let u = 0; u < U0 - 60; u += 12) out.push(at(u));
+    for (const [u, v] of weg) out.push(uv(u, v));
+    for (let u = U1 + 72; u < L0 - 6; u += 12) out.push(at(u));
+    return out;
+  }
+
+  // Berghöhe am Ort (x, z): steigt entlang der Serpentinen an, oben ein kurzes Plateau, dann lange Abfahrt
+  serpBump(x, z) {
+    const S = this.serp;
+    if (S) S.k = 0;
+    if (!S || Math.hypot(x - S.cx, z - S.cz) > S.rad) return 0;
+    let best = Infinity;
+    let pb = null;
+    for (const p of S.proben) {
+      const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+      if (d < best) {
+        best = d;
+        pb = p;
+      }
+    }
+    const v = Math.abs((x - pb.x) * -pb.tz + (z - pb.z) * pb.tx);
+    const u = pb.u + (x - pb.x) * pb.tx + (z - pb.z) * pb.tz;
+    let rise;
+    if (u < S.U0) rise = smoothstep(S.U0 - 40, S.U0, u) * 0.03;
+    else if (u < S.U1) rise = 0.03 + 0.97 * ((u - S.U0) / (S.U1 - S.U0));
+    else if (u < S.U1 + 25) rise = 1;
+    else rise = 1 - smoothstep(S.U1 + 25, S.U1 + 600, u);
+    const side = 1 - smoothstep(S.W + 25, S.W + 110, v);
+    // wie stark hier das natürliche Gelände durch den glatten Berg ersetzt wird
+    S.k = side * smoothstep(S.U0 - 140, S.U0 - 10, u) * (1 - smoothstep(S.U1 + 450, S.U1 + 640, u));
+    return S.H * rise * side;
+  }
+
   buildTrack() {
     let pts = [];
     if (this.tt) pts = this.villageRoute();
@@ -307,8 +419,10 @@ export class World {
         : 360 + 80 * Math.sin(3 * a + 0.6) + 45 * Math.sin(5 * a + 1.9) + 25 * Math.sin(7 * a);
       pts.push(new THREE.Vector3(Math.cos(a) * r * 1.18, 0, Math.sin(a) * r * 0.95));
     }
+    // Rennrad-Strecke: Anstieg mit Serpentinen einbauen
+    if (!this.cx && !this.tt) pts = this.serpentinenRoute(pts);
     const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-    const N = this.cx ? 1600 : this.tt ? 1800 : 2400;
+    const N = this.cx ? 1600 : this.tt ? 1800 : 3000;
     const sp = curve.getSpacedPoints(N);
     this.N = N;
     this.length = curve.getLength();
@@ -423,6 +537,27 @@ export class World {
       let arr = this.grid.get(key);
       if (!arr) this.grid.set(key, (arr = []));
       arr.push(i);
+    }
+    // Wo auf der Strecke liegen die Serpentinen? (für das Game: Anstieg und Attacke)
+    if (this.serp) {
+      let a = Infinity;
+      let e = -Infinity;
+      let top = 0;
+      let topS = 0;
+      for (let i = 0; i < N; i++) {
+        if (ph[i] > top) {
+          top = ph[i];
+          topS = i * this.ds;
+        }
+      }
+      // Beginn: ab hier steigt es merklich, Ende: höchster Punkt
+      for (let i = 0; i < N; i++) {
+        const s = i * this.ds;
+        if (s < topS && s < a && this.serpBump(px[i], pz[i]) > 1) a = s;
+      }
+      e = topS;
+      this.serp.sStart = a;
+      this.serp.sTop = e;
     }
   }
 

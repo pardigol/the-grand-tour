@@ -13,12 +13,11 @@ import { loadCharacters } from '../storage.js';
 
 // ✏️ Das Ausreißer-Team
 const TEAM_NAME = 'Team Blitz';
-const TEAM = [
-  { name: 'Jonas', number: 11, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
-  { name: 'Felix', number: 12, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
-  { name: 'Noah', number: 13, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
-  { name: 'Elias', number: 14, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
-];
+const blitz = (name, number) => ({ name, number, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' });
+// Reihenfolge = Platz in der Ausreißer-Reihe: Jonas fährt zuerst an 4. Stelle
+const TEAM = [blitz('Felix', 12), blitz('Noah', 13), blitz('Leon', 15), blitz('Jonas', 11), blitz('Elias', 14), blitz('Finn', 16)];
+// Diese zwei können am Berg mit Jonas mithalten
+const BERG_HELFER = ['Felix', 'Noah'];
 // Trikots der anderen Teams im Feld
 const FELD_TEAMS = [
   ['#2f7cf6', '#f6f6f6', '#2f7cf6'],
@@ -32,13 +31,15 @@ const FELD_TEAMS = [
 ];
 // ✏️ Deine Trikotfarbe im Game (Farbe vom Stoff Fabric019)
 const MEIN_TRIKOT = '#efeee9';
-const N_FELD = 46; // + 4 vom Team Blitz = 50 andere Fahrer
-const RENNEN = 2000; // Meter vom Start bis ins Ziel
+const N_FELD = 44; // + 6 vom Team Blitz = 50 andere Fahrer
+const RENNEN = 2500; // Meter vom Start bis ins Ziel
 const ATTACKE_NACH = 600; // Meter: dann reißt Team Blitz aus
 const SPRINT_AB = 260; // Meter vor dem Ziel: Schlusssprint
 const V_FELD = 11.5; // m/s ≈ 41 km/h
 const V_FELD_HINTEN = 10.8;
 const V_TEAM = 13.2;
+const V_BERG = 7.4; // ≈ 27 km/h in den Serpentinen
+const V_ABFAHRT = 15.5;
 const V_SPRINT = 17.4; // ≈ 63 km/h
 const ABSTAND_ZIEL = 0.5; // Sekunden hinter dem Sieger
 const GEAR = 3.6;
@@ -154,12 +155,12 @@ export function createStoryScene(app) {
     // Bogen mit „START“
     g.add(makeBogen(sStart, rh, '#2fa37a', '#ffffff', 'START · GRAND TOUR'));
     // Rote Flagge: noch 1 Kilometer (mit rotem Dreieck)
-    const s1 = sStart + Math.min(RENNEN, app.world.length - 400) - 1000;
+    const s1 = sStart + Math.min(RENNEN, app.world.length - 200) - 1000;
     w.poseAt(s1, 0, pose);
     const nr1 = w.nearest(pose.x, pose.z);
     g.add(makeBogen(s1, nr1.found ? w.rhArr[nr1.i] : w.RH, '#d8262e', '#ffffff', '▼  NOCH 1 KM  ▼'));
     // Schilder am Straßenrand: 500, 300, 200, 100 m
-    const sZiel = sStart + Math.min(RENNEN, app.world.length - 400);
+    const sZiel = sStart + Math.min(RENNEN, app.world.length - 200);
     for (const m of [500, 300, 200, 100]) {
       const tex = canvasTex(256, 256, (ctx, cw, ch) => {
         ctx.fillStyle = '#ffffff';
@@ -201,7 +202,7 @@ export function createStoryScene(app) {
     const w = app.world;
     const L = w.length;
     st.sZiel = L - 2.4; // weiße Ziellinie
-    st.sStart = st.sZiel - Math.min(RENNEN, L - 400);
+    st.sStart = st.sZiel - Math.min(RENNEN, L - 200);
     if (world !== w) {
       // neue Welt (oder erster Start): alles neu bauen
       team?.dispose();
@@ -224,7 +225,7 @@ export function createStoryScene(app) {
     for (let row = 1; slots.length < N_FELD + 4; row++)
       for (const lat of [-2.6, -1.3, 0, 1.3, 2.6]) if (row > 2 || lat !== 0) slots.push({ dz: -1.9 * row, lat });
     // Team Blitz steht in Reihe 1 und 2 links
-    const teamSlots = [slots[4], slots[5], slots[8], slots[9]];
+    const teamSlots = [slots[4], slots[5], slots[8], slots[9], slots[12], slots[13]];
     const rest = slots.filter((s) => !teamSlots.includes(s));
     riders.length = 0;
     for (let i = 0; i < N_FELD; i++) {
@@ -250,7 +251,10 @@ export function createStoryScene(app) {
       v: 0,
       anfahrt: true,
       ziel: null,
+      weg: false,
+      passT: 0,
     }));
+    st.reihe = [...st.team];
 
     Object.assign(st, {
       phase: 'anfahrt',
@@ -297,12 +301,26 @@ export function createStoryScene(app) {
       schild200: false,
       schild100: false,
       jubelT: 0,
+      bergAttacke: false,
+      bergStart: false,
+      bergOben: false,
+      konterBoost: 2.8,
     });
   }
 
   // ---------- Hilfen ----------
-  const leader = () => st.team[0];
-  const teamLast = () => st.team.reduce((m, t) => Math.min(m, t.s), Infinity);
+  // Jonas ist der Sprinter (gewinnt am Ende), der Kopf ist der Erste in der Ausreißer-Reihe
+  const leader = () => st.team.find((t) => t.r.name === 'Jonas');
+  const kopf = () => st.reihe[0];
+  const teamLast = () => st.reihe.reduce((m, t) => Math.min(m, t.s), Infinity);
+  // Tempo-Faktor je Streckenabschnitt: bergauf langsam, bergab schnell
+  function streckenTempo(s) {
+    const S = app.world.serp;
+    if (!S) return 1;
+    if (s >= S.sStart && s <= S.sTop) return V_BERG / V_TEAM;
+    if (s > S.sTop && s < S.sTop + 520) return V_ABFAHRT / V_TEAM;
+    return 1;
+  }
 
   function placeMe(dt, crankRate) {
     const w = app.world;
@@ -387,27 +405,40 @@ export function createStoryScene(app) {
         tm.v = Math.max(0, st.vf + clamp((target - tm.s) * 1.2, -2, 2));
         tm.s += tm.v * dt;
       } else {
-        // Ausreißer: in einer Reihe hintereinander, der Sprinter vorne
-        let vKopf = (st.phase === 'attacke' && st.t < 7 ? 15.2 : V_TEAM) + (st.konterT > 0 ? 2.8 : 0) + (st.allesGeben ? 0.9 : 0);
-        // Jonas springt an: erst ein harter Antritt, dann volles Sprinttempo
-        if (st.phase === 'sprint' || st.phase === 'auslaufen') vKopf = st.sprintT < 3.2 ? Math.min(18.8, V_TEAM + st.sprintT * 3.2) : V_SPRINT;
-        if (st.phase === 'auslaufen' && L.s > st.sZiel + 5) vKopf = Math.max(4, L.v - 1.5 * dt);
-        if (i === 0) {
+        // Ausreißer: in einer Reihe hintereinander. Bergauf langsam, bergab schnell.
+        const K = kopf();
+        const f = streckenTempo(K.s);
+        let vKopf = (st.phase === 'attacke' && st.t < 7 ? 15.2 : V_TEAM * f) + (st.konterT > 0 ? st.konterBoost : 0) + (st.allesGeben ? 0.9 : 0);
+        const sprintPhase = st.phase === 'sprint' || st.phase === 'auslaufen';
+        const idx = st.reihe.indexOf(tm);
+        if (sprintPhase && tm === L) {
+          // Jonas springt an: erst ein harter Antritt, dann volles Sprinttempo
+          let vS = st.sprintT < 3.2 ? Math.min(18.8, V_TEAM + st.sprintT * 3.2) : V_SPRINT;
+          if (st.phase === 'auslaufen' && L.s > st.sZiel + 5) vS = Math.max(4, L.v - 1.5 * dt);
+          tm.v = damp(tm.v, vS, 2, dt);
+          tm.latT = TEAM_LAT;
+        } else if (sprintPhase) {
+          // Helfer haben ihre Arbeit getan: sie lassen sich zurückfallen und machen zur anderen Seite Platz
+          tm.latT = 0.3 + (st.team.indexOf(tm) % 4) * 0.55;
+          tm.v = damp(tm.v, tm.s > st.sZiel + 5 ? 4 : tm.weg ? 11 : 12.6, 1.2, dt);
+        } else if (tm.weg) {
+          // abgehängt: fällt zurück und macht rechts Platz
+          tm.latT = TEAM_LAT + 1.6;
+          tm.v = damp(tm.v, Math.max(5.5, V_TEAM * streckenTempo(tm.s) - 2.2), 1, dt);
+        } else if (idx === 0) {
           tm.v = damp(tm.v, vKopf, 2, dt);
+          tm.latT = TEAM_LAT;
         } else {
-          const vorder = st.team[i - 1];
-          let target = vorder.s - 2.3;
-          let vMax = vKopf + 3;
-          if (st.phase === 'sprint' || st.phase === 'auslaufen') {
-            // Helfer haben ihre Arbeit getan: sie lassen sich zurückfallen und machen zur anderen Seite Platz
-            tm.latT = 0.3 + i * 0.55;
-            tm.v = damp(tm.v, tm.s > st.sZiel + 5 ? 4 : 12.6, 1.2, dt);
-          } else {
-            tm.latT = TEAM_LAT;
-            tm.v = damp(tm.v, Math.min(vMax, vKopf + clamp((target - tm.s) * 1.3, -2, 4)), 3, dt);
-          }
+          const target = st.reihe[idx - 1].s - 2.3;
+          tm.v = damp(tm.v, Math.min(vKopf + 3, vKopf + clamp((target - tm.s) * 1.3, -2, 4)), 3, dt);
+          tm.latT = TEAM_LAT;
         }
-        if (i === 0) tm.latT = TEAM_LAT;
+        // Überholen in der Reihe: kurz etwas nach rechts ausscheren
+        for (const o of st.team) {
+          if (o !== tm && o.s - tm.s > 0 && o.s - tm.s < 3.5 && Math.abs(o.lat - tm.lat) < 0.8 && tm.v > o.v + 0.3) tm.passT = 1.2;
+        }
+        tm.passT = Math.max(0, tm.passT - dt);
+        if (tm.passT > 0 && !tm.weg) tm.latT += 1.0;
         tm.s += tm.v * dt;
       }
       tm.lat = damp(tm.lat, tm.latT, 1.5, dt);
@@ -450,7 +481,7 @@ export function createStoryScene(app) {
     const feldZeit = st.raceTime + (st.sZiel - st.pf) / Math.max(st.vf, 8);
     const m = Math.floor((feldZeit - w) / 60);
     const s = Math.round((feldZeit - w) % 60);
-    zeilen.push(`<div class="result-row"><b>6.</b><i style="background:#888"></i><span class="result-name">Das Feld · ${N_FELD} Fahrer</span>
+    zeilen.push(`<div class="result-row"><b>${alle.length + 1}.</b><i style="background:#888"></i><span class="result-name">Das Feld · ${N_FELD} Fahrer</span>
       <span class="result-time">+${m}:${String(s).padStart(2, '0')}</span></div>`);
     $('.result-list').innerHTML = zeilen.join('');
     const abstand = st.meZiel - w;
@@ -798,10 +829,12 @@ export function createStoryScene(app) {
         }
       } else if (st.phase === 'attacke' || st.phase === 'flucht' || st.phase === 'sprint') {
         // Das Feld wird langsamer, Team Blitz fährt davon
-        st.vf = damp(st.vf, st.jagdT > 0 ? 17 : V_FELD_HINTEN, 0.6, dt);
+        st.vf = damp(st.vf, (st.jagdT > 0 ? 17 : V_FELD_HINTEN) * streckenTempo(st.pf), 0.6, dt);
         st.pf += st.vf * dt;
-        const L = leader();
-        const restL = st.sZiel - L.s;
+        const J = leader();
+        const L = st.phase === 'sprint' ? J : kopf();
+        const restL = st.sZiel - J.s;
+        const S = app.world.serp;
         const hinten = teamLast();
         const teamVorne = hinten > st.s + 0.5;
         const dr = draftStrength();
@@ -814,7 +847,7 @@ export function createStoryScene(app) {
           // nicht am Team vorbei (sie bestimmen das Tempo), aber auch nie ganz abgehängt
           if (teamVorne && st.s > hinten - 2.0) {
             st.s = hinten - 2.0;
-            st.v = Math.min(st.v, st.team[st.team.length - 1].v);
+            st.v = Math.min(st.v, st.reihe[st.reihe.length - 1].v);
           }
           if (teamVorne && st.s < hinten - 16) vT = Math.max(vT, L.v + 0.6);
           // Tipps
@@ -830,8 +863,9 @@ export function createStoryScene(app) {
           // --- Spannung: Ereignisse während der Flucht ---
           if (st.phase === 'flucht') {
             // 1) Team Blitz verschärft das Tempo: schnell reagieren!
-            if (!st.konterDone && restL < 1080) {
+            if (!st.konterDone && (S ? kopf().s > S.sStart - 230 : restL < 1080)) {
               st.konterDone = true;
+              st.konterBoost = 2.8;
               st.konterT = 6;
               st.konterOk = false;
               banner(`${TEAM_NAME} verschärft das Tempo!`, `Schnell SPRINT (${sprintText()}), sonst bist du weg!`);
@@ -855,6 +889,7 @@ export function createStoryScene(app) {
               if (st.konterT <= 0 && !st.konterOk) {
                 st.zurueck = true;
                 banner('Eine Lücke!', 'Kämpf dich zurück – tritt!');
+                for (const t of st.team) if (t.weg) t.passT = 0;
               }
             } else if (st.zurueck) {
               vT = tritt ? L.v + 1.8 : L.v - 0.5;
@@ -865,6 +900,35 @@ export function createStoryScene(app) {
                 banner('Wieder dran!', 'Puh, geschafft');
                 app.audio.success();
               }
+            }
+            // Anstieg mit Serpentinen
+            if (S && !st.bergStart && kopf().s > S.sStart) {
+              st.bergStart = true;
+              banner('Der Anstieg!', 'Serpentinen – jetzt wird es hart');
+              $('.story-phase').textContent = 'Berg!';
+            }
+            // Jonas attackiert am Berg: nur Felix und Noah können folgen
+            if (S && !st.bergAttacke && kopf().s > S.sStart + (S.sTop - S.sStart) * 0.35) {
+              st.bergAttacke = true;
+              const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
+              for (const t of st.team) t.weg = t !== J && !helfer.includes(t);
+              st.reihe = [J, ...helfer];
+              st.konterBoost = 1.9;
+              st.konterT = 8;
+              st.konterOk = false;
+              st.zurueck = false;
+              banner('Jonas attackiert am Berg!', `Nur ${BERG_HELFER.join(' und ')} kommen mit – SPRINT (${sprintText()})!`);
+              app.audio.whoosh(1.5);
+              app.input.rumble(0.8, 400);
+              herz(4);
+            }
+            // Oben: Felix übernimmt die Führung, Jonas fährt an zweiter Stelle
+            if (S && st.bergAttacke && !st.bergOben && J.s > S.sTop + 30) {
+              st.bergOben = true;
+              const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
+              st.reihe = [helfer[0], J, helfer[1]];
+              banner('Oben!', `${BERG_HELFER[0]} führt jetzt, Jonas sitzt an zweiter Stelle`);
+              $('.story-phase').textContent = 'Abfahrt';
             }
             // nie ganz abgehängt
             if (st.s < hinten - 30) vT = Math.max(vT, L.v + 0.8);
@@ -898,7 +962,7 @@ export function createStoryScene(app) {
             banner('Das Feld kommt nicht mit!', `Nur noch du und ${TEAM_NAME} vorne`);
             app.audio.success();
           }
-          if (L.s >= st.sZiel - SPRINT_AB) {
+          if (J.s >= st.sZiel - SPRINT_AB) {
             goPhase('sprint');
             st.sprintT = 0;
             banner('Schlusssprint!', `Jetzt SPRINT: ${sprintText()}`);
@@ -1002,11 +1066,11 @@ export function createStoryScene(app) {
       // Fotofinish: beide voll im Sprint und mit Radwurf an der Linie
       const fotoAn = st.foto && (st.slow < 0.95 || st.fotoNach != null);
       const wurf = (s) => clamp(1 - Math.abs(st.sZiel + 1 - s) / 7, 0, 1);
-      app.bike.stand = (st.phase === 'sprint' && st.sprint) || st.surge > 0 || fotoAn ? 1 : 0;
+      app.bike.stand = (st.phase === 'sprint' && st.sprint) || st.surge > 0 || fotoAn || (st.konterT > 0 && st.konterOk) ? 1 : 0;
       app.bike.wurf = fotoAn ? wurf(st.s) : 0;
       leader().r.bike.wurf = st.foto ? wurf(leader().s) : 0;
       // Jonas sprintet auch im Stehen
-      leader().r.bike.stand = (st.phase === 'sprint' && st.sprintT > 0.3) || (st.foto && (st.slow < 0.95 || st.fotoNach != null)) ? 1 : 0;
+      leader().r.bike.stand = (st.phase === 'sprint' && st.sprintT > 0.3) || (st.foto && (st.slow < 0.95 || st.fotoNach != null)) || (st.bergAttacke && st.konterT > 0) ? 1 : 0;
       placeMe(dt, crankRate);
       updateTeam(dt);
       updateFeld(dt);
@@ -1027,7 +1091,7 @@ export function createStoryScene(app) {
       const kmh = st.v * 3.6;
       $('.speedo-val b').textContent = Math.round(kmh);
       $('.speedo-fill').style.strokeDasharray = `${clamp(kmh / 70, 0, 1) * 75} 100`;
-      $('.place').textContent = rennen || st.phase === 'auslaufen' ? `${st.meZiel != null ? 2 : place()}/${N_FELD + 5}` : '–';
+      $('.place').textContent = rennen || st.phase === 'auslaufen' ? `${st.meZiel != null ? 2 : place()}/${N_FELD + 7}` : '–';
       const rest = st.sZiel - st.s;
       $('.story-rest').textContent = rennen ? (rest > 1000 ? `${(rest / 1000).toFixed(1).replace('.', ',')} km` : `${Math.max(0, Math.round(rest))} m`) : '–';
       const vorsprung = (st.s - st.pf) / Math.max(st.vf, 5);

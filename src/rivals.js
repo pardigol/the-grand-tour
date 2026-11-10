@@ -91,7 +91,7 @@ export class Rivals {
       }
       const draftZone = makeDraftZone();
       bike.root.add(draftZone);
-      return { ...r, bike, draftZone, grid: GRID[i], d: 0, v: 0, lat: r.lane, heading: 0, lean: 0, finished: null };
+      return { ...r, bike, draftZone, grid: GRID[i] ?? 10 + i * 2, d: 0, v: 0, lat: r.lane, heading: 0, lean: 0, finished: null };
     });
   }
 
