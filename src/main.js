@@ -175,6 +175,24 @@ async function boot() {
   window.addEventListener('pointerdown', () => app.audio.unlock());
 
   app.go('title');
+
+  // Neue Version online? Dann von selbst neu laden – aber nur in den Menüs, nie mitten im Rennen.
+  // (GitHub Pages lässt die Seite bis zu 10 Minuten im Zwischenspeicher, so kommt Neues trotzdem schnell an.)
+  if (!import.meta.env.DEV) {
+    const meinSkript = document.querySelector('script[type="module"][src*="assets/index-"]')?.getAttribute('src');
+    const pruefen = async () => {
+      try {
+        const html = await (await fetch(`./index.html?v=${Date.now()}`, { cache: 'no-store' })).text();
+        const neu = html.match(/assets\/index-[^"]+\.js/)?.[0];
+        const ruhig = ['title', 'mode', 'menu', 'control'].includes(app.currentName);
+        if (neu && meinSkript && !meinSkript.endsWith(neu) && ruhig) location.reload();
+      } catch {
+        /* offline: egal */
+      }
+    };
+    setInterval(pruefen, 60_000);
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && pruefen());
+  }
   // Einmal rendern, bevor der Ladebildschirm verschwindet
   if (window.innerWidth && window.innerHeight) composer.render(0);
   loading.classList.add('done');
