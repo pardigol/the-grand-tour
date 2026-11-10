@@ -26,10 +26,12 @@ const FELD_TEAMS = [
   ['#d23c3c', '#16161b', '#d23c3c'],
   ['#f4d21c', '#16161b', '#16161b'],
   ['#8a3ffc', '#d8d8de', '#8a3ffc'],
-  ['#f6f6f6', '#2f7cf6', '#f6f6f6'],
+  ['#ff8c1a', '#16161b', '#ff8c1a'],
   ['#16161b', '#d23c3c', '#d23c3c'],
   ['#3bceac', '#16161b', '#3bceac'],
 ];
+// ✏️ Deine Trikotfarbe im Game (Farbe vom Stoff Fabric019)
+const MEIN_TRIKOT = '#efeee9';
 const N_FELD = 46; // + 4 vom Team Blitz = 50 andere Fahrer
 const RENNEN = 2000; // Meter vom Start bis ins Ziel
 const ATTACKE_NACH = 600; // Meter: dann reißt Team Blitz aus
@@ -431,7 +433,7 @@ export function createStoryScene(app) {
     const zeitVon = (t) => (t == null ? '–' : t - w < 0.05 ? formatTime(t) : `+${(t - w).toFixed(1).replace('.', ',')} s`);
     const alle = [
       ...st.team.map((tm) => ({ name: tm.r.name, number: tm.r.number, color: tm.r.jersey, t: tm.ziel ?? st.raceTime + (st.sZiel - tm.s) / Math.max(tm.v, 5), sub: TEAM_NAME })),
-      { name: char.name, number: char.number, color: char.jersey || '#d23c3c', t: st.meZiel, me: true },
+      { name: char.name, number: char.number, color: MEIN_TRIKOT, t: st.meZiel, me: true },
     ].sort((a, b) => a.t - b.t);
     alle.forEach((r, i) =>
       zeilen.push(`<div class="result-row ${r.me ? 'me' : ''}">
@@ -555,7 +557,8 @@ export function createStoryScene(app) {
         alle.find((c) => (c.mode || 'road') === 'road') ||
         alle[0] || { id: null, name: 'Du', number: 1, jersey: '#d23c3c' };
       app.bike.setPlate(char.number, char.name);
-      app.bike.applyLook(char);
+      // Im Game fährst du in Weiß (Stoff Fabric019), Team Blitz in Weinrot
+      app.bike.applyLook({ ...char, jersey: MEIN_TRIKOT });
       app.bike.setTires('road');
 
       root = el(`
@@ -1017,6 +1020,8 @@ export function createStoryScene(app) {
     exit() {
       app.input.touchRide = false;
       app.bike.stand = 0;
+      // wieder in den eigenen Farben
+      if (char) app.bike.applyLook(char);
       team?.hide();
       if (feld) feld.visible = false;
       if (deko) deko.visible = false;
