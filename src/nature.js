@@ -26,7 +26,8 @@ function parseMtl(text, hell = 1.6) {
 
 // Eine OBJ-Datei -> eine Geometrie mit Farben, unten auf y = 0, mittig
 // base = Ordner, hell = Aufhellung der Farben, fuss = am Stammfuß ausrichten (Bäume) statt an der Mitte (Häuser)
-export async function loadModel(name, base = BASE, hell = 1.6, fuss = true) {
+// rinde = Teile mit dem Material „Wood“ bekommen später die Rinden-Textur (nur Natur, nicht das Dorf)
+export async function loadModel(name, base = BASE, hell = 1.6, fuss = true, rinde = true) {
   const [objText, mtlText] = await Promise.all([
     fetch(base + name + '.obj').then((r) => r.text()),
     fetch(base + name + '.mtl').then((r) => r.text()),
@@ -43,18 +44,23 @@ export async function loadModel(name, base = BASE, hell = 1.6, fuss = true) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     const groups = g.groups.length ? g.groups : [{ start: 0, count: g.attributes.position.count, materialIndex: 0 }];
     const col = new Float32Array(g.attributes.position.count * 3);
+    const bark = new Float32Array(g.attributes.position.count);
     for (const gr of groups) {
-      const c = colors[mats[gr.materialIndex]?.name] || new THREE.Color(0.5, 0.5, 0.5);
+      const mname = mats[gr.materialIndex]?.name;
+      const c = colors[mname] || new THREE.Color(0.5, 0.5, 0.5);
+      const istRinde = rinde && mname === 'Wood' ? 1 : 0;
       for (let i = gr.start; i < gr.start + gr.count; i++) {
         col[i * 3] = c.r;
         col[i * 3 + 1] = c.g;
         col[i * 3 + 2] = c.b;
+        bark[i] = istRinde;
       }
     }
     const out = new THREE.BufferGeometry();
     out.setAttribute('position', g.attributes.position);
     out.setAttribute('normal', g.attributes.normal);
     out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    out.setAttribute('bark', new THREE.BufferAttribute(bark, 1));
     parts.push(out);
   });
   const geo = mergeGeometries(parts);
@@ -93,7 +99,7 @@ export async function loadNature() {
       want.add(x),
     );
     const names = [...want];
-    const geos = await Promise.all(names.map(loadModel));
+    const geos = await Promise.all(names.map((n) => loadModel(n)));
     const byName = Object.fromEntries(names.map((n, i) => [n, geos[i]]));
     const pick = (season) => {
       const s = SETS[season] || SETS.sommer;
@@ -125,7 +131,7 @@ export async function loadVillageModels() {
   try {
     const base = 'modelle/dorf/';
     const all = [...DORF_HAEUSER, ...DORF_DINGE];
-    const geos = await Promise.all(all.map((n) => loadModel(n, base, 1.9, false)));
+    const geos = await Promise.all(all.map((n) => loadModel(n, base, 1.9, false, false)));
     return Object.fromEntries(all.map((n, i) => [n, geos[i]]));
   } catch (e) {
     console.warn('Dorf-Modelle konnten nicht geladen werden.', e);

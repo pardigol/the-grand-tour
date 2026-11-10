@@ -2278,7 +2278,7 @@ body.control-touch .wish-button .btn {
 }
 .result-name small {
   font-size: 0.75em;
-  color: #ff9a5a;
+  color: #e0707e;
   margin-left: 4px;
 }
 @media (max-width: 760px) {
@@ -2287,5 +2287,17 @@ body.control-touch .wish-button .btn {
     width: 86vw;
     text-align: center;
     font-size: 16px;
+  }
+}
+.story-gap-box.alarm {
+  border-color: #e0383e;
+  animation: gapAlarm 0.7s ease-in-out infinite;
+}
+.story-gap-box.alarm b {
+  color: #ff6b6b;
+}
+@keyframes gapAlarm {
+  50% {
+    box-shadow: 0 0 0 4px rgba(224, 56, 62, 0.45);
   }
 }

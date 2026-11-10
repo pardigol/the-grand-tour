@@ -604,7 +604,7 @@ export class World {
     sc.left = sc.bottom = -32;
     sc.right = sc.top = 32;
     sc.near = 1;
-    sc.far = 260;
+    sc.far = 150; // Sonne steht 120 m entfernt: weiter hinten wirft nichts mehr Schatten ins Bild
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.03;
     this.scene.add(sun, sun.target);
@@ -844,14 +844,36 @@ export class World {
 
   // ---------- Bäume, Gras, Blumen, Steine ----------
   instanced(geo, mat, matrices, colors, { cast = true, receive = true } = {}) {
-    const m = new THREE.InstancedMesh(geo, mat, matrices.length);
-    matrices.forEach((mx, i) => m.setMatrixAt(i, mx));
-    if (colors) colors.forEach((c, i) => m.setColorAt(i, c));
-    m.castShadow = cast;
-    m.receiveShadow = receive;
-    m.instanceMatrix.needsUpdate = true;
-    this.scene.add(m);
-    return m;
+    const make = (list, cols) => {
+      const m = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((mx, i) => m.setMatrixAt(i, mx));
+      if (cols) cols.forEach((c, i) => m.setColorAt(i, c));
+      m.castShadow = cast;
+      m.receiveShadow = receive;
+      m.instanceMatrix.needsUpdate = true;
+      m.computeBoundingSphere();
+      this.scene.add(m);
+      return m;
+    };
+    if (matrices.length < 40) return make(matrices, colors);
+    // Viele Exemplare: in Kacheln aufteilen, damit nur gezeichnet wird, was im Bild (und nicht zu weit weg) ist
+    const CELL = 60;
+    const cells = new Map();
+    matrices.forEach((mx, i) => {
+      const k = `${Math.floor(mx.elements[12] / CELL)},${Math.floor(mx.elements[14] / CELL)}`;
+      if (!cells.has(k)) cells.set(k, { mats: [], cols: [] });
+      const c = cells.get(k);
+      c.mats.push(mx);
+      if (colors) c.cols.push(colors[i]);
+    });
+    let first = null;
+    this.chunks ||= [];
+    for (const c of cells.values()) {
+      const m = make(c.mats, colors ? c.cols : null);
+      this.chunks.push(m);
+      first ||= m;
+    }
+    return first;
   }
 
   buildVegetation() {
@@ -891,7 +913,7 @@ export class World {
     const lim = this.cx ? 520 : 860;
     let tries = 0;
     // Dorf: weniger Bäume, die Häuser brauchen Platz
-    const maxTrees = this.cx ? 8500 : this.tt ? 1300 : 2600;
+    const maxTrees = this.cx ? 7000 : this.tt ? 1300 : 2600;
     while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
@@ -1098,8 +1120,40 @@ export class World {
   }
 
   // ---------- Natur-Modelle (Quaternius) ----------
-  natureMaterial() {
-    return (this._natMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
+  // variante 0/1: zwei verschiedene Baumrinden (Bark007 und Bark012 von ambientCG, CC0), „mal so, mal so“
+  natureMaterial(variante = 0) {
+    this._natMats ||= [];
+    if (this._natMats[variante]) return this._natMats[variante];
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    const tex = new THREE.TextureLoader().load(`texturen/rinde/${variante ? 'rinde012' : 'rinde007'}.jpg`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 4;
+    // Rinde ohne Nähte: von zwei Seiten auf den Stamm projizieren (im Modell-Raum, wandert mit dem Baum mit)
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.barkMap = { value: tex };
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float bark;\nvarying float vBark;\nvarying vec3 vBarkPos;\nvarying vec3 vBarkN;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBark = bark;\nvBarkPos = position;\nvBarkN = normal;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D barkMap;\nvarying float vBark;\nvarying vec3 vBarkPos;\nvarying vec3 vBarkN;')
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          if (vBark > 0.5) {
+            vec3 n = abs(normalize(vBarkN));
+            vec2 sc = vec2(1.6, 0.8);
+            vec3 a = texture2D(barkMap, vBarkPos.xy * sc).rgb;
+            vec3 b = texture2D(barkMap, vBarkPos.zy * sc).rgb;
+            float w = n.x / max(n.x + n.z, 0.001);
+            vec3 rinde = mix(a, b, w);
+            // etwas Farbe des Modells (und die Tönung je Baum) behalten
+            diffuseColor.rgb = rinde * (0.55 + 0.6 * vColor.rgb / max(max(vColor.r, vColor.g), max(vColor.b, 0.001)) * 0.75);
+          }`,
+        );
+    };
+    mat.customProgramCacheKey = () => 'rinde' + variante;
+    return (this._natMats[variante] = mat);
   }
 
   // Zufällige Farbtönung pro Baum, damit nicht alle gleich aussehen
@@ -1137,7 +1191,16 @@ export class World {
       const list = giant ? (r < 0.85 ? T.common : T.birch) : r < 0.5 ? T.common : r < 0.8 ? T.birch : T.willow;
       add(list[v()], m, this.leafTint(rand));
     }
-    for (const [geo, g] of groups) this.instanced(geo, this.natureMaterial(), g.mats, g.cols);
+    // Jeder Baum bekommt per Zufall eine der beiden Rinden
+    for (const [geo, g] of groups) {
+      const teile = [{ mats: [], cols: [] }, { mats: [], cols: [] }];
+      g.mats.forEach((m, i) => {
+        const t = teile[rand() < 0.5 ? 0 : 1];
+        t.mats.push(m);
+        t.cols.push(g.cols[i]);
+      });
+      teile.forEach((t, k) => t.mats.length && this.instanced(geo, this.natureMaterial(k), t.mats, t.cols));
+    }
   }
 
   // Matrizen zufällig auf mehrere Modelle verteilen (z. B. Felsen)
@@ -1648,6 +1711,14 @@ export class World {
   }
 
   update(dt, focus, camera, time) {
+    // Im dichten Wald (Nebel) weit entfernte Kacheln gar nicht erst zeichnen
+    if (this.chunks && this.cx) {
+      const cp = camera.position;
+      for (const m of this.chunks) {
+        const bs = m.boundingSphere;
+        if (bs) m.visible = Math.hypot(bs.center.x - cp.x, bs.center.z - cp.z) - bs.radius < 330;
+      }
+    }
     // Schattenkamera folgt dem Geschehen
     this.sun.position.copy(focus).addScaledVector(this.lightDir, 120);
     this.sun.target.position.copy(focus);

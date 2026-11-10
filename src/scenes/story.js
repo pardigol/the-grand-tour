@@ -14,10 +14,10 @@ import { loadCharacters } from '../storage.js';
 // ✏️ Das Ausreißer-Team
 const TEAM_NAME = 'Team Blitz';
 const TEAM = [
-  { name: 'Jonas', number: 11, jersey: '#ff6a13', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#ff6a13' },
-  { name: 'Felix', number: 12, jersey: '#ff6a13', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#ff6a13' },
-  { name: 'Noah', number: 13, jersey: '#ff6a13', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#ff6a13' },
-  { name: 'Elias', number: 14, jersey: '#ff6a13', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#ff6a13' },
+  { name: 'Jonas', number: 11, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
+  { name: 'Felix', number: 12, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
+  { name: 'Noah', number: 13, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
+  { name: 'Elias', number: 14, jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' },
 ];
 // Trikots der anderen Teams im Feld
 const FELD_TEAMS = [
@@ -98,6 +98,39 @@ export function createStoryScene(app) {
     return t;
   }
 
+  // Torbogen über der Straße mit Schrift
+  function makeBogen(sAt, rh, farbe, schriftFarbe, text) {
+    const w = app.world;
+    w.poseAt(sAt, 0, pose);
+    const tex = canvasTex(1024, 192, (ctx, cw, ch) => {
+      ctx.fillStyle = farbe;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.fillStyle = schriftFarbe;
+      ctx.font = '900 120px "Barlow Condensed", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, cw / 2, ch / 2 + 6);
+    });
+    const breite = rh * 2 + 1.6;
+    const seite = new THREE.MeshStandardMaterial({ color: farbe });
+    const bild = new THREE.MeshStandardMaterial({ map: tex });
+    const tafel = new THREE.Mesh(new THREE.BoxGeometry(breite, 1.2, 0.3), [seite, seite, seite, seite, bild, bild]);
+    const bogen = new THREE.Group();
+    bogen.position.set(pose.x, pose.h, pose.z);
+    bogen.rotation.y = pose.heading;
+    tafel.position.y = 4.6;
+    tafel.castShadow = true;
+    bogen.add(tafel);
+    const pfostenMat = new THREE.MeshStandardMaterial({ color: '#e9e9e4', roughness: 0.5 });
+    for (const sd of [-1, 1]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 5.2, 10), pfostenMat);
+      p.position.set(sd * (breite / 2 - 0.2), 2.6, 0);
+      p.castShadow = true;
+      bogen.add(p);
+    }
+    return bogen;
+  }
+
   function buildDeko(sStart) {
     const g = new THREE.Group();
     const w = app.world;
@@ -117,38 +150,46 @@ export function createStoryScene(app) {
     linieHalter.add(linie);
     g.add(linieHalter);
     // Bogen mit „START“
-    const tex = canvasTex(1024, 192, (ctx, cw, ch) => {
-      ctx.fillStyle = '#2fa37a';
-      ctx.fillRect(0, 0, cw, ch);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '900 120px "Barlow Condensed", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('START · GRAND TOUR', cw / 2, ch / 2 + 6);
-    });
-    const breite = rh * 2 + 1.6;
-    const tafel = new THREE.Mesh(new THREE.BoxGeometry(breite, 1.2, 0.3), [
-      new THREE.MeshStandardMaterial({ color: '#2fa37a' }),
-      new THREE.MeshStandardMaterial({ color: '#2fa37a' }),
-      new THREE.MeshStandardMaterial({ color: '#2fa37a' }),
-      new THREE.MeshStandardMaterial({ color: '#2fa37a' }),
-      new THREE.MeshStandardMaterial({ map: tex }),
-      new THREE.MeshStandardMaterial({ map: tex }),
-    ]);
-    const bogen = new THREE.Group();
-    bogen.position.set(pose.x, pose.h, pose.z);
-    bogen.rotation.y = pose.heading;
-    tafel.position.y = 4.6;
-    tafel.castShadow = true;
-    bogen.add(tafel);
-    const pfostenMat = new THREE.MeshStandardMaterial({ color: '#e9e9e4', roughness: 0.5 });
-    for (const sd of [-1, 1]) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 5.2, 10), pfostenMat);
-      p.position.set(sd * (breite / 2 - 0.2), 2.6, 0);
-      p.castShadow = true;
-      bogen.add(p);
+    g.add(makeBogen(sStart, rh, '#2fa37a', '#ffffff', 'START · GRAND TOUR'));
+    // Rote Flagge: noch 1 Kilometer (mit rotem Dreieck)
+    const s1 = sStart + Math.min(RENNEN, app.world.length - 400) - 1000;
+    w.poseAt(s1, 0, pose);
+    const nr1 = w.nearest(pose.x, pose.z);
+    g.add(makeBogen(s1, nr1.found ? w.rhArr[nr1.i] : w.RH, '#d8262e', '#ffffff', '▼  NOCH 1 KM  ▼'));
+    // Schilder am Straßenrand: 500, 300, 200, 100 m
+    const sZiel = sStart + Math.min(RENNEN, app.world.length - 400);
+    for (const m of [500, 300, 200, 100]) {
+      const tex = canvasTex(256, 256, (ctx, cw, ch) => {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.strokeStyle = '#d8262e';
+        ctx.lineWidth = 18;
+        ctx.strokeRect(9, 9, cw - 18, ch - 18);
+        ctx.fillStyle = '#16161b';
+        ctx.font = '900 110px "Barlow Condensed", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(m), cw / 2, ch / 2 - 18);
+        ctx.font = '800 64px "Barlow Condensed", Arial, sans-serif';
+        ctx.fillText('m', cw / 2, ch / 2 + 62);
+      });
+      for (const sd of [-1, 1]) {
+        w.poseAt(sZiel - m, 0, pose);
+        const nrm = w.nearest(pose.x, pose.z);
+        const lat = (nrm.found ? w.shArr[nrm.i] : w.SH) + 0.6;
+        w.poseAt(sZiel - m, sd * lat, pose);
+        const schild = new THREE.Group();
+        schild.position.set(pose.x, w.terrainHeight(pose.x, pose.z), pose.z);
+        schild.rotation.y = pose.heading + Math.PI;
+        const tafel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.05), [0, 0, 0, 0, 1, 1].map((k) => (k ? new THREE.MeshStandardMaterial({ map: tex }) : new THREE.MeshStandardMaterial({ color: '#ffffff' }))));
+        tafel.position.y = 2.0;
+        tafel.castShadow = true;
+        const pfahl = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.0, 6), new THREE.MeshStandardMaterial({ color: '#b9bcc2', metalness: 0.7, roughness: 0.4 }));
+        pfahl.position.y = 1.0;
+        schild.add(tafel, pfahl);
+        g.add(schild);
+      }
     }
-    g.add(bogen);
     w.scene.add(g);
     return g;
   }
@@ -237,6 +278,21 @@ export function createStoryScene(app) {
       showResult: false,
       feldWeg: false,
       tippAttacke: 0,
+      konterT: 0,
+      konterDone: false,
+      konterOk: false,
+      zurueck: false,
+      jagdT: 0,
+      jagdDone: false,
+      allesGeben: false,
+      einKm: false,
+      foto: false,
+      fotoNach: null,
+      slow: 1,
+      slowZiel: 1,
+      schild200: false,
+      schild100: false,
+      jubelT: 0,
     });
   }
 
@@ -324,7 +380,7 @@ export function createStoryScene(app) {
         tm.s += tm.v * dt;
       } else {
         // Ausreißer: in einer Reihe hintereinander, der Sprinter vorne
-        let vKopf = st.phase === 'attacke' && st.t < 7 ? 15.2 : V_TEAM;
+        let vKopf = (st.phase === 'attacke' && st.t < 7 ? 15.2 : V_TEAM) + (st.konterT > 0 ? 2.8 : 0) + (st.allesGeben ? 0.9 : 0);
         // Jonas springt an: erst ein harter Antritt, dann volles Sprinttempo
         if (st.phase === 'sprint' || st.phase === 'auslaufen') vKopf = st.sprintT < 3.2 ? Math.min(18.8, V_TEAM + st.sprintT * 3.2) : V_SPRINT;
         if (st.phase === 'auslaufen' && L.s > st.sZiel + 5) vKopf = Math.max(4, L.v - 1.5 * dt);
@@ -461,6 +517,28 @@ export function createStoryScene(app) {
     c.updateProjectionMatrix();
   }
 
+  // Fotofinish-Kamera: steht seitlich an der Ziellinie und schaut auf Jonas und dich
+  const _foto = new THREE.Vector3();
+  function fotoCamera(dt) {
+    const w = app.world;
+    w.poseAt(st.sZiel + 1, (w.RH || 3.6) + 3.2, pose);
+    _foto.set(pose.x, pose.h + 1.3, pose.z);
+    app.camera.position.lerp(_foto, 1 - Math.exp(-6 * dt));
+    const L = leader().r.bike.root.position;
+    const me = app.bike.root.position;
+    app.camera.lookAt((L.x + me.x) / 2, (L.y + me.y) / 2 + 0.8, (L.z + me.z) / 2);
+    app.camera.fov = damp(app.camera.fov, 38, 4, dt);
+    app.camera.updateProjectionMatrix();
+  }
+
+  // Herzklopfen
+  function herz(n) {
+    for (let i = 0; i < n; i++) {
+      app.audio.tone(58, 0.12, { type: 'sine', vol: 0.35, when: i * 0.75 });
+      app.audio.tone(52, 0.12, { type: 'sine', vol: 0.28, when: i * 0.75 + 0.22 });
+    }
+  }
+
   function goPhase(p) {
     st.phase = p;
     st.t = 0;
@@ -555,7 +633,6 @@ export function createStoryScene(app) {
       dt = Math.min(dt, 0.05);
       app.fx.uFade.value = damp(app.fx.uFade.value, 0, 3, dt);
       app.fx.uBlur.value = damp(app.fx.uBlur.value, 0, 5, dt);
-      app.fx.uLines.value = 0;
       inp.touchRide = !st.paused && !st.showResult;
 
       if (st.paused) {
@@ -589,6 +666,32 @@ export function createStoryScene(app) {
         return;
       }
 
+      // Zeitlupe beim Fotofinish
+      const realDt = dt;
+      st.slow = damp(st.slow, st.slowZiel, 5, realDt);
+      if (st.fotoNach != null) {
+        st.fotoNach -= realDt;
+        if (st.fotoNach <= 0) {
+          st.fotoNach = null;
+          st.slowZiel = 1;
+          banner('Platz 2!', `Nur ${(st.meZiel - (leader().ziel ?? st.meZiel)).toFixed(1).replace('.', ',')} Sekunden hinter ${leader().r.name}`);
+          app.audio.success();
+          app.input.rumble(0.8, 400);
+          setTimeout(() => root && st.phase === 'auslaufen' && showResult(), 3000);
+        }
+      }
+      dt *= st.slow;
+      // Sprint: Speedlines, Jubel am Straßenrand
+      const sprintFx = (st.phase === 'sprint' && st.sprint) || (st.konterT > 0 && st.konterOk) ? 0.55 : 0;
+      app.fx.uLines.value = damp(app.fx.uLines.value, sprintFx, 4, realDt);
+      if (st.phase === 'sprint' || (st.phase === 'auslaufen' && st.t < 4)) {
+        st.jubelT -= realDt;
+        if (st.jubelT <= 0) {
+          const nah = clamp(1 - (st.sZiel - st.s) / 320, 0.2, 1);
+          st.jubelT = 0.35;
+          app.audio.noiseBurst(0.7, { vol: 0.05 + 0.12 * nah, freq: 700 + Math.random() * 500, type: 'bandpass', q: 0.7 });
+        }
+      }
       st.t += dt;
       if (['feld', 'attacke', 'flucht', 'sprint', 'auslaufen'].includes(st.phase)) st.raceTime += dt;
       if (inp.pressed('klingel')) app.audio.klingel();
@@ -678,9 +781,10 @@ export function createStoryScene(app) {
         }
       } else if (st.phase === 'attacke' || st.phase === 'flucht' || st.phase === 'sprint') {
         // Das Feld wird langsamer, Team Blitz fährt davon
-        st.vf = damp(st.vf, V_FELD_HINTEN, 0.6, dt);
+        st.vf = damp(st.vf, st.jagdT > 0 ? 17 : V_FELD_HINTEN, 0.6, dt);
         st.pf += st.vf * dt;
         const L = leader();
+        const restL = st.sZiel - L.s;
         const hinten = teamLast();
         const teamVorne = hinten > st.s + 0.5;
         const dr = draftStrength();
@@ -699,12 +803,79 @@ export function createStoryScene(app) {
           // Tipps
           if (teamVorne && st.draft < 0.2 && st.raceTime > 0) {
             st.tippAttacke += dt;
-            if (st.tippAttacke > 0.6) tipp(`Lenk hinter die <b style="color:#ff6a13">orangen Trikots</b> (${lenkText()}) und tritt!`);
+            if (st.tippAttacke > 0.6) tipp(`Lenk hinter die <b style="color:#e0607a">weinroten Trikots</b> (${lenkText()}) und tritt!`);
           } else {
             st.tippAttacke = 0;
             tipp(teamVorne && !tritt ? `Weiter treten: ${pedalText()}` : '');
           }
           if (st.phase === 'attacke' && st.t > 10) goPhase('flucht');
+
+          // --- Spannung: Ereignisse während der Flucht ---
+          if (st.phase === 'flucht') {
+            // 1) Team Blitz verschärft das Tempo: schnell reagieren!
+            if (!st.konterDone && restL < 1080) {
+              st.konterDone = true;
+              st.konterT = 6;
+              st.konterOk = false;
+              banner(`${TEAM_NAME} verschärft das Tempo!`, `Schnell SPRINT (${sprintText()}), sonst bist du weg!`);
+              app.audio.whoosh(1.3);
+              app.input.rumble(0.7, 300);
+              herz(3);
+            }
+            if (st.konterT > 0) {
+              st.konterT -= dt;
+              if (sprintKey && !st.konterOk) {
+                st.konterOk = true;
+                banner('Stark!', 'Du bleibst dran!');
+                app.audio.select();
+                app.input.rumble(0.6, 200);
+              }
+              if (st.konterOk) vT = L.v + 1.2;
+              else {
+                vT = Math.min(vT, L.v - 2.4);
+                tipp(`SPRINT: ${sprintText()}!`);
+              }
+              if (st.konterT <= 0 && !st.konterOk) {
+                st.zurueck = true;
+                banner('Eine Lücke!', 'Kämpf dich zurück – tritt!');
+              }
+            } else if (st.zurueck) {
+              vT = tritt ? L.v + 1.8 : L.v - 0.5;
+              tipp(`Kämpf dich zurück: ${pedalText()}`);
+              if (hinten - st.s < 3.2) {
+                st.zurueck = false;
+                tipp('');
+                banner('Wieder dran!', 'Puh, geschafft');
+                app.audio.success();
+              }
+            }
+            // nie ganz abgehängt
+            if (st.s < hinten - 30) vT = Math.max(vT, L.v + 0.8);
+            // 2) Das Feld jagt die Ausreißer
+            if (!st.jagdDone && restL < 820) {
+              st.jagdDone = true;
+              st.jagdT = 13;
+              banner('Achtung!', 'Das Feld jagt euch!');
+              app.audio.tone(330, 0.4, { type: 'sawtooth', vol: 0.06, slideTo: 220 });
+              herz(4);
+            }
+            if (st.jagdT > 0) st.jagdT -= dt;
+            $('.story-gap-box').classList.toggle('alarm', st.jagdT > 0 || (st.feldWeg && (st.s - st.pf) / Math.max(st.vf, 5) < 7));
+            // 3) Team Blitz gibt nochmal alles
+            if (!st.allesGeben && restL < 600) {
+              st.allesGeben = true;
+              banner(`${TEAM_NAME} gibt nochmal alles!`, 'Das Feld fällt wieder zurück');
+              app.audio.whoosh(1.0);
+            }
+            // Noch 1 Kilometer
+            if (!st.einKm && st.sZiel - st.s < 1000) {
+              st.einKm = true;
+              banner('Noch 1 Kilometer!', 'Gleich geht der Sprint los …');
+              app.audio.tone(880, 0.15, { type: 'square', vol: 0.06 });
+              app.audio.tone(880, 0.15, { type: 'square', vol: 0.06, when: 0.2 });
+              herz(5);
+            }
+          }
           if (!st.feldWeg && st.s - st.pf > 30) {
             st.feldWeg = true;
             banner('Das Feld kommt nicht mit!', `Nur noch du und ${TEAM_NAME} vorne`);
@@ -746,9 +917,22 @@ export function createStoryScene(app) {
             st.s = L.s - end;
             st.v = Math.min(st.v, L.v);
           }
+          // Meter-Schilder
+          for (const m of [200, 100]) {
+            if (!st['schild' + m] && st.sZiel - st.s < m) {
+              st['schild' + m] = true;
+              banner(`${m} m!`, m === 200 ? 'Alles geben!' : 'Gleich ist es entschieden!');
+            }
+          }
+          // Fotofinish: kurz vor der Linie wird alles langsam
+          if (!st.foto && L.s > st.sZiel - 22) {
+            st.foto = true;
+            st.slowZiel = 0.22;
+            banner('Fotofinish!', '');
+            app.audio.whoosh(2.2);
+          }
           if (L.ziel != null && !st.winnerShown) {
             st.winnerShown = true;
-            banner(`${L.r.name} gewinnt!`, 'Ganz knapp vor dir …');
           }
         }
       } else if (st.phase === 'auslaufen') {
@@ -773,10 +957,8 @@ export function createStoryScene(app) {
         $('.cruise-badge').classList.remove('on');
         $('.story-phase').textContent = 'Ziel';
         tipp('');
-        banner('Platz 2!', `Nur ${(st.meZiel - (leader().ziel ?? st.meZiel)).toFixed(1).replace('.', ',')} Sekunden hinter ${leader().r.name}`);
-        app.audio.success();
-        app.input.rumble(0.8, 400);
-        setTimeout(() => root && st.phase === 'auslaufen' && showResult(), 3200);
+        // Zeitlupe noch kurz halten, dann das Ergebnis
+        st.fotoNach = 1.1;
       }
 
       // Lenken: seitlich auf der Straße
@@ -805,7 +987,13 @@ export function createStoryScene(app) {
 
       // Kamera
       if (st.phase === 'aufstellen' || (st.phase === 'countdown' && st.cd > 1.6)) frontCamera(dt);
+      else if (st.foto && (st.slow < 0.9 || st.fotoNach != null)) fotoCamera(realDt);
       else followCamera(dt);
+      // im Sprint wackelt die Kamera ein bisschen
+      if (st.phase === 'sprint' && st.sprint && st.slow > 0.9) {
+        app.camera.position.x += (Math.random() - 0.5) * 0.03;
+        app.camera.position.y += (Math.random() - 0.5) * 0.03;
+      }
 
       // Anzeige
       app.audio.setWind(clamp(st.v / 15, 0, 1) * (1 - 0.5 * st.draft));

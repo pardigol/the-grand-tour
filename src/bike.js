@@ -1083,11 +1083,11 @@ export class Bike {
     // Wiegetritt (aus dem Sattel, z. B. beim Sprint): this.stand = 0 sitzen … 1 stehen
     this.standK = (this.standK || 0) + ((this.stand || 0) - (this.standK || 0)) * (1 - Math.exp(-6 * dt));
     const st = this.aero ? 0 : this.standK;
-    // Becken hebt sich vom Sattel und geht nach vorne, der Oberkörper richtet sich etwas auf
-    const th = -0.2 * st;
+    // Sprint wie die Profis: aus dem Sattel, Becken nach vorne, Rücken flach und so tief wie möglich
+    const th = 0.2 * st;
     this.rider.rotation.x = th;
     const pivot = _standOff.copy(this.hip).applyAxisAngle(_xAxis, th);
-    this.rider.position.set(0, bob + 0.1 * st, 0.11 * st).add(this.hip).sub(pivot);
+    this.rider.position.set(0, bob + 0.06 * st, 0.13 * st).add(this.hip).sub(pivot);
     this.rider.updateMatrix();
     const toRider = (this._toRider ||= new THREE.Matrix4()).copy(this.rider.matrix).invert();
     // Rad schaukelt im Takt der Pedale hin und her
@@ -1132,10 +1132,11 @@ export class Bike {
       const hz = 0.1 + 0.45;
       // Zeitfahren: Hände vorne an den Verlängerungen
       const ax = this.aero ? a.s * 0.058 : hx;
-      const az = this.aero ? 0.45 + 0.17 : hz;
+      // im Sprint unten am Lenker (Unterlenker)
+      const az = this.aero ? 0.45 + 0.17 : hz - 0.03 * st;
       const hand = V(
         ax * Math.cos(steerA) + (az - 0.45) * Math.sin(steerA),
-        this.aero ? 0.95 : 0.94,
+        this.aero ? 0.95 : 0.94 - 0.12 * st,
         0.45 - ax * Math.sin(steerA) + (az - 0.45) * Math.cos(steerA),
       );
       const handBike = hand.clone();
@@ -1152,7 +1153,7 @@ export class Bike {
     }
     if (this.model) {
       this.model.pose({
-        hip: (this._hipS ||= new THREE.Vector3()).copy(this.hip).add(_k.set(0, 0.1 * st, 0.11 * st)),
+        hip: (this._hipS ||= new THREE.Vector3()).copy(this.hip).add(_k.set(0, 0.06 * st, 0.13 * st)),
         pedals: [this.pedals[0].position, this.pedals[1].position],
         angles: [ca, ca + Math.PI],
         hands,

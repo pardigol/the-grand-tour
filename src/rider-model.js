@@ -171,9 +171,9 @@ export class RiderModel {
     const dir = (a) => _d.set(0, Math.cos(a), Math.sin(a));
     // Zeitfahren: Rücken fast waagerecht, Kopf tief zwischen den Schultern
     let A = aero ? [0.75, 1.3, 1.45, 1.5, 1.0, 0.45] : [0.55, 0.95, 1.1, 1.2, 0.6, 0.12];
-    // Wiegetritt: Becken aufrechter, Oberkörper über dem Lenker
+    // Sprint: Rücken flach und tief über dem Lenker
     if (stand > 0) {
-      const S2 = [0.2, 0.85, 1.05, 1.15, 0.55, 0.1];
+      const S2 = [0.75, 1.3, 1.45, 1.5, 0.95, 0.4];
       A = A.map((a, i) => a + (S2[i] - a) * stand);
     }
     this.aim('Hips', dir(A[0]));
