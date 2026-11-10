@@ -862,7 +862,7 @@ export class World {
     const lim = this.cx ? 520 : 860;
     let tries = 0;
     // Dorf: weniger Bäume, die Häuser brauchen Platz
-    const maxTrees = this.cx ? 7000 : this.tt ? 1300 : 2600;
+    const maxTrees = this.cx ? 8500 : this.tt ? 1300 : 2600;
     while (pines.length + leafs.length < maxTrees && tries++ < 60000) {
       const x = (rand() * 2 - 1) * lim;
       const z = (rand() * 2 - 1) * lim;
@@ -899,7 +899,7 @@ export class World {
       const gPineCol = [];
       const pose = {};
       for (const side of [-1, 1]) {
-        for (let s = rand() * 6; s < this.length; s += 4 + rand() * 5) {
+        for (let s = rand() * 5; s < this.length; s += 4.5 + rand() * 4.5) {
           const lat = side * (this.shAt(s) + 1.0 + rand() * 2.5);
           this.poseAt(s, lat, pose);
           const h = this.terrainHeight(pose.x, pose.z);

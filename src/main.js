@@ -27,6 +27,7 @@ import { createTitleScene } from './scenes/title.js';
 import { createTransitionScene } from './scenes/transition.js';
 import { createMenuScene } from './scenes/menu.js';
 import { createModeScene } from './scenes/mode.js';
+import { createMinigameScene } from './scenes/minigame.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
 
@@ -144,6 +145,7 @@ async function boot() {
     ride: createRideScene(app),
     lobby: createLobbyScene(app),
     control: createControlScene(app),
+    minigame: createMinigameScene(app),
   };
   // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
   applyControl(app, savedControl() || guess(app), !!savedControl());

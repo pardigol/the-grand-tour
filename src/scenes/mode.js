@@ -22,7 +22,7 @@ export function createModeScene(app) {
   function highlight(silent = false) {
     root.querySelectorAll('.mode-card').forEach((c, i) => c.classList.toggle('selected', i === index));
     // Das Rad im Hintergrund zeigt gleich die passenden Reifen
-    app.bike.setTires(MODES[index].id);
+    if (MODES[index]) app.bike.setTires(MODES[index].id);
     if (!silent) {
       app.audio.nav();
       app.input.rumble(0.15, 30);
@@ -31,6 +31,12 @@ export function createModeScene(app) {
 
   async function choose() {
     if (busy) return;
+    // letzte Karte: das Minispiel
+    if (index === MODES.length) {
+      app.audio.select();
+      app.go('minigame');
+      return;
+    }
     app.mode = MODES[index].id;
     app.audio.select();
     app.input.rumble(0.35, 80);
@@ -54,7 +60,7 @@ export function createModeScene(app) {
 
   return {
     enter(params = {}) {
-      index = Math.max(0, MODES.findIndex((m) => m.id === app.mode));
+      index = params.minigame ? MODES.length : Math.max(0, MODES.findIndex((m) => m.id === app.mode));
       root = el(`
         <div class="screen mode-screen ${params.fromTransition ? 'intro' : ''}">
           <div class="mode-head">
@@ -68,6 +74,10 @@ export function createModeScene(app) {
                 <div class="mode-name">${esc(m.name)}</div>
               </div>`,
             ).join('')}
+              <div class="mode-card mode-card-game" data-i="${MODES.length}">
+                <div class="mode-name">🎮 Minispiel</div>
+                <div class="control-sub">Flaschenjagd</div>
+              </div>
           </div>
           ${hintBar([
             ['A', 'Auswählen'],
@@ -104,7 +114,7 @@ export function createModeScene(app) {
       if ((inp.pressed('left') || inp.pressed('up')) && index > 0) {
         index--;
         highlight();
-      } else if ((inp.pressed('right') || inp.pressed('down')) && index < MODES.length - 1) {
+      } else if ((inp.pressed('right') || inp.pressed('down')) && index < MODES.length) {
         index++;
         highlight();
       } else if (inp.pressed('confirm')) choose();
