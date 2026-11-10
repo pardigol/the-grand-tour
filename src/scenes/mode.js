@@ -31,10 +31,10 @@ export function createModeScene(app) {
 
   async function choose() {
     if (busy) return;
-    // letzte Karte: das Minispiel
+    // letzte Karte: das Game (großes Rennen mit Geschichte)
     if (index === MODES.length) {
       app.audio.select();
-      app.go('minigame');
+      app.go('story');
       return;
     }
     app.mode = MODES[index].id;
@@ -75,13 +75,14 @@ export function createModeScene(app) {
               </div>`,
             ).join('')}
               <div class="mode-card mode-card-game" data-i="${MODES.length}">
-                <div class="mode-name">🎮 Minispiel</div>
-                <div class="control-sub">Flaschenjagd</div>
+                <div class="mode-name">🎮 Game</div>
+                <div class="control-sub">Das große Rennen</div>
               </div>
           </div>
           ${hintBar([
             ['A', 'Auswählen'],
             ['Y', 'Steuerung ändern'],
+            ['X', 'Flaschenjagd'],
             ['B', 'Zurück'],
           ])}
           <div class="mode-building">Der Wald wird gebaut …</div>
@@ -118,7 +119,10 @@ export function createModeScene(app) {
         index++;
         highlight();
       } else if (inp.pressed('confirm')) choose();
-      else if (inp.pressed('y')) {
+      else if (inp.pressed('x')) {
+        app.audio.select();
+        app.go('minigame');
+      } else if (inp.pressed('y')) {
         app.audio.select();
         app.go('control', { next: 'mode' });
       }

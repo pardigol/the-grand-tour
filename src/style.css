@@ -2245,3 +2245,47 @@ body.control-touch .wish-button .btn {
     opacity: 0.45;
   }
 }
+
+/* ---------- Game: Das große Rennen ---------- */
+.story-tipp {
+  position: absolute;
+  left: 50%;
+  bottom: 22vh;
+  transform: translateX(-50%);
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 20px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.story-tipp.show {
+  opacity: 1;
+  animation: mgPulse 1.6s ease-in-out infinite;
+}
+.story-tipp .btn {
+  vertical-align: middle;
+}
+.story-gap-box {
+  display: none;
+}
+.story-gap-box.show {
+  display: block;
+}
+.result-name small {
+  font-size: 0.75em;
+  color: #ff9a5a;
+  margin-left: 4px;
+}
+@media (max-width: 760px) {
+  .story-tipp {
+    white-space: normal;
+    width: 86vw;
+    text-align: center;
+    font-size: 16px;
+  }
+}
