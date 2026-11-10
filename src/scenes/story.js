@@ -318,7 +318,7 @@ export function createStoryScene(app) {
     const S = app.world.serp;
     if (!S) return 1;
     if (s >= S.sStart && s <= S.sTop) return V_BERG / V_TEAM;
-    if (s > S.sTop && s < S.sTop + 520) return V_ABFAHRT / V_TEAM;
+    if (s > S.sTop && s < (S.sJoin ?? S.sTop + 520)) return V_ABFAHRT / V_TEAM;
     return 1;
   }
 
@@ -951,7 +951,7 @@ export function createStoryScene(app) {
             // Noch 1 Kilometer
             if (!st.einKm && st.sZiel - st.s < 1000) {
               st.einKm = true;
-              banner('Noch 1 Kilometer!', 'Gleich geht der Sprint los …');
+              banner('Noch 1 Kilometer!', st.bergOben ? 'Gleich geht der Sprint los …' : 'Erst noch über den Berg …');
               app.audio.tone(880, 0.15, { type: 'square', vol: 0.06 });
               app.audio.tone(880, 0.15, { type: 'square', vol: 0.06, when: 0.2 });
               herz(5);
