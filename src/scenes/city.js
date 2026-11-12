@@ -1,6 +1,7 @@
-// Nach dem großen Rennen: in der Stadt spricht dich Jonas an.
-// Er sagt seinen Satz, zwinkert dir zu, fährt zu seinem Hochhaus, schiebt sein Rad hinein
-// und oben im Penthouse geht das Licht an. Dann bist du dran: „Na dann ab zum nächsten Rennen!“
+// Nach dem großen Rennen: in der Stadt triffst du Jonas auf dem Bürgersteig.
+// Du gehst selbst (dein Rad schiebst du neben dir her). Vorne vor seinem Hochhaus wartet Jonas,
+// kommt dir entgegen, sagt seinen Satz, zwinkert dir zu und schiebt sein Rad ins Haus.
+// Oben im Penthouse geht das Licht an. Dann denkst du: „Na dann ab zum nächsten Rennen!“
 import * as THREE from 'three';
 import { el, btn } from './common.js';
 import { clamp, damp } from '../noise.js';
@@ -12,11 +13,13 @@ const JONAS_SAGT = 'Wenn du so weitermachst, müssen wir dich wohl ins Team eink
 const DU_DENKST = 'Na dann ab zum nächsten Rennen!';
 const JONAS_LOOK = { jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' };
 
-// Wo alles stattfindet (Straße läuft entlang x, Jonas' Hochhaus steht auf der Nordseite bei z < 0)
-const ICH = { x: 3, z: -4.3 };
-const JONAS_HALT = { x: 4.6, z: -2.6 };
-const TUER = { x: PENTHOUSE.x + 1, z: -9.6 }; // Eingang vom Hochhaus
-const BORDSTEIN = { x: TUER.x - 0.6, z: -5.6 };
+// Wo alles stattfindet: Die Straße läuft entlang x, der Bürgersteig auf der Nordseite liegt bei z ≈ -6 … -9.
+const START = { x: -14, z: -7.0 }; // hier stehst du am Anfang (mit dem Rad)
+const TUER = { x: PENTHOUSE.x + 1, z: -9.6 }; // Eingang von Jonas' Hochhaus
+const JONAS_START = { x: TUER.x + 2.5, z: -7.0 }; // Jonas wartet vor seinem Haus
+const GEHWEG = { min: -8.0, max: -6.6 }; // so weit darf das Rad zur Hauswand bzw. zur Straße
+const TEMPO = 2.1; // m/s zügig gehen
+const ABSTAND = 2.7; // so nah kommt ihr euch beim Reden
 
 const TIPP_ZEIT = 0.028; // Sekunden pro Buchstabe
 
@@ -74,31 +77,35 @@ export function createCityScene(app) {
     return true;
   }
 
-  // ---------- Figuren ----------
-  function stell(bike, x, z, heading, speed, dt, rate = 0) {
+  function tipp(text) {
+    const t = $('.stadt-tipp');
+    if (t.dataset.text === text) return;
+    t.dataset.text = text;
+    if (text) t.innerHTML = text;
+    t.classList.toggle('show', !!text);
+  }
+  const gehText = () =>
+    app.control === 'touch'
+      ? 'Nach oben wischen = gehen, links/rechts halten = lenken'
+      : app.control === 'keys'
+        ? '<b>W</b> gehen · <b>A</b> <b>D</b> lenken'
+        : `${btn('A')} halten = gehen · ${btn('LT')}${btn('RT')} lenken`;
+
+  // ---------- Figuren (beide gehen und schieben ihr Rad) ----------
+  function stell(bike, x, z, heading, speed, dt) {
     bike.root.position.set(x, city.hoehe(x, z), z);
     bike.root.rotation.set(0, heading, 0);
-    bike.update(dt, speed, rate, 0);
+    bike.update(dt, speed, 0, 0);
   }
-
-  // Jonas fährt eine Kurve ab (Punkte), Tempo v; liefert true, wenn er am Ende ist
-  function fahreWeg(weg, dt, vMax, bremsen = true) {
-    const L = weg.getLength();
-    const rest = L - st.js;
-    st.jv = Math.min(vMax, bremsen ? Math.sqrt(2 * 1.6 * Math.max(0, rest)) + 0.15 : vMax, st.jv + 2.5 * dt);
-    st.js = Math.min(L, st.js + st.jv * dt);
-    const u = st.js / L;
-    const p = weg.getPointAt(u);
-    const tg = weg.getTangentAt(u);
-    const heading = Math.atan2(tg.x, tg.z);
-    stell(jonas, p.x, p.z, heading, st.jv, dt, st.jv > 0.3 ? st.jv / 0.34 / 3.6 : 0);
-    // in die Kurve legen
-    const kurve = (heading - (st.jh ?? heading) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
-    st.jh = heading;
-    st.jl = damp(st.jl || 0, clamp((-kurve / Math.max(dt, 1e-3)) * st.jv * 0.06, -0.35, 0.35), 6, dt);
-    jonas.root.rotation.z = st.jl;
-    return rest < 0.05;
+  // Ich: Position, Richtung, Tempo
+  function ichStellen(dt) {
+    stell(app.bike, st.x, st.z, st.h, st.v, dt);
   }
+  function jonasStellen(dt) {
+    stell(jonas, st.jx, st.jz, st.jh, st.jv, dt);
+  }
+  // Richtung langsam zum Ziel drehen (kürzester Weg)
+  const drehe = (h, ziel, k, dt) => h + (((ziel - h + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * (1 - Math.exp(-k * dt));
 
   function kamera(dt, k = 2.2) {
     cam.pos.x = damp(cam.pos.x, cam.zielPos.x, k, dt);
@@ -110,10 +117,16 @@ export function createCityScene(app) {
     app.camera.position.copy(cam.pos);
     app.camera.lookAt(cam.look);
   }
-
-  function kopf(bike) {
-    return bike.head.getWorldPosition(new THREE.Vector3());
+  // Kamera hinter dir (beim Gehen)
+  function folgeKamera() {
+    const sx = Math.sin(st.h);
+    const sz = Math.cos(st.h);
+    cam.zielPos.set(st.x - sx * 4.4, 2.15, st.z - sz * 4.4 + 1.2);
+    cam.zielLook.set(st.x + sx * 3, 1.1, st.z + sz * 3 - 0.4);
   }
+
+  const kopf = (bike) => bike.head.getWorldPosition(new THREE.Vector3());
+  const person = (bike) => bike.rider.getWorldPosition(new THREE.Vector3());
 
   function start() {
     app.setWorld(city);
@@ -126,33 +139,27 @@ export function createCityScene(app) {
     city.scene.add(jonas.root);
     st.jonas = jonas;
     jonas.root.visible = true;
-    jonas.walk = false;
-    jonas.schieben = false;
-    jonas.ohneBrille = false;
+    jonas.walk = true;
+    jonas.schieben = true;
+    jonas.ohneBrille = true;
     jonas.zwinker = 0;
-    jonas.head.rotation.y = 0;
-    app.bike.head.rotation.y = 0;
-    app.bike.crankAngle = Math.PI / 2;
+    jonas.head.rotation.set(0, 0, 0);
+    app.bike.walk = true;
+    app.bike.schieben = true;
     app.bike.stand = 0;
+    app.bike.head.rotation.set(0.05, 0, 0);
     city.penthouseLicht.intensity = 0;
-    Object.assign(st, { js: 0, jv: 7, jl: 0, jh: null, text: null });
-    st.anfahrt = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-55, 0, JONAS_HALT.z),
-      new THREE.Vector3(-20, 0, JONAS_HALT.z),
-      new THREE.Vector3(JONAS_HALT.x, 0, JONAS_HALT.z),
-    ]);
-    stell(app.bike, ICH.x, ICH.z, Math.PI / 2, 0, 0);
-    stell(jonas, -55, JONAS_HALT.z, Math.PI / 2, 7, 0);
-    // erstes Bild: über die Straße auf dich und das Hochhaus
-    cam.zielPos.set(ICH.x + 6, 1.8, ICH.z + 5.5);
-    cam.zielLook.set(ICH.x - 6, 1.6, ICH.z + 1);
+    Object.assign(st, { x: START.x, z: START.z, h: Math.PI / 2, v: 0, jx: JONAS_START.x, jz: JONAS_START.z, jh: -Math.PI / 2, jv: 0, text: null });
+    ichStellen(0);
+    jonasStellen(0);
+    folgeKamera();
     cam.pos.copy(cam.zielPos);
     cam.look.copy(cam.zielLook);
     kamera(0);
     $('.stadt-laden').classList.remove('show');
     $('.stadt-ort').classList.add('show');
     app.fx.uFade.value = 1;
-    phase('intro');
+    phase('laufen');
   }
 
   return {
@@ -166,6 +173,7 @@ export function createCityScene(app) {
         <div class="screen stadt-screen">
           <div class="stadt-ort">Nach dem Rennen · in der Stadt</div>
           <div class="stadt-laden show">Die Stadt wird gebaut …</div>
+          <div class="story-tipp stadt-tipp"></div>
           <div class="stadt-dialog">
             <div class="stadt-name"></div>
             <div class="stadt-text"></div>
@@ -174,7 +182,7 @@ export function createCityScene(app) {
           <div class="stadt-zwinker">😉</div>
           <div class="stadt-skip">${app.control === 'touch' ? '' : app.control === 'keys' ? '<b>Esc</b> überspringen' : `${btn('B')} überspringen`}</div>
         </div>`);
-      root.addEventListener('click', () => app.input.inject('confirm'));
+      $('.stadt-dialog').addEventListener('click', () => app.input.inject('confirm'));
       app.ui.append(root);
       app.audio.setMusicLevel(0.3);
       app.stadt = st; // zum Ausprobieren in der Konsole
@@ -195,58 +203,80 @@ export function createCityScene(app) {
       dt = Math.min(dt, 0.05);
       const inp = app.input;
       st.t += dt;
-      inp.touchRide = false;
+      inp.touchRide = st.phase === 'laufen';
       const ok = inp.pressed('confirm') || inp.pressed('x');
       if ((inp.pressed('back') || inp.pressed('start')) && st.phase !== 'ende') {
         dialogZu();
+        tipp('');
         phase('ende');
       }
       tippen(dt);
+      app.focus.set(st.x, 0, st.z);
 
-      // ich stehe die ganze Zeit (Fuß auf dem Pedal), schaue zu Jonas
-      const ichKopf = st.phase === 'rede' || st.phase === 'zwinkern' ? -0.85 : st.phase === 'wegfahren' ? -0.4 : st.phase === 'penthouse' || st.phase === 'gedanke' ? 0.45 : 0;
+      // Köpfe: zueinander schauen, beim Penthouse nach oben
+      const reden = st.phase === 'rede' || st.phase === 'zwinkern';
       const hoch = st.phase === 'penthouse' || st.phase === 'gedanke';
-      app.bike.head.rotation.x = damp(app.bike.head.rotation.x, hoch ? -0.3 : 0.05, 2, dt);
-      app.bike.head.rotation.y = damp(app.bike.head.rotation.y, ichKopf, 3, dt);
-      stell(app.bike, ICH.x, ICH.z, Math.PI / 2, 0, dt);
-      app.focus.set(ICH.x + 6, 0, ICH.z);
+      app.bike.head.rotation.x = damp(app.bike.head.rotation.x, hoch ? -0.35 : 0.05, 2, dt);
+      app.bike.head.rotation.y = damp(app.bike.head.rotation.y, reden ? -0.12 : hoch ? 0.5 : 0, 3, dt);
+
+      // ---------- du gehst selbst ----------
+      if (st.phase === 'laufen') {
+        app.fx.uFade.value = damp(app.fx.uFade.value, 0, 2, dt);
+        if (st.t > 2.5) $('.stadt-ort').classList.remove('show');
+        if (st.t > 1.2) tipp(st.x < JONAS_START.x - 14 ? `${gehText()}<br><small>Da vorne vor dem Hochhaus wartet Jonas!</small>` : '');
+        st.v = damp(st.v, TEMPO * inp.throttle, 5, dt);
+        if (st.v > 0.2 || Math.abs(inp.steer) > 0.1) st.h -= inp.steer * 1.9 * dt;
+        st.x += Math.sin(st.h) * st.v * dt;
+        st.z += Math.cos(st.h) * st.v * dt;
+        // auf dem Bürgersteig bleiben, nicht an Jonas vorbei
+        st.z = clamp(st.z, GEHWEG.min, GEHWEG.max);
+        st.x = clamp(st.x, -26, st.jx - ABSTAND + 0.05);
+        ichStellen(dt);
+        // Jonas kommt dir entgegen, sobald du nah genug bist
+        const luecke = st.jx - st.x;
+        st.jv = damp(st.jv, luecke < 12 && luecke > ABSTAND + 0.1 ? 1.1 : 0, 4, dt);
+        st.jx = Math.max(st.x + ABSTAND, st.jx - st.jv * dt);
+        // er schaut zu dir, wenn du kommst
+        jonas.head.rotation.y = damp(jonas.head.rotation.y, luecke < 12 ? 0.1 : 0.5 * Math.sin(st.t * 0.5), 2, dt);
+        jonasStellen(dt);
+        folgeKamera();
+        kamera(dt, 3);
+        if (luecke <= ABSTAND + 0.15) {
+          tipp('');
+          st.v = 0;
+          st.jv = 0;
+          phase('treffen');
+        }
+        return;
+      }
+
+      ichStellen(dt);
+      jonasStellen(dt);
+      const P = person(app.bike);
+      const J = person(jonas);
+      const mitte = P.clone().add(J).multiplyScalar(0.5);
 
       switch (st.phase) {
-        case 'intro': {
-          app.fx.uFade.value = damp(app.fx.uFade.value, 0, 2, dt);
-          fahreWeg(st.anfahrt, dt, 7);
-          if (st.t > 2.5) $('.stadt-ort').classList.remove('show');
-          // Kamera folgt Jonas langsam
-          const p = jonas.root.position;
-          cam.zielPos.set(ICH.x + 6, 1.8, ICH.z + 5.5);
-          cam.zielLook.set(clamp(p.x, ICH.x - 12, ICH.x), 1.4, (p.z + ICH.z) / 2 + 1);
-          kamera(dt, 1.4);
-          if (st.js >= st.anfahrt.getLength() - 0.05) phase('halt');
-          break;
-        }
-        case 'halt': {
-          stell(jonas, JONAS_HALT.x, JONAS_HALT.z, Math.PI / 2, 0, dt);
-          jonas.root.rotation.z = damp(jonas.root.rotation.z, 0, 4, dt);
-          jonas.head.rotation.y = damp(jonas.head.rotation.y, 0.8, 3, dt);
-          if (st.t > 0.5) jonas.ohneBrille = true;
-          // Kamera vor die beiden, Blick auf Jonas
-          const j = kopf(jonas);
-          cam.zielPos.set(JONAS_HALT.x + 3.2, 1.75, (JONAS_HALT.z + ICH.z) / 2 - 1.2);
-          cam.zielLook.set(j.x - 0.3, j.y - 0.05, (j.z + ICH.z) / 2);
-          kamera(dt, 2);
-          if (st.t > 1.1) {
+        case 'treffen': {
+          // beide drehen sich zueinander, Kamera zur Seite (von der Straße aus)
+          st.h = drehe(st.h, Math.PI / 2, 3, dt);
+          st.jh = drehe(st.jh, -Math.PI / 2, 3, dt);
+          cam.zielPos.set(mitte.x + 0.4, 1.6, mitte.z + 3.4);
+          cam.zielLook.set(mitte.x, 1.35, mitte.z);
+          kamera(dt, 2.2);
+          if (st.t > 0.9) {
             sag('Jonas', JONAS_SAGT);
             phase('rede');
           }
           break;
         }
         case 'rede': {
-          stell(jonas, JONAS_HALT.x, JONAS_HALT.z, Math.PI / 2, 0, dt);
-          jonas.head.rotation.y = damp(jonas.head.rotation.y, 0.8 + Math.sin(st.t * 2.3) * 0.06, 3, dt);
-          const j = kopf(jonas);
-          cam.zielPos.set(JONAS_HALT.x + 2.4, 1.6, ICH.z - 0.7);
-          cam.zielLook.set(j.x - 0.2, j.y - 0.12, j.z - 0.9);
-          kamera(dt, 1.5);
+          jonas.head.rotation.y = damp(jonas.head.rotation.y, 0.12 + Math.sin(st.t * 2.3) * 0.06, 3, dt);
+          // über deine Schulter auf Jonas
+          const k = kopf(app.bike);
+          cam.zielPos.set(k.x - 0.9, k.y + 0.12, k.z + 0.75);
+          cam.zielLook.copy(kopf(jonas)).add(new THREE.Vector3(0, -0.18, 0));
+          kamera(dt, 1.6);
           if (ok && weiterGedrueckt()) {
             dialogZu();
             phase('zwinkern');
@@ -254,15 +284,14 @@ export function createCityScene(app) {
           break;
         }
         case 'zwinkern': {
-          stell(jonas, JONAS_HALT.x, JONAS_HALT.z, Math.PI / 2, 0, dt);
-          // Nahaufnahme auf Jonas' Gesicht
+          // Nahaufnahme auf Jonas' Gesicht (von dir aus gesehen)
           const j = kopf(jonas);
-          cam.zielPos.set(j.x + 0.8, j.y + 0.0, j.z - 1.05);
+          cam.zielPos.set(j.x - 0.95, j.y + 0.02, j.z + 0.35);
           cam.zielLook.copy(j);
           kamera(dt, 3);
           const t = st.t - 0.6;
           jonas.zwinker = t < 0 ? 0 : t < 0.12 ? t / 0.12 : t < 0.65 ? 1 : t < 0.8 ? 1 - (t - 0.65) / 0.15 : 0;
-          jonas.head.rotation.z = -0.12 * jonas.zwinker;
+          jonas.head.rotation.z = 0.12 * jonas.zwinker;
           if (t > 0 && !st.ping) {
             st.ping = true;
             app.audio.tone(1320, 0.12, { type: 'sine', vol: 0.06 });
@@ -273,48 +302,23 @@ export function createCityScene(app) {
             st.ping = false;
             jonas.head.rotation.z = 0;
             $('.stadt-zwinker').classList.remove('show');
-            const a = jonas.root.position;
-            st.js = 0;
-            st.jv = 0;
-            st.jh = null;
-            st.weg = new THREE.CatmullRomCurve3([
-              new THREE.Vector3(a.x, 0, a.z),
-              new THREE.Vector3(a.x + 6, 0, a.z - 0.2),
-              new THREE.Vector3(BORDSTEIN.x - 2.5, 0, BORDSTEIN.z + 1.2),
-              new THREE.Vector3(BORDSTEIN.x, 0, BORDSTEIN.z),
-            ]);
-            phase('wegfahren');
+            phase('heim');
           }
           break;
         }
-        case 'wegfahren': {
+        case 'heim': {
+          // Jonas schiebt sein Rad zur Haustür und geht hinein
           jonas.head.rotation.y = damp(jonas.head.rotation.y, 0, 3, dt);
-          const da = fahreWeg(st.weg, dt, 5);
-          const p = jonas.root.position;
-          cam.zielPos.set(ICH.x - 2.5, 1.9, ICH.z + 3.2);
-          cam.zielLook.set(p.x, 1.3, p.z);
-          kamera(dt, 1.5);
-          if (da) {
-            jonas.walk = true;
-            jonas.schieben = true;
-            jonas.root.rotation.z = 0;
-            st.gehH = jonas.root.rotation.y;
-            phase('gehen');
-          }
-          break;
-        }
-        case 'gehen': {
-          // vom Bordstein zur Tür (Rad wird geschoben), dann im Haus verschwinden
-          st.gehH = damp(st.gehH, Math.PI, 3, dt);
-          const b = jonas.root.position;
-          const v = st.t < 0.5 ? 0 : 1.25;
-          const nx = b.x + Math.sin(st.gehH) * v * dt + (TUER.x - b.x) * 0.6 * dt;
-          const nz = b.z + Math.cos(st.gehH) * v * dt;
-          stell(jonas, nx, nz, st.gehH, v, dt);
-          cam.zielPos.set(TUER.x - 5.5, 2.2, TUER.z + 10);
-          cam.zielLook.set(TUER.x, 1.6, TUER.z);
+          const zx = TUER.x - st.jx;
+          const zz = TUER.z - 1.4 - st.jz;
+          st.jh = drehe(st.jh, Math.atan2(zx, zz), 2.5, dt);
+          st.jv = damp(st.jv, st.t < 0.6 ? 0 : 1.2, 3, dt);
+          st.jx += Math.sin(st.jh) * st.jv * dt;
+          st.jz += Math.cos(st.jh) * st.jv * dt;
+          cam.zielPos.set(TUER.x - 4.5, 2.0, TUER.z + 9.5);
+          cam.zielLook.set((st.jx + TUER.x) / 2, 1.4, TUER.z + 1);
           kamera(dt, 1.2);
-          if (nz < TUER.z - 1.2) {
+          if (st.jz < TUER.z - 1.0) {
             jonas.root.visible = false;
             phase('penthouse');
           }
@@ -333,10 +337,10 @@ export function createCityScene(app) {
           break;
         }
         case 'gedanke': {
-          const k = kopf(app.bike);
           // Nahaufnahme: du schaust hoch zum leuchtenden Penthouse
-          cam.zielPos.set(ICH.x + 1.9, 1.2, ICH.z - 1.1);
-          cam.zielLook.set(k.x, k.y - 0.15, k.z);
+          const k = kopf(app.bike);
+          cam.zielPos.set(k.x + 1.3, k.y - 0.35, k.z - 0.9);
+          cam.zielLook.set(k.x, k.y - 0.05, k.z);
           kamera(dt, 1.6);
           if (ok && weiterGedrueckt()) {
             dialogZu();
@@ -363,8 +367,12 @@ export function createCityScene(app) {
         jonas.walk = false;
         jonas.update(0, 0, 0, 0);
       }
-      app.bike.head.rotation.y = 0;
-      app.bike.head.rotation.x = 0.05;
+      // wieder aufs Rad
+      app.bike.walk = false;
+      app.bike.schieben = false;
+      app.bike.head.rotation.set(0.05, 0, 0);
+      app.bike.update(0, 0, 0, 0);
+      app.input.touchRide = false;
       root?.remove();
       root = null;
       st.phase = 'aus';

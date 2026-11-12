@@ -2412,3 +2412,14 @@ body.control-touch .wish-button .btn {
   font-size: 15px;
   color: rgba(255, 255, 255, 0.7);
 }
+.stadt-tipp {
+  bottom: 5vh;
+  white-space: normal;
+  text-align: center;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+.stadt-tipp small {
+  font-size: 0.8em;
+  opacity: 0.85;
+}

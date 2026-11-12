@@ -128,7 +128,8 @@ export async function buildCity(roadWorld) {
   // ---------- Kleinkram am Gehweg ----------
   for (let x = -60; x <= 70; x += 7) {
     if (Math.abs(x) < 16) continue;
-    setze('Prop_Bollard', x, -7.6);
+    // (auf dem Bürgersteig, wo du Jonas triffst, stehen keine Poller im Weg)
+    if (x < -30 || x > 40) setze('Prop_Bollard', x, -7.6);
     setze('Prop_Bollard', x + 3.5, 7.6);
   }
   for (const x of [-30, -44, 34, 52]) setze('Prop_Planter_Single', x, x > 0 ? 7.2 : -7.2);
