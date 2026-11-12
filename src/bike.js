@@ -674,7 +674,7 @@ export class Bike {
     this.shoulder = V(0, 1.2, 0.25);
 
     // Becken
-    const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), m.shorts);
+    const pelvis = (this.pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), m.shorts));
     pelvis.rotation.z = Math.PI / 2;
     pelvis.position.copy(this.hip);
     pelvis.castShadow = true;
@@ -736,6 +736,7 @@ export class Bike {
     framePivot.add(frame);
     framePivot.position.set(0, 0.03, 0.004);
     this.head.add(framePivot);
+    this.brille = [lensPivot, framePivot];
     // Nase und Ohren
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.035, 6), m.skin);
     nose.rotation.x = Math.PI / 2;
@@ -779,7 +780,10 @@ export class Bike {
     this.head.position.set(0, 1.31, 0.39);
     this.head.rotation.x = 0.05;
     r.add(this.head);
-    r.add(tube(V(0, 1.2, 0.27), V(0, 1.28, 0.35), 0.045, m.skin));
+    this.neck = tube(V(0, 1.2, 0.27), V(0, 1.28, 0.35), 0.045, m.skin);
+    r.add(this.neck);
+    // Sitz-Haltung merken (zum Zurückstellen nach dem Gehen)
+    this._sitz = [this.torso, this.head, this.neck, this.pelvis].map((o) => [o, o.position.clone(), o.quaternion.clone()]);
 
     // Arme und Beine (werden jedes Bild neu ausgerichtet)
     this.arms = [-1, 1].map((s) => ({
@@ -1083,6 +1087,100 @@ export class Bike {
   }
 
   // speed in m/s, crankRate in rad/s (0 = Freilauf), steer -1..1
+  // Gesicht: this.ohneBrille = Brille abgenommen (Augen sichtbar), this.zwinker 0 … 1 = rechtes Auge zu
+  updateGesicht() {
+    const zeigen = !!this.ohneBrille;
+    if (zeigen && !this.augen) {
+      const weiss = new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.3 });
+      const dunkel = new THREE.MeshStandardMaterial({ color: '#2a1d14', roughness: 0.25 });
+      const haut = this.mats.skin;
+      this.augen = [-1, 1].map((s) => {
+        const g = new THREE.Group();
+        g.position.set(s * 0.036, 0.014, 0.088);
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0165, 14, 10), weiss);
+        const iris = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 10, 8), dunkel);
+        iris.position.z = 0.0115;
+        // Augenlid: Hautkugel, die sich beim Zwinkern von oben über das Auge schiebt
+        const lid = new THREE.Mesh(new THREE.SphereGeometry(0.0175, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), haut);
+        lid.rotation.x = -1.2;
+        const braue = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.008), dunkel);
+        braue.position.set(0, 0.026, 0.012);
+        braue.rotation.z = -s * 0.12;
+        g.add(ball, iris, lid, braue);
+        this.head.add(g);
+        return { s, g, lid, braue };
+      });
+    }
+    for (const p of this.brille) p.visible = !zeigen;
+    if (!this.augen) return;
+    const z = this.zwinker || 0;
+    for (const a of this.augen) {
+      a.g.visible = zeigen;
+      const k = a.s < 0 ? z : 0;
+      // Lid von halb offen (-1.2) bis ganz zu (+0.35), Braue zieht mit nach unten
+      a.lid.rotation.x = -1.2 + 1.55 * k;
+      a.braue.position.y = 0.026 - 0.008 * k;
+      // die andere Braue geht beim Zwinkern frech nach oben
+      if (a.s > 0) a.braue.position.y = 0.026 + 0.006 * z;
+    }
+  }
+
+  // Gehen neben dem Rad: Fahrer steht links vom Rad (+x) und hält mit der rechten Hand den Lenker
+  updateWalk(dt, speed) {
+    this._warGehen = true;
+    const off = (this.gehOffset ||= V(0.55, 0, 0.3));
+    this.rider.rotation.set(0, 0, 0);
+    this.rider.position.copy(off);
+    const w = Math.min(1, speed / 0.8);
+    this.gehPhase = (this.gehPhase || 0) + (speed / 0.9) * Math.PI * 2 * dt;
+    const ph = this.gehPhase;
+    const hip = V(0, 0.9 + Math.abs(Math.cos(ph)) * 0.025 * w, 0);
+    this.pelvis.position.copy(hip);
+    const sh = V(0, hip.y + 0.5, 0.06);
+    placeLimb(this.torso, hip, sh);
+    placeLimb(this.neck, V(0, sh.y - 0.02, 0.06), V(0, sh.y + 0.09, 0.08));
+    this.head.position.set(0, sh.y + 0.2, 0.09);
+    for (const l of this.legs) {
+      const s = l.s;
+      const p = ph + (s > 0 ? Math.PI : 0);
+      const foot = _a.set(s * 0.1, 0.08 * Math.max(0, Math.cos(p)) * w, 0.06 + 0.2 * Math.sin(p) * w);
+      l.shoe.position.copy(foot);
+      l.shoe.rotation.set(-0.15 * Math.max(0, Math.cos(p)) * w, 0, 0);
+      const ankle = _b.copy(foot).add(_k.set(0, 0.095, -0.12));
+      const hipC = hip.clone().add(_k.set(s * 0.09, 0, 0));
+      const knee = ik(hipC, ankle, 0.44, 0.43, _k.set(s * 0.05, 0, 1), new THREE.Vector3());
+      placeLimb(l.thigh, hipC, knee);
+      l.knee.position.copy(knee);
+      const dir = ankle.clone().sub(knee).normalize();
+      const ankleR = knee.clone().addScaledVector(dir, 0.43);
+      placeLimb(l.shin, knee, ankleR);
+      placeLimb(l.sock, ankleR.clone().addScaledVector(dir, -0.16), ankleR.clone().addScaledVector(dir, 0.02));
+    }
+    for (const a of this.arms) {
+      const shp = V(a.s * 0.19, sh.y - 0.03, 0.05);
+      let hand;
+      if (this.schieben && a.s < 0) {
+        // rechte Hand am linken Lenkergriff
+        hand = V(0.21, 0.94, 0.45).sub(off);
+      } else {
+        const p = ph + (a.s > 0 ? 0 : Math.PI);
+        hand = V(a.s * 0.23, shp.y - 0.49, 0.05 + 0.17 * Math.sin(p) * w);
+      }
+      const elbow = ik(shp, hand, 0.27, 0.26, _k.set(a.s * 0.15, -0.2, -1), new THREE.Vector3());
+      placeLimb(a.upper, shp, elbow);
+      placeLimb(a.lower, elbow, hand);
+      a.hand.position.copy(hand);
+      a.hand.quaternion.copy(a.lower.quaternion);
+      a.elbow.position.copy(elbow);
+      a.cap.position.copy(shp).add(_k.set(-a.s * 0.01, -0.012, 0));
+    }
+    // Pedale stehen still
+    for (const l of this.legs) {
+      const ang = l.s > 0 ? this.crankAngle + Math.PI : this.crankAngle;
+      this.pedals[l.s > 0 ? 1 : 0].position.set(l.s * 0.12, BB.y - CRANK * Math.cos(ang), BB.z - CRANK * Math.sin(ang));
+    }
+  }
+
   update(dt, speed, crankRate, steer) {
     this.wheelAngle += (speed / WHEEL_R) * dt;
     this.rearWheel.rotation.x = this.wheelAngle;
@@ -1090,6 +1188,21 @@ export class Bike {
     this.crankAngle += crankRate * dt;
     this.crank.rotation.x = this.crankAngle;
     this.steer.rotation.y = -steer * 0.35;
+
+    this.updateGesicht();
+    // Absteigen und gehen (this.walk = true): der Fahrer läuft neben dem Rad und schiebt es
+    if (this.walk) {
+      this.updateWalk(dt, speed);
+      return;
+    }
+    if (this._warGehen) {
+      this._warGehen = false;
+      for (const [o, p, q] of this._sitz) {
+        o.position.copy(p);
+        o.quaternion.copy(q);
+      }
+      for (const l of this.legs) l.shoe.rotation.set(0, 0, 0);
+    }
 
     const ca = this.crankAngle;
     const bob = Math.sin(ca * 2) * 0.006 * Math.min(1, Math.abs(crankRate) / 4);

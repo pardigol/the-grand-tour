@@ -2301,3 +2301,114 @@ body.control-touch .wish-button .btn {
     box-shadow: 0 0 0 4px rgba(224, 56, 62, 0.45);
   }
 }
+
+/* ---------- Stadt: Gespräch mit Jonas ---------- */
+.stadt-screen {
+  pointer-events: auto;
+}
+.stadt-ort,
+.stadt-laden {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: clamp(24px, 3.2vw, 46px);
+  color: var(--gold);
+  text-shadow: 0 3px 20px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+.stadt-laden {
+  top: 45%;
+  color: #fff;
+  font-family: var(--ui);
+}
+.stadt-ort.show,
+.stadt-laden.show {
+  opacity: 1;
+}
+.stadt-dialog {
+  position: absolute;
+  left: 50%;
+  bottom: 6vh;
+  width: min(860px, calc(100vw - 32px));
+  transform: translate(-50%, 20px);
+  padding: 22px 28px 26px;
+  border-radius: 18px;
+  background: rgba(12, 14, 22, 0.86);
+  border: 2px solid rgba(142, 43, 54, 0.9);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  box-sizing: border-box;
+}
+.stadt-dialog.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.stadt-dialog.denkt {
+  border-color: rgba(255, 255, 255, 0.55);
+  border-style: dashed;
+  font-style: italic;
+}
+.stadt-name {
+  position: absolute;
+  top: -18px;
+  left: 24px;
+  padding: 4px 16px;
+  border-radius: 999px;
+  background: #8e2b36;
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  font-style: normal;
+}
+.stadt-dialog.denkt .stadt-name {
+  background: #efeee9;
+  color: #16161b;
+}
+.stadt-text {
+  min-height: 2.6em;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.35;
+}
+.stadt-weiter {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  font-size: 16px;
+  opacity: 0;
+  font-style: normal;
+}
+.stadt-weiter.show {
+  opacity: 0.85;
+  animation: mgPulse 1.2s ease-in-out infinite;
+}
+.stadt-weiter .btn {
+  vertical-align: middle;
+}
+.stadt-zwinker {
+  position: absolute;
+  left: 58%;
+  top: 30%;
+  font-size: 70px;
+  opacity: 0;
+  transform: scale(0.4) rotate(-15deg);
+  transition: opacity 0.25s, transform 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.stadt-zwinker.show {
+  opacity: 1;
+  transform: scale(1) rotate(8deg);
+}
+.stadt-skip {
+  position: absolute;
+  right: 20px;
+  top: 16px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+}

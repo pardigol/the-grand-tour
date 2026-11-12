@@ -29,6 +29,7 @@ import { createMenuScene } from './scenes/menu.js';
 import { createModeScene } from './scenes/mode.js';
 import { createMinigameScene } from './scenes/minigame.js';
 import { createStoryScene } from './scenes/story.js';
+import { createCityScene } from './scenes/city.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
 
@@ -111,12 +112,16 @@ async function boot() {
     // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
     useWorld(kind) {
       if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature, kind === 'tt' ? this.dorf : null);
-      const w = this.worlds[kind];
+      this.setWorld(this.worlds[kind]);
+    },
+    // Eine fertige Welt anzeigen (auch die Stadt aus city.js)
+    setWorld(w) {
       if (w === this.world) return;
       this.world.scene.remove(this.bike.root);
       w.scene.add(this.bike.root);
       this.world = w;
       renderPass.scene = w.scene;
+      if (w.kind === 'stadt') return;
       this.npc.s = w.length * 0.1;
       // Auf dem schmalen Waldweg fährt der Vorführ-Fahrer weiter in der Mitte
       this.npc.lateral = w.cx ? 0.5 : 1.5;
@@ -148,6 +153,7 @@ async function boot() {
     control: createControlScene(app),
     minigame: createMinigameScene(app),
     story: createStoryScene(app),
+    stadt: createCityScene(app),
   };
   // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
   applyControl(app, savedControl() || guess(app), !!savedControl());

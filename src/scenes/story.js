@@ -639,6 +639,7 @@ export function createStoryScene(app) {
             <div class="pause-box result-box">
               <h2 class="result-title"></h2>
               <div class="result-list"></div>
+              <div class="pause-item result-item">Weiter</div>
               <div class="pause-item result-item">Nochmal fahren</div>
               <div class="pause-item result-item">Zurück</div>
             </div>
@@ -703,12 +704,14 @@ export function createStoryScene(app) {
       }
       if (st.showResult) {
         if (inp.pressed('up') || inp.pressed('down')) {
-          resultIndex = 1 - resultIndex;
+          resultIndex = (resultIndex + (inp.pressed('up') ? 2 : 1)) % 3;
           renderResult();
           app.audio.nav();
         } else if (inp.pressed('confirm')) {
           app.audio.select();
-          if (resultIndex === 0) app.go('story', { character: char });
+          // Weiter: nach dem Rennen in der Stadt – Jonas spricht dich an
+          if (resultIndex === 0) app.go('stadt', { character: char });
+          else if (resultIndex === 1) app.go('story', { character: char });
           else app.go('mode', { minigame: true });
           return;
         }
