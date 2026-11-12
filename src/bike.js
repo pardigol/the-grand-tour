@@ -17,6 +17,7 @@ const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _k = new THREE.Vector3();
 const _xAxis = new THREE.Vector3(1, 0, 0);
+const _qKragen = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
 const _standOff = new THREE.Vector3();
 
 export const WHEEL_R = 0.34;
@@ -707,18 +708,39 @@ export class Bike {
 
     // Kopf
     this.head = new THREE.Group();
-    const headGeo = new THREE.SphereGeometry(0.1, 20, 16);
+    const headGeo = new THREE.SphereGeometry(0.1, 28, 22);
+    // Kopfform: unten schmaler (Kiefer), Kinn etwas vor, Hinterkopf rund
+    {
+      const hp = headGeo.attributes.position;
+      for (let i = 0; i < hp.count; i++) {
+        let x = hp.getX(i);
+        let y = hp.getY(i);
+        let z = hp.getZ(i);
+        if (y < 0) x *= 1 - 0.28 * (-y / 0.1);
+        if (y < -0.02 && z > 0) z += 0.014 * Math.min(1, (-y - 0.02) / 0.05) * (z / 0.1);
+        if (z < 0 && y > -0.03) z *= 1.06;
+        hp.setXYZ(i, x, y, z);
+      }
+    }
     headGeo.scale(0.95, 1.08, 1.06);
+    headGeo.computeVertexNormals();
     const headMesh = new THREE.Mesh(headGeo, m.skin);
     // (kein extra Kinn mehr – der Kopf ist ein runder Ball)
     headMesh.castShadow = true;
     this.head.add(headMesh);
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.125, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), m.helmet);
-    helmet.scale.set(1, 0.95, 1.3);
-    helmet.position.set(0, 0.02, -0.02);
-    helmet.rotation.x = -0.25;
+    // Helm: Schale reicht über Stirn, Schläfen und Hinterkopf (nicht nur ein Käppchen oben drauf)
+    const helmGeo = new THREE.SphereGeometry(0.128, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.56);
+    const helmet = new THREE.Mesh(helmGeo, m.helmet);
+    helmet.scale.set(1.02, 0.98, 1.24);
+    helmet.position.set(0, 0.012, -0.018);
+    helmet.rotation.x = -0.18;
     helmet.castShadow = true;
     this.head.add(helmet);
+    // dunkler Rand unten am Helm (Schaum/Kante), damit die Schale dick aussieht
+    const rand = new THREE.Mesh(new THREE.TorusGeometry(0.128 * Math.sin(Math.PI * 0.56), 0.008, 6, 36), m.glassFrame);
+    rand.rotation.x = Math.PI / 2;
+    rand.position.y = 0.128 * Math.cos(Math.PI * 0.56);
+    helmet.add(rand);
     // Gebogene Sportbrille, die um den Kopf herumgeht
     const arc = 2.3;
     const lens = new THREE.Mesh(new THREE.TorusGeometry(0.104, 0.021, 6, 24, arc), m.glasses);
@@ -768,22 +790,26 @@ export class Bike {
     visor.userData.tt = true;
     this.head.add(visor);
     // Haare im Nacken unter dem Helm
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.098, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.3), m.hair);
-    hair.position.set(0, -0.005, -0.012);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 8, Math.PI * 1.2, Math.PI * 0.6, Math.PI * 0.42, Math.PI * 0.3), m.hair);
+    hair.scale.set(0.97, 1.08, 1.08);
+    hair.position.set(0, -0.004, -0.004);
     this.head.add(hair);
-    // Grat oben auf dem Helm
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.01, 0.24), m.glassFrame);
-    ridge.position.set(0, 0.127, -0.03);
-    ridge.rotation.x = -0.18;
-    this.head.add(ridge);
+    // (kein Grat mehr oben auf dem Helm – stand wie eine Antenne ab)
     // Kopf tiefer, Blick trotzdem nach vorne auf die Straße
     this.head.position.set(0, 1.31, 0.39);
     this.head.rotation.x = 0.05;
     r.add(this.head);
-    this.neck = tube(V(0, 1.2, 0.27), V(0, 1.28, 0.35), 0.045, m.skin);
+    // Hals: Länge 1, wird jedes Bild vom Kragen bis in den Kopf hinein gespannt (updateHals)
+    this.neck = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.056, 1, 14), m.skin);
+    this.neck.castShadow = true;
     r.add(this.neck);
+    // Trikotkragen um den Hals
+    this.kragen = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.02, 8, 20), m.jerseyPlain);
+    r.add(this.kragen);
+    this.halsBasis = V(0, 1.19, 0.25);
     // Sitz-Haltung merken (zum Zurückstellen nach dem Gehen)
-    this._sitz = [this.torso, this.head, this.neck, this.pelvis].map((o) => [o, o.position.clone(), o.quaternion.clone()]);
+    this._sitz = [this.torso, this.head, this.pelvis].map((o) => [o, o.position.clone(), o.quaternion.clone()]);
+    this.updateHals();
 
     // Arme und Beine (werden jedes Bild neu ausgerichtet)
     this.arms = [-1, 1].map((s) => ({
@@ -1087,6 +1113,17 @@ export class Bike {
   }
 
   // speed in m/s, crankRate in rad/s (0 = Freilauf), steer -1..1
+  // Hals vom Kragen (halsBasis) bis unter den Kopf spannen – folgt jeder Kopfbewegung, keine Lücke mehr
+  updateHals() {
+    this.head.updateMatrix();
+    const oben = _a.set(0, -0.055, -0.012).applyMatrix4(this.head.matrix);
+    const unten = this.halsBasis;
+    placeLimb(this.neck, unten, oben);
+    this.neck.scale.set(1, unten.distanceTo(oben) + 0.02, 1);
+    this.kragen.position.copy(unten);
+    this.kragen.quaternion.copy(this.neck.quaternion).multiply(_qKragen);
+  }
+
   // Gesicht: this.ohneBrille = Brille abgenommen (Augen sichtbar), this.zwinker 0 … 1 = rechtes Auge zu
   updateGesicht() {
     const zeigen = !!this.ohneBrille;
@@ -1172,8 +1209,8 @@ export class Bike {
     this.pelvis.position.copy(hip);
     placeLimb(this.torso, hip, top);
     const nDir = dir('neck_01', 'Head');
-    placeLimb(this.neck, top.clone().addScaledVector(tDir, -0.02), top.clone().addScaledVector(nDir, 0.09));
-    this.head.position.copy(top).addScaledVector(nDir, 0.19);
+    this.halsBasis.copy(top).addScaledVector(tDir, -0.03);
+    this.head.position.copy(top).addScaledVector(nDir, 0.145);
     // Arme
     const quer = shL.clone().sub(shR).normalize();
     for (const a of this.arms) {
@@ -1215,8 +1252,8 @@ export class Bike {
     this.pelvis.position.copy(hip);
     const sh = V(0, hip.y + 0.5, 0.06);
     placeLimb(this.torso, hip, sh);
-    placeLimb(this.neck, V(0, sh.y - 0.02, 0.06), V(0, sh.y + 0.09, 0.08));
-    this.head.position.set(0, sh.y + 0.2, 0.09);
+    this.halsBasis.set(0, sh.y - 0.03, 0.06);
+    this.head.position.set(0, sh.y + 0.15, 0.09);
     for (const l of this.legs) {
       const s = l.s;
       const p = ph + (s > 0 ? Math.PI : 0);
@@ -1270,10 +1307,12 @@ export class Bike {
     // Absteigen und gehen (this.walk = true): der Fahrer läuft neben dem Rad und schiebt es
     if (this.walk) {
       this.updateWalk(dt, speed);
+      this.updateHals();
       return;
     }
     if (this._warGehen) {
       this._warGehen = false;
+      this.halsBasis.set(0, 1.19, 0.25);
       for (const [o, p, q] of this._sitz) {
         o.position.copy(p);
         o.quaternion.copy(q);
@@ -1357,6 +1396,7 @@ export class Bike {
       a.elbow.position.copy(elbow);
       a.cap.position.copy(sh).add(_k.set(-a.s * 0.01, -0.012, 0));
     }
+    this.updateHals();
     if (this.model) {
       this.model.pose({
         hip: (this._hipS ||= new THREE.Vector3()).copy(this.hip).add(_k.set(0, 0.06 * st - 0.07 * wf, 0.13 * st - 0.3 * wf)),
