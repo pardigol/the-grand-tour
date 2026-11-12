@@ -303,7 +303,6 @@ export function createStoryScene(app) {
       slowZiel: 1,
       schild200: false,
       schild100: false,
-      jubelT: 0,
       bergAttacke: false,
       bergStart: false,
       bergOben: false,
@@ -735,17 +734,9 @@ export function createStoryScene(app) {
         }
       }
       dt *= st.slow;
-      // Sprint: Speedlines, Jubel am Straßenrand
+      // Sprint: Speedlines
       const sprintFx = (st.phase === 'sprint' && st.sprint) || (st.konterT > 0 && st.konterOk) ? 0.55 : 0;
       app.fx.uLines.value = damp(app.fx.uLines.value, sprintFx, 4, realDt);
-      if (st.phase === 'sprint' || (st.phase === 'auslaufen' && st.t < 4)) {
-        st.jubelT -= realDt;
-        if (st.jubelT <= 0) {
-          const nah = clamp(1 - (st.sZiel - st.s) / 320, 0.2, 1);
-          st.jubelT = 0.35;
-          app.audio.noiseBurst(0.7, { vol: 0.05 + 0.12 * nah, freq: 700 + Math.random() * 500, type: 'bandpass', q: 0.7 });
-        }
-      }
       st.t += dt;
       if (['feld', 'attacke', 'flucht', 'sprint', 'auslaufen'].includes(st.phase)) st.raceTime += dt;
       if (inp.pressed('klingel')) app.audio.klingel();
