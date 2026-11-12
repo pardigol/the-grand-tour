@@ -240,7 +240,8 @@ export function createStoryScene(app) {
         lat: sl.lat,
         latOff: 0,
         jit: Math.random() * 100,
-        s: st.sStart + sl.dz - 70 - Math.random() * 15, // rollen gleich von hinten heran
+        // rollen gleich von hinten heran – alle gleich weit hinter ihrem Platz, damit niemand durch einen anderen fährt
+        s: st.sStart + sl.dz - 70 - Math.random() * 0.5,
         v: 0,
         anfahrt: true,
       });
@@ -250,7 +251,7 @@ export function createStoryScene(app) {
       dz: teamSlots[i].dz,
       lat: teamSlots[i].lat,
       latT: teamSlots[i].lat,
-      s: st.sStart + teamSlots[i].dz - 72 - i * 3,
+      s: st.sStart + teamSlots[i].dz - 70 - Math.random() * 0.5,
       v: 0,
       anfahrt: true,
       ziel: null,
@@ -372,6 +373,10 @@ export function createStoryScene(app) {
       if (Math.abs(r.s - st.s) < 2.2 && Math.abs(latT - st.lat) < 1.1) latT = st.lat + (latT >= st.lat ? 1.15 : -1.15);
       for (const tm of st.team) if (Math.abs(r.s - tm.s) < 2 && Math.abs(latT - tm.lat) < 1) latT = tm.lat + (latT >= tm.lat ? 1.1 : -1.1);
       r.latOff = damp(r.latOff, clamp(latT, -3, 3) - r.lat, 2.5, dt);
+    }
+    hitboxen();
+    for (let i = 0; i < riders.length; i++) {
+      const r = riders[i];
       w.poseAt(r.s, r.lat + r.latOff, pose);
       // wer der Kamera zu nahe kommt, wird kurz nach unten weggeblendet (sonst sieht man nur ein Trikot)
       const cp = app.camera.position;
@@ -383,6 +388,51 @@ export function createStoryScene(app) {
       feld.set(i, pose.x, pose.h - (nah ? 5 : 0), pose.z, pose.heading, pose.pitch, r.lean, r.v, dt, r.v > 0.3);
     }
     feld.commit();
+  }
+
+  // Hitbox: jedes Rad ist etwa 1,8 m lang und braucht 0,72 m Platz zur Seite.
+  // Stehen zwei Fahrer ineinander, werden sie zur Seite (und wenn es nicht anders geht, der Hintere zurück) geschoben.
+  const HB_LANG = 1.8;
+  const HB_BREIT = 0.72;
+  function hitboxen() {
+    const alle = riders.map((r) => ({ r, s: r.s, lat: r.lat + r.latOff, fest: false }));
+    for (const tm of st.team) alle.push({ s: tm.s, lat: tm.lat, fest: true });
+    alle.push({ s: st.s, lat: st.lat, fest: true });
+    // dreimal nachschieben, damit sich auch Gruppen von mehreren Fahrern sauber verteilen
+    for (let runde = 0; runde < 3; runde++) {
+      for (let i = 0; i < alle.length; i++) {
+        const a = alle[i];
+        if (a.fest) continue;
+        for (let j = 0; j < alle.length; j++) {
+          if (i === j) continue;
+          const b = alle[j];
+          const ds = a.s - b.s;
+          const dl = a.lat - b.lat;
+          if (Math.abs(ds) >= HB_LANG || Math.abs(dl) >= HB_BREIT) continue;
+          // seitlich wegschieben (von festen Fahrern ganz, sonst jeder die Hälfte)
+          const zuviel = HB_BREIT - Math.abs(dl);
+          const seite = dl !== 0 ? Math.sign(dl) : a.lat > 0 ? -1 : 1;
+          a.lat = clamp(a.lat + (b.fest ? 1 : 0.5) * zuviel * seite, -3, 3);
+          a.r.latOff = a.lat - a.r.lat;
+        }
+      }
+    }
+    // was danach immer noch ineinander steckt: der Hintere bleibt zurück (wie in einer Schlange)
+    for (const a of alle) {
+      if (a.fest) continue;
+      for (const b of alle) {
+        if (a === b || Math.abs(a.lat - b.lat) >= HB_BREIT - 0.05) continue;
+        const ds = a.s - b.s;
+        if (ds <= 0 && ds > -HB_LANG) {
+          a.s = b.s - HB_LANG;
+          a.r.s = a.s;
+        } else if (b.fest && ds > 0 && ds < HB_LANG) {
+          // direkt vor dir bzw. vor Team Blitz: ein Stück nach vorne
+          a.s = b.s + HB_LANG;
+          a.r.s = a.s;
+        }
+      }
+    }
   }
 
   function updateTeam(dt) {
@@ -440,7 +490,7 @@ export function createStoryScene(app) {
           if (o !== tm && o.s - tm.s > 0 && o.s - tm.s < 3.5 && Math.abs(o.lat - tm.lat) < 0.8 && tm.v > o.v + 0.3) tm.passT = 1.2;
         }
         tm.passT = Math.max(0, tm.passT - dt);
-        if (tm.passT > 0 && !tm.weg) tm.latT += 1.0;
+        if (tm.passT > 0 && !tm.weg) tm.latT += 1.2;
         tm.s += tm.v * dt;
       }
       tm.lat = damp(tm.lat, tm.latT, 1.5, dt);
@@ -677,6 +727,7 @@ export function createStoryScene(app) {
       app.audio.setMusicLevel(0.45);
       banner('Das große Rennen', 'Fahr zum Start!');
       app.story = st; // zum Ausprobieren in der Konsole
+      st.riders = riders;
     },
 
     update(dt) {
