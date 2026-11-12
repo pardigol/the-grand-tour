@@ -1126,7 +1126,84 @@ export class Bike {
   }
 
   // Gehen neben dem Rad: Fahrer steht links vom Rad (+x) und hält mit der rechten Hand den Lenker
+  // Gehen mit echten Bewegungen (gang.js): Gelenke der Animations-Puppe ablesen und unsere Figur danach hinstellen
+  updateWalkAnim(dt, speed) {
+    const g = this.gang;
+    g.update(dt, speed);
+    const off = (this.gehOffset ||= V(0.55, 0, 0.3));
+    this.rider.rotation.set(0, 0, 0);
+    this.rider.position.copy(off);
+    const P = (n) => g.punkt(n, new THREE.Vector3());
+    const dir = (a, b) => P(b).sub(P(a)).normalize();
+    // Beine: Richtung der Knochen aus der Animation, Längen von unserer Figur
+    const beine = this.legs.map((l) => {
+      const sd = l.s > 0 ? 'l' : 'r';
+      const hip = P('thigh_' + sd);
+      const knee = hip.clone().addScaledVector(dir('thigh_' + sd, 'calf_' + sd), 0.44);
+      const ankle = knee.clone().addScaledVector(dir('calf_' + sd, 'foot_' + sd), 0.43);
+      const fb = P('ball_' + sd).sub(P('foot_' + sd));
+      // Fußknochen ist im Stand schon 0,54 rad geneigt – das ist bei uns "flach"
+      const tilt = Math.atan2(-fb.y, Math.hypot(fb.x, fb.z)) - 0.54;
+      const shoe = ankle.clone().sub(_k.set(0, 0.095, -0.12).applyAxisAngle(_xAxis, tilt));
+      const ferse = shoe.clone().add(_k.set(0, 0, -0.185).applyAxisAngle(_xAxis, tilt));
+      return { l, hip, knee, ankle, tilt, shoe, tief: Math.min(shoe.y, ferse.y) };
+    });
+    // so weit absenken/anheben, dass der tiefere Fuß genau auf dem Boden steht
+    const y0 = -Math.min(beine[0].tief, beine[1].tief);
+    const hoch = (v) => v.setY(v.y + y0);
+    for (const b of beine) {
+      [b.hip, b.knee, b.ankle, b.shoe].forEach(hoch);
+      const l = b.l;
+      l.shoe.position.copy(b.shoe);
+      l.shoe.rotation.set(b.tilt, 0, 0);
+      placeLimb(l.thigh, b.hip, b.knee);
+      l.knee.position.copy(b.knee);
+      placeLimb(l.shin, b.knee, b.ankle);
+      const d = b.ankle.clone().sub(b.knee).normalize();
+      placeLimb(l.sock, b.ankle.clone().addScaledVector(d, -0.16), b.ankle.clone().addScaledVector(d, 0.02));
+    }
+    // Becken, Oberkörper, Hals, Kopf
+    const hip = hoch(P('pelvis'));
+    const shL = hoch(P('upperarm_l'));
+    const shR = hoch(P('upperarm_r'));
+    const oben = shL.clone().add(shR).multiplyScalar(0.5);
+    const tDir = oben.clone().sub(hip).normalize();
+    const top = hip.clone().addScaledVector(tDir, (this._torsoL ||= this.hip.distanceTo(this.shoulder)));
+    this.pelvis.position.copy(hip);
+    placeLimb(this.torso, hip, top);
+    const nDir = dir('neck_01', 'Head');
+    placeLimb(this.neck, top.clone().addScaledVector(tDir, -0.02), top.clone().addScaledVector(nDir, 0.09));
+    this.head.position.copy(top).addScaledVector(nDir, 0.19);
+    // Arme
+    const quer = shL.clone().sub(shR).normalize();
+    for (const a of this.arms) {
+      const sd = a.s > 0 ? 'l' : 'r';
+      const shp = top.clone().addScaledVector(quer, a.s * 0.19).add(_k.set(0, -0.03, 0));
+      let elbow;
+      let hand;
+      if (this.schieben && a.s < 0) {
+        // rechte Hand am linken Lenkergriff
+        hand = V(0.21, 0.94, 0.45).sub(off);
+        elbow = ik(shp, hand, 0.27, 0.26, _k.set(a.s * 0.15, -0.2, -1), new THREE.Vector3());
+      } else {
+        elbow = shp.clone().addScaledVector(dir('upperarm_' + sd, 'lowerarm_' + sd), 0.27);
+        hand = elbow.clone().addScaledVector(dir('lowerarm_' + sd, 'hand_' + sd), 0.26);
+      }
+      placeLimb(a.upper, shp, elbow);
+      placeLimb(a.lower, elbow, hand);
+      a.hand.position.copy(hand);
+      a.hand.quaternion.copy(a.lower.quaternion);
+      a.elbow.position.copy(elbow);
+      a.cap.position.copy(shp).add(_k.set(-a.s * 0.01, -0.012, 0));
+    }
+  }
+
   updateWalk(dt, speed) {
+    if (this.gang) {
+      this._warGehen = true;
+      this.updateWalkAnim(dt, speed);
+      return;
+    }
     this._warGehen = true;
     const off = (this.gehOffset ||= V(0.55, 0, 0.3));
     this.rider.rotation.set(0, 0, 0);

@@ -7,6 +7,7 @@ import { el, btn } from './common.js';
 import { clamp, damp } from '../noise.js';
 import { Bike } from '../bike.js';
 import { buildCity, PENTHOUSE } from '../city.js';
+import { loadGang, Gang } from '../gang.js';
 
 // ✏️ Was Jonas sagt und was du dir danach denkst
 const JONAS_SAGT = 'Wenn du so weitermachst, müssen wir dich wohl ins Team einkaufen. Mal schauen, was das nächste Rennen bringt!';
@@ -18,7 +19,7 @@ const START = { x: -14, z: -7.0 }; // hier stehst du am Anfang (mit dem Rad)
 const TUER = { x: PENTHOUSE.x + 1, z: -9.6 }; // Eingang von Jonas' Hochhaus
 const JONAS_START = { x: TUER.x + 2.5, z: -7.0 }; // Jonas wartet vor seinem Haus
 const GEHWEG = { min: -8.0, max: -6.6 }; // so weit darf das Rad zur Hauswand bzw. zur Straße
-const TEMPO = 2.1; // m/s zügig gehen
+const TEMPO = 1.6; // m/s zügig gehen
 const ABSTAND = 2.7; // so nah kommt ihr euch beim Reden
 
 const TIPP_ZEIT = 0.028; // Sekunden pro Buchstabe
@@ -29,6 +30,7 @@ export function createCityScene(app) {
   let laden = null;
   let jonas = null;
   let char = null;
+  let gangDatei = null; // Animationen zum Gehen (gang.js)
   const st = {};
   const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), zielPos: new THREE.Vector3(), zielLook: new THREE.Vector3() };
   const $ = (s) => root.querySelector(s);
@@ -138,6 +140,12 @@ export function createCityScene(app) {
     }
     city.scene.add(jonas.root);
     st.jonas = jonas;
+    // echte Geh-Bewegungen für Jonas und dich
+    if (gangDatei) {
+      jonas.gang ||= new Gang(gangDatei);
+      app.bike.gang ||= new Gang(gangDatei);
+      jonas.gang.reden = false;
+    }
     jonas.root.visible = true;
     jonas.walk = true;
     jonas.schieben = true;
@@ -190,7 +198,10 @@ export function createCityScene(app) {
       phase('laden');
       if (city) start();
       else {
-        laden ||= buildCity(app.worlds.road).then((c) => (city = c));
+        laden ||= Promise.all([buildCity(app.worlds.road), loadGang()]).then(([c, g]) => {
+          city = c;
+          gangDatei = g;
+        });
         laden.then(() => root && st.phase === 'laden' && start()).catch((e) => {
           console.warn('Stadt konnte nicht geladen werden', e);
           if (root) app.go('mode', { minigame: true });
@@ -265,6 +276,7 @@ export function createCityScene(app) {
           cam.zielLook.set(mitte.x, 1.35, mitte.z);
           kamera(dt, 2.2);
           if (st.t > 0.9) {
+            if (jonas.gang) jonas.gang.reden = true;
             sag('Jonas', JONAS_SAGT);
             phase('rede');
           }
@@ -300,6 +312,7 @@ export function createCityScene(app) {
           }
           if (st.t > 2) {
             st.ping = false;
+            if (jonas.gang) jonas.gang.reden = false;
             jonas.head.rotation.z = 0;
             $('.stadt-zwinker').classList.remove('show');
             phase('heim');
