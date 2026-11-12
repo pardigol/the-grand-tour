@@ -733,7 +733,7 @@ export function createRideScene(app) {
       st.lean = damp(st.lean, crashed ? 1.35 : kurvenLage, crashed ? 10 : 6, dt);
       // Sprung: Nase hoch beim Absprung, runter vor der Landung (folgt der Flugbahn)
       if (st.air) st.pitch = damp(st.pitch, Math.atan2(st.vy, Math.max(st.speed, 3)) * 1.1, 5, dt);
-      st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.speed / 14, 0, 0.85)), 10, dt);
+      st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.speed / 14, 0, 0.85) * 0.5), 10, dt); // auch bei Tempo gut sichtbar: das Vorderrad dreht sich beim Lenken mit
 
       // Pedalieren oder Freilauf
       let crankRate = 0;

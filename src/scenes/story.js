@@ -1056,7 +1056,7 @@ export function createStoryScene(app) {
       st.hPrev = hNow;
       const kurvenLage = clamp(-Math.atan((st.v * dreh) / 9.81) * 1.1 + steer * clamp(st.v / 9, 0, 1) * 0.25, -0.6, 0.6);
       st.lean = damp(st.lean, kurvenLage, 4, dt);
-      st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.v / 14, 0, 0.85)) * 0.5, 10, dt);
+      st.steerVis = damp(st.steerVis, steer * (1 - clamp(st.v / 14, 0, 0.85) * 0.5) * 0.8, 10, dt);
       // nicht in Team-Blitz-Fahrer hineinfahren
       for (const tm of st.team) {
         if (Math.abs(tm.s - st.s) < 1.0 && Math.abs(tm.lat - st.lat) < 0.8) st.lat = tm.lat + (st.lat >= tm.lat ? 0.8 : -0.8);
