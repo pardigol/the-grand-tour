@@ -2423,3 +2423,181 @@ body.control-touch .wish-button .btn {
   font-size: 0.8em;
   opacity: 0.85;
 }
+
+/* ---------- PIN / Spielstand ---------- */
+.pin-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+.pin-box {
+  padding: 28px 32px 30px;
+  border-radius: 22px;
+  background: rgba(12, 14, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  color: #fff;
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+  position: relative;
+}
+.pin-titel {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: 34px;
+  color: var(--gold);
+}
+.pin-sub {
+  margin: 6px 0 18px;
+  font-size: 16px;
+  opacity: 0.8;
+  line-height: 1.35;
+}
+.pin-felder {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.pin-felder.wackeln {
+  animation: pinWackeln 0.35s;
+}
+@keyframes pinWackeln {
+  25% { transform: translateX(-8px); }
+  50% { transform: translateX(8px); }
+  75% { transform: translateX(-5px); }
+}
+.pin-feld {
+  width: 46px;
+  height: 56px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  transition: border-color 0.2s;
+}
+.pin-feld.jetzt {
+  border-color: var(--gold);
+}
+.pin-feld.voll::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.pin-tasten {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.pin-taste {
+  height: 58px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--ui);
+  font-weight: 800;
+  font-size: 26px;
+  cursor: pointer;
+}
+.pin-taste:active,
+.pin-taste.selected {
+  background: rgba(212, 175, 55, 0.35);
+  border-color: var(--gold);
+}
+.pin-ok {
+  opacity: 0.45;
+}
+.pin-ok.bereit {
+  opacity: 1;
+  background: rgba(46, 160, 90, 0.55);
+}
+.pin-info {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: rgba(12, 14, 22, 0.95);
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: 28px;
+  color: var(--gold);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.pin-info small {
+  margin-top: 10px;
+  font-family: var(--ui);
+  font-size: 18px;
+  color: #fff;
+  font-weight: 600;
+}
+.pin-info.show {
+  opacity: 1;
+}
+
+/* Rennen-Auswahl beim Game */
+.rennen-wahl {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 10, 16, 0.7);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.rennen-wahl.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rennen-titel {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: clamp(26px, 3vw, 40px);
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+.rennen-karten {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 0 16px;
+}
+.rennen-karte {
+  width: min(260px, 80vw);
+  padding: 22px;
+  border-radius: 18px;
+  background: rgba(20, 22, 32, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+.rennen-karte b {
+  display: block;
+  font-size: 28px;
+  font-family: var(--ui);
+}
+.rennen-karte small {
+  font-size: 16px;
+  opacity: 0.8;
+}
+.rennen-karte.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 24px rgba(212, 175, 55, 0.35);
+}

@@ -101,7 +101,8 @@ export function createTransitionScene(app) {
       veil.style.opacity = String(ease((t - 1.25) / 0.6));
 
       // Beim ersten Mal fragen, womit gespielt wird (Controller, Tastatur, iPad)
-      if (t >= DURATION) app.go(savedControl() ? 'mode' : 'control', { fromTransition: true });
+      // erst die PIN (Spielstand), danach Steuerung bzw. Modus-Auswahl
+      if (t >= DURATION) app.go('pin', { next: savedControl() ? 'mode' : 'control' });
     },
 
     exit() {

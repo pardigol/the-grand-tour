@@ -30,6 +30,7 @@ import { createModeScene } from './scenes/mode.js';
 import { createMinigameScene } from './scenes/minigame.js';
 import { createStoryScene } from './scenes/story.js';
 import { createCityScene } from './scenes/city.js';
+import { createPinScene } from './scenes/pin.js';
 import { loadCastle } from './castle.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
@@ -156,6 +157,7 @@ async function boot() {
     minigame: createMinigameScene(app),
     story: createStoryScene(app),
     stadt: createCityScene(app),
+    pin: createPinScene(app),
   };
   // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
   applyControl(app, savedControl() || guess(app), !!savedControl());

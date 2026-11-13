@@ -4,10 +4,22 @@ import { DEFAULT_LOOK } from './brands.js';
 
 // Interner Speichername bleibt gleich, damit angelegte Fahrer erhalten bleiben
 const KEY = 'pedal-legends.characters.v1';
+// Jeder Spielstand (PIN) hat seine eigenen Fahrer
+let keyPin = KEY;
+export function setCharacterPin(pin, alteUebernehmen = false) {
+  const neu = pin ? `${KEY}.pin.${pin}` : KEY;
+  try {
+    // beim allerersten Spielstand die bisherigen Fahrer übernehmen, damit nichts verloren geht
+    if (alteUebernehmen && neu !== KEY && !localStorage.getItem(neu) && localStorage.getItem(KEY)) localStorage.setItem(neu, localStorage.getItem(KEY));
+  } catch {
+    /* egal */
+  }
+  keyPin = neu;
+}
 
 export function loadCharacters() {
   try {
-    const list = JSON.parse(localStorage.getItem(KEY) || '[]');
+    const list = JSON.parse(localStorage.getItem(keyPin) || '[]');
     return Array.isArray(list) ? list : [];
   } catch {
     return [];
@@ -16,7 +28,7 @@ export function loadCharacters() {
 
 function saveAll(list) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list));
+    localStorage.setItem(keyPin, JSON.stringify(list));
   } catch {
     /* Speicher voll oder gesperrt */
   }

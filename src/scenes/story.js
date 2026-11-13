@@ -10,6 +10,7 @@ import { clamp, damp } from '../noise.js';
 import { Rivals } from '../rivals.js';
 import { Peloton } from '../peloton.js';
 import { loadCharacters } from '../storage.js';
+import { rennenFreischalten } from '../spielstand.js';
 
 // ✏️ Das Ausreißer-Team
 const TEAM_NAME = 'Team Blitz';
@@ -670,6 +671,7 @@ export function createStoryScene(app) {
     enter(params = {}) {
       // Gespielt wird auf der Landstraße mit dem Rennrad
       rennenNr = params.rennen === 2 && app.worlds.schnee ? 2 : 1;
+      if (rennenNr === 2) rennenFreischalten(2);
       const welt = rennenNr === 2 ? 'schnee' : 'road';
       if (app.world.kind !== welt && app.worlds[welt]) app.useWorld(welt);
       app.mode = 'road';

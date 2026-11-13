@@ -2,6 +2,7 @@
 import { CONFIG } from '../config.js';
 import { el, esc, hintBar, rideNpc, showcaseCamera } from './common.js';
 import { damp } from '../noise.js';
+import { stand } from '../spielstand.js';
 
 export const MODES = [
   { id: 'road', name: 'Rennrad' },
@@ -29,11 +30,36 @@ export function createModeScene(app) {
     }
   }
 
+  // Auswahl Rennen 1 / Rennen 2 (wenn freigeschaltet)
+  let wahl = null;
+  function zeigeWahl() {
+    root.querySelectorAll('.rennen-karte').forEach((k, i) => k.classList.toggle('selected', i === wahl));
+  }
+  async function starteRennen(n) {
+    busy = true;
+    if (n === 2 && !app.worlds.schnee) {
+      const note = root.querySelector('.mode-building');
+      note.textContent = 'Das Schneetal wird gebaut …';
+      note.classList.add('show');
+      await new Promise((r) => setTimeout(r, 60));
+      await app.prepareWorld('schnee');
+    }
+    busy = false;
+    app.go('story', { rennen: n });
+  }
+
   async function choose() {
     if (busy) return;
     // letzte Karte: das Game (großes Rennen mit Geschichte)
     if (index === MODES.length) {
       app.audio.select();
+      // Rennen 2 schon erreicht? Dann wählen, welches Rennen
+      if (stand().rennen >= 2) {
+        wahl = wahl == null ? stand().rennen - 1 : wahl;
+        root.querySelector('.rennen-wahl').classList.add('show');
+        zeigeWahl();
+        return;
+      }
       app.go('story');
       return;
     }
@@ -86,6 +112,13 @@ export function createModeScene(app) {
             ['B', 'Zurück'],
           ])}
           <div class="mode-building">Der Wald wird gebaut …</div>
+          <div class="rennen-wahl">
+            <div class="rennen-titel">Welches Rennen?</div>
+            <div class="rennen-karten">
+              <div class="rennen-karte" data-n="1"><b>Rennen 1</b><small>Das große Rennen · Landstraße</small></div>
+              <div class="rennen-karte" data-n="2"><b>Rennen 2</b><small>Schneetal mit Schloss</small></div>
+            </div>
+          </div>
         </div>`);
       app.ui.append(root);
       root.querySelectorAll('.mode-card').forEach((c) =>
@@ -95,6 +128,13 @@ export function createModeScene(app) {
           choose();
         }),
       );
+      root.querySelectorAll('.rennen-karte').forEach((k) =>
+        k.addEventListener('click', (e) => {
+          e.stopPropagation();
+          starteRennen(Number(k.dataset.n));
+        }),
+      );
+      wahl = null;
       highlight(true);
       first = true;
       app.npc.speed = 4;
@@ -112,6 +152,21 @@ export function createModeScene(app) {
 
       const inp = app.input;
       if (busy) return;
+      // Rennen-Auswahl offen
+      if (wahl != null) {
+        if (inp.pressed('left') || inp.pressed('up')) wahl = 0;
+        else if (inp.pressed('right') || inp.pressed('down')) wahl = 1;
+        else if (inp.pressed('confirm')) starteRennen(wahl + 1);
+        else if (inp.pressed('back')) {
+          wahl = null;
+          root.querySelector('.rennen-wahl').classList.remove('show');
+          app.audio.back();
+          return;
+        } else return;
+        app.audio.nav();
+        zeigeWahl();
+        return;
+      }
       if ((inp.pressed('left') || inp.pressed('up')) && index > 0) {
         index--;
         highlight();
