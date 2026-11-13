@@ -152,6 +152,7 @@ export class World {
 
     this.setupLakes();
     this.buildTrack();
+    if (this.schnee) this.setupSchneeSeen();
     this.buildSky(renderer);
     this.buildLights();
     this.buildTerrain();
@@ -192,12 +193,35 @@ export class World {
   // ---------- Seen ----------
   setupLakes() {
     // Positionen so gewählt, dass die Seen mindestens 50 m von der Straße entfernt sind
-    this.lakes = this.cx || this.tt ? [] : [
+    // Schneetal: Seen werden erst nach der Strecke gesetzt (setupSchneeSeen), weil die Strecke anders verläuft
+    this.lakes = this.cx || this.tt || this.schnee ? [] : [
       { x: -40, z: -30, r: 120 },
       { x: 180, z: 140, r: 60 },
       { x: -200, z: 170, r: 60 },
       { x: -560, z: 0, r: 70 },
     ];
+    this.seeSpiegel();
+  }
+
+  // Schneetal: zugefrorene Seen nur dort, wo sie weit genug von der Straße weg sind
+  setupSchneeSeen() {
+    const kandidaten = [
+      { x: 90, z: -20, r: 80 },
+      { x: -170, z: -20, r: 72 },
+      { x: -330, z: 400, r: 85 },
+      { x: 300, z: -440, r: 90 },
+      { x: 60, z: 460, r: 95 },
+      { x: 600, z: -220, r: 70 },
+    ];
+    for (const l of kandidaten) {
+      let d = Infinity;
+      for (let i = 0; i < this.N; i += 4) d = Math.min(d, Math.hypot(this.px[i] - l.x, this.pz[i] - l.z));
+      if (d > l.r * 1.6 + 50) this.lakes.push(l);
+    }
+    this.seeSpiegel();
+  }
+
+  seeSpiegel() {
     for (const l of this.lakes) {
       // Wasserspiegel knapp unter dem tiefsten Punkt des Ufers, damit nichts überläuft
       let lvl = Infinity;
@@ -450,8 +474,15 @@ export class World {
     let pts = [];
     if (this.tt) pts = this.villageRoute();
     // Waldweg: kürzere, viel kurvigere Runde (etwa 1,4 km)
-    const K = this.cx ? 24 : 16;
+    const K = this.cx ? 24 : this.schnee ? 22 : 16;
     for (let k = 0; k < (this.tt ? 0 : K); k++) {
+      // Schneetal (Rennen 2): eigene Strecke – lang gezogenes Tal, andersherum gefahren, mit engeren Kurven
+      if (this.schnee) {
+        const a = -(k / K) * Math.PI * 2 + 0.9;
+        const r = 330 + 110 * Math.sin(2 * a + 1.2) + 55 * Math.sin(4 * a + 0.3) + 28 * Math.sin(6 * a + 2.1);
+        pts.push(new THREE.Vector3(Math.cos(a) * r * 1.15, 0, Math.sin(a) * r * 0.9));
+        continue;
+      }
       const a = (k / K) * Math.PI * 2;
       const r = this.cx
         ? 200 + 45 * Math.sin(3 * a + 0.6) + 30 * Math.sin(5 * a + 1.9) + 16 * Math.sin(9 * a + 0.4)
