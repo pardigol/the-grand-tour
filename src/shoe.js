@@ -9,12 +9,52 @@ const AROUND = 20;
 
 // Form entlang des Schuhs (t = 0 Ferse … 1 Spitze): Breite, Höhe, Sohlen-Anhebung
 function shape(t) {
-  const w = 0.064 + 0.03 * Math.sin(Math.PI * Math.min(1, t * 1.35)) - 0.012 * Math.max(0, t - 0.8) / 0.2;
+  const w = 0.058 + 0.03 * Math.sin(Math.PI * Math.min(1, t * 1.3)) - 0.016 * Math.max(0, t - 0.78) / 0.22;
   // Ferse hoch (Fersenkappe), Rist mittel, Spitze flach
-  const h = t < 0.2 ? 0.1 + 0.008 * (t / 0.2) : t < 0.58 ? 0.108 - 0.045 * ((t - 0.2) / 0.38) : 0.063 - 0.033 * ((t - 0.58) / 0.42);
+  const h = t < 0.2 ? 0.088 + 0.006 * (t / 0.2) : t < 0.6 ? 0.094 - 0.042 * ((t - 0.2) / 0.4) : 0.052 - 0.03 * ((t - 0.6) / 0.4) ** 1.2;
   // Spitze und Ferse leicht hochgezogen (wie eine Wippe)
   const lift = 0.012 * Math.max(0, (t - 0.82) / 0.18) ** 2 + 0.006 * Math.max(0, (0.08 - t) / 0.08);
   return { w, h, lift };
+}
+
+// Rundung an Ferse und Spitze (wie im Loft unten)
+function endScale(t) {
+  if (t < 0.008) return 0.35 + (0.7 - 0.35) * (t / 0.008);
+  if (t < 0.02) return 0.7 + 0.2 * ((t - 0.008) / 0.012);
+  if (t < 0.03) return 0.9 + 0.1 * ((t - 0.02) / 0.01);
+  if (t > 0.985) return 0.75 - 0.45 * ((t - 0.985) / 0.015);
+  if (t > 0.97) return 1 - 0.25 * ((t - 0.97) / 0.015);
+  return 1;
+}
+// Punkt auf der Oberfläche (a = Winkel um den Schuh, 0 = Außenseite, PI/2 = oben), lift = nach außen versetzt
+function surf(t, a, lift = 0) {
+  const { w, h, lift: hoch } = shape(t);
+  const sc = endScale(t);
+  const c = Math.cos(a);
+  const sn = Math.sin(a);
+  const x = Math.sign(c) * Math.abs(c) ** 0.55 * (w / 2 + lift) * sc;
+  const y = sn > 0 ? Math.abs(sn) ** 0.8 * (h + lift) * sc : sn * 0.004;
+  return [x, y + hoch + 0.012, t * LEN - BALL];
+}
+// Ein Stück der Oberfläche (z. B. Riemen, Fersenkappe, Streifen) – liegt genau auf dem Schuh
+function patchGeometry(t0, t1, a0, a1, lift = 0.0025, nt = 10, na = 16) {
+  const pos = [];
+  const idx = [];
+  for (let i = 0; i <= nt; i++) {
+    const t = t0 + ((t1 - t0) * i) / nt;
+    for (let k = 0; k <= na; k++) pos.push(...surf(t, a0 + ((a1 - a0) * k) / na, lift));
+  }
+  for (let i = 0; i < nt; i++)
+    for (let k = 0; k < na; k++) {
+      const a = i * (na + 1) + k;
+      const b = a + na + 1;
+      idx.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 
 // Oberschuh als „Loft“: Querschnitte (abgerundete Rechtecke) nacheinander verbinden, Enden zugespitzt
@@ -81,12 +121,12 @@ function soleGeometry() {
   const pts = [];
   for (let i = 0; i <= 24; i++) {
     const t = i / 24;
-    pts.push([shape(t).w / 2 + 0.003, t * LEN - BALL]);
+    pts.push([(shape(t).w / 2) * endScale(t) + 0.003, t * LEN - BALL]);
   }
   s.moveTo(-pts[0][0], pts[0][1]);
   for (const [x, z] of pts) s.lineTo(x, z);
   for (let i = pts.length - 1; i >= 0; i--) s.lineTo(-pts[i][0], pts[i][1]);
-  const g = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 });
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.009, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.0025, bevelSegments: 2 });
   // Form liegt in x/y, Dicke in z -> flach hinlegen
   g.rotateX(Math.PI / 2);
   g.translate(0, 0.014, 0);
@@ -104,6 +144,15 @@ function geos() {
     strap: new THREE.BoxGeometry(1, 1, 1),
     cleat: new THREE.BoxGeometry(0.05, 0.008, 0.06),
     heel: new THREE.BoxGeometry(0.03, 0.006, 0.022),
+    // zwei Klettriemen quer über den Vorfuß
+    strap1: patchGeometry(0.6, 0.66, Math.PI * 0.1, Math.PI * 0.9, 0.003),
+    strap2: patchGeometry(0.69, 0.74, Math.PI * 0.12, Math.PI * 0.88, 0.003),
+    // Fersenkappe hinten, Zehenkappe vorne (beide dunkel)
+    heelCup: patchGeometry(0.0, 0.17, -Math.PI * 0.08, Math.PI * 1.08, 0.002, 12, 22),
+    toeCap: patchGeometry(0.9, 1.0, -Math.PI * 0.08, Math.PI * 1.08, 0.0015, 8, 22),
+    // Zierstreifen an beiden Seiten
+    stripeOut: patchGeometry(0.17, 0.88, Math.PI * 0.1, Math.PI * 0.17, 0.0018, 24, 3),
+    stripeIn: patchGeometry(0.17, 0.88, Math.PI * 0.83, Math.PI * 0.9, 0.0018, 24, 3),
   };
   return shared;
 }
@@ -126,28 +175,26 @@ export function buildShoe(mats) {
   // Schuhplatte (Cleat) unter dem Ballen, Fersenstopper hinten
   add(G.cleat, mats.cleat || mats.sole, 0, 0.002, 0.0);
   add(G.heel, mats.sole, 0, 0.002, -BALL + 0.02);
-  // Querriemen über dem Vorfuß (Farbe des Trikots)
-  const zr = 0.0;
-  const sr = shape((zr + BALL) / LEN);
-  add(G.strap, mats.accent, 0, 0.012 + sr.h * 0.92, zr, -0.2, 0, 0, sr.w * 0.98, 0.008, 0.035);
-  const sr2 = shape((zr + 0.05 + BALL) / LEN);
-  add(G.strap, mats.accent, 0, 0.012 + sr2.h * 0.92, zr + 0.05, -0.15, 0, 0, sr2.w * 0.98, 0.008, 0.03);
-  // schwarze Fersenkappe
-  const sh0 = shape(0.04);
-  add(G.strap, mats.sole, 0, 0.012 + sh0.h * 0.45, -BALL + 0.006, 0, 0, 0, sh0.w * 0.8, sh0.h * 0.8, 0.012);
+  // Riemen und Streifen in Trikotfarbe, Fersen- und Zehenkappe dunkel
+  add(G.strap1, mats.accent, 0, 0, 0);
+  add(G.strap2, mats.accent, 0, 0, 0);
+  add(G.stripeOut, mats.accent, 0, 0, 0);
+  add(G.stripeIn, mats.accent, 0, 0, 0);
+  add(G.heelCup, mats.sole, 0, 0, 0);
+  add(G.toeCap, mats.sole, 0, 0, 0);
   // Drehverschluss oben auf dem Rist (außen)
   const td = 0.4;
   const sd = shape(td);
   const dz = td * LEN - BALL;
-  const dy = 0.012 + sd.h * 0.98;
-  add(G.dial, mats.dial, 0.012, dy, dz, -0.35, 0, -0.25);
-  add(G.dialRing, mats.accent, 0.012, dy + 0.005, dz, Math.PI / 2 - 0.35, 0, -0.25);
+  const dy = 0.012 + sd.h * 0.97 + 0.004;
+  add(G.dial, mats.dial, 0.014, dy, dz, -0.32, 0, -0.3);
+  add(G.dialRing, mats.accent, 0.014, dy + 0.0055, dz, Math.PI / 2 - 0.32, 0, -0.3);
   return g;
 }
 
 export function shoeMaterials() {
   return {
-    upper: new THREE.MeshPhysicalMaterial({ color: '#f6f6f4', roughness: 0.28, clearcoat: 0.8, clearcoatRoughness: 0.2 }),
+    upper: new THREE.MeshPhysicalMaterial({ color: '#f4f4f1', roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.25 }),
     sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.45, metalness: 0.2 }),
     cleat: new THREE.MeshStandardMaterial({ color: '#c8352c', roughness: 0.6 }),
     dial: new THREE.MeshStandardMaterial({ color: '#1a1a1e', roughness: 0.3, metalness: 0.4 }),

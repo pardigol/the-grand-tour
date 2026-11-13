@@ -12,7 +12,6 @@ const TEILE = [
   'Building_Small_1',
   'Street_4Lane',
   'Street_4WayIntersection',
-  'Prop_Bollard',
   'Prop_Planter_Single',
   'Prop_ManholeCover',
 ];
@@ -52,31 +51,43 @@ async function laden() {
 export async function buildCity(roadWorld) {
   const M = await laden();
   const scene = new THREE.Scene();
-  const setze = (name, x, z, rotY = 0, y = 0) => {
+  // einzelnes Modell (nur das Penthouse-Haus, weil es eigene Fenster bekommt)
+  const einzeln = (name, x, z, rotY = 0) => {
     const o = M[name].clone();
-    o.position.set(x, y, z);
+    o.position.set(x, 0, z);
     o.rotation.y = rotY;
     scene.add(o);
     return o;
   };
+  // alles andere wird gesammelt und am Ende gemeinsam gezeichnet (InstancedMesh: schnell auch auf dem iPad)
+  const plaetze = new Map();
+  const _m = new THREE.Matrix4();
+  const _q = new THREE.Quaternion();
+  const _y = new THREE.Vector3(0, 1, 0);
+  const _one = new THREE.Vector3(1, 1, 1);
+  const setze = (name, x, z, rotY = 0) => {
+    if (!plaetze.has(name)) plaetze.set(name, []);
+    plaetze.get(name).push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), _q.setFromAxisAngle(_y, rotY).clone(), _one));
+  };
 
-  // ---------- Straße entlang x, Kreuzung bei x = 0 ----------
+  // ---------- Straßenraster ----------
+  // Straßen entlang x bei z = 0 (Hauptstraße) und z = ±QZ, entlang z bei x = 0 und x = ±QX
   const KREUZ = 12.33;
-  setze('Street_4WayIntersection', 0, 0);
-  for (let x = KREUZ + 3; x < 130; x += 6) {
-    setze('Street_4Lane', x, 0);
-    setze('Street_4Lane', -x, 0);
+  const QZ = 78;
+  const QX = 90;
+  const WEIT = 190;
+  const XS = [-QX, 0, QX];
+  const ZS = [-QZ, 0, QZ];
+  for (const x of XS) for (const z of ZS) setze('Street_4WayIntersection', x, z);
+  for (const z of ZS)
+    for (let x = -WEIT; x <= WEIT; x += 6) if (!liste(x)) setze('Street_4Lane', x, z);
+  function liste(x) {
+    return XS.some((k) => Math.abs(x - k) < KREUZ + 2.9);
   }
-  // Querstraße (entlang z)
-  for (let z = KREUZ + 3; z < 90; z += 6) {
-    setze('Street_4Lane', 0, z, Math.PI / 2);
-    setze('Street_4Lane', 0, -z, Math.PI / 2);
-  }
+  for (const x of XS)
+    for (let z = -WEIT; z <= WEIT; z += 6) if (!ZS.some((k) => Math.abs(z - k) < KREUZ + 2.9)) setze('Street_4Lane', x, z, Math.PI / 2);
   // Boden zwischen den Blöcken
-  const boden = new THREE.Mesh(
-    new THREE.PlaneGeometry(600, 600),
-    new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 0.95 }),
-  );
+  const boden = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 0.95 }));
   boden.rotation.x = -Math.PI / 2;
   boden.position.y = -0.2;
   boden.receiveShadow = true;
@@ -90,51 +101,79 @@ export async function buildCity(roadWorld) {
     Building_Medium_2_001: { links: -7.53, rechts: 7.53 },
     Building_Small_1: { links: -7.23, rechts: 5.23 },
   };
-  const folge = ['Building_Medium_2_001', 'Building_Small_1', 'Building_Medium_2_001', 'Building_Large_2', 'Building_Small_1'];
-  // eine Reihe an der Straße: Front zeigt zur Straße
-  const reihe = (seite, von, bis, start = 0, ausser = null) => {
+  const folge = ['Building_Medium_2_001', 'Building_Small_1', 'Building_Medium_2_001', 'Building_Large_2', 'Building_Small_1', 'Building_Large_2'];
+  let zaehler = 0;
+  // Reihe an einer Straße entlang x (bei z = zs): seite -1 = Nordseite (Front nach +z), +1 = Südseite
+  const reiheX = (zs, seite, von, bis) => {
     let x = von;
-    let i = start;
-    while (x < bis) {
-      const n = folge[i++ % folge.length];
+    while (true) {
+      const n = folge[zaehler++ % folge.length];
       const h = HAUS[n];
       const w = h.rechts - h.links;
-      if (!ausser || x + w < ausser[0] || x > ausser[1]) {
-        // Nordseite (z < 0): Front zeigt nach +z; Südseite gedreht
-        if (seite < 0) setze(n, x - h.links, -STRASSE_HALB - 0.4);
-        else setze(n, x + h.rechts, STRASSE_HALB + 0.4, Math.PI);
-      }
+      if (x + w > bis) break;
+      if (seite < 0) setze(n, x - h.links, zs - STRASSE_HALB - 0.4);
+      else setze(n, x + h.rechts, zs + STRASSE_HALB + 0.4, Math.PI);
       x += w + 0.2;
     }
   };
-  // Norden, östlich der Kreuzung: hier steht das Penthouse-Haus
-  const pent = setze('Building_Large_2', PENTHOUSE.x, PENTHOUSE.z);
-  reihe(-1, PENTHOUSE.x + 11.6, 130, 1);
-  reihe(-1, -130, -KREUZ - 0.5, 2);
-  reihe(1, KREUZ + 0.5, 130, 0);
-  reihe(1, -130, -KREUZ - 0.5, 3);
-  // zweite Reihe dahinter (nur für die Skyline)
-  for (const z of [-48, 48]) {
-    let x = -130;
-    let i = z > 0 ? 2 : 4;
-    while (x < 130) {
-      const n = folge[i++ % folge.length];
+  // Reihe an einer Straße entlang z (bei x = xs): seite -1 = Westseite (Front nach +x), +1 = Ostseite
+  const reiheZ = (xs, seite, von, bis) => {
+    let z = von;
+    while (true) {
+      const n = folge[zaehler++ % folge.length];
       const h = HAUS[n];
-      if (Math.abs(x) > 14) setze(n, x - h.links, z, z > 0 ? Math.PI : 0, 0);
-      x += h.rechts - h.links + 1;
+      const w = h.rechts - h.links;
+      if (z + w > bis) break;
+      if (seite < 0) setze(n, xs - STRASSE_HALB - 0.4, z + h.rechts, Math.PI / 2);
+      else setze(n, xs + STRASSE_HALB + 0.4, z - h.links, -Math.PI / 2);
+      z += w + 0.2;
     }
-  }
+  };
+  // Abschnitte zwischen den Kreuzungen
+  const abschnitte = (kreuz) => {
+    const out = [];
+    const k = [-WEIT - 20, ...kreuz, WEIT + 20];
+    for (let i = 0; i < k.length - 1; i++) out.push([k[i] + KREUZ + 0.5, k[i + 1] - KREUZ - 0.5]);
+    return out;
+  };
+  const pent = einzeln('Building_Large_2', PENTHOUSE.x, PENTHOUSE.z);
+  for (const zs of ZS)
+    for (const [a, b] of abschnitte(XS))
+      for (const seite of [-1, 1]) {
+        // hier steht das Penthouse-Haus (Hauptstraße, Nordseite, östlich der Kreuzung)
+        if (zs === 0 && seite < 0 && a > 0 && a < QX) {
+          reiheX(zs, seite, PENTHOUSE.x + 11.6, b);
+          continue;
+        }
+        reiheX(zs, seite, a, b);
+      }
+  // an den Querstraßen nur zwischen den Häuserreihen der Längsstraßen (sonst stehen Ecken ineinander)
+  const TIEFE = STRASSE_HALB + 0.4 + 16.5;
+  for (const xs of XS)
+    for (let i = 0; i < ZS.length - 1; i++)
+      for (const seite of [-1, 1]) reiheZ(xs, seite, ZS[i] + TIEFE, ZS[i + 1] - TIEFE);
 
-  // ---------- Kleinkram am Gehweg ----------
-  for (let x = -60; x <= 70; x += 7) {
-    if (Math.abs(x) < 16) continue;
-    // (auf dem Bürgersteig, wo du Jonas triffst, stehen keine Poller im Weg)
-    if (x < -30 || x > 40) setze('Prop_Bollard', x, -7.6);
-    setze('Prop_Bollard', x + 3.5, 7.6);
-  }
-  for (const x of [-30, -44, 34, 52]) setze('Prop_Planter_Single', x, x > 0 ? 7.2 : -7.2);
+  // ---------- Kleinkram am Gehweg (keine Poller mehr) ----------
+  for (const x of [-30, -44, 34, 52, -110, 120]) setze('Prop_Planter_Single', x, x > 0 ? 7.2 : -7.2);
   setze('Prop_ManholeCover', -6, 2.5);
   setze('Prop_ManholeCover', 28, -3);
+
+  // gesammelte Modelle gemeinsam zeichnen
+  for (const [name, liste] of plaetze) {
+    const vorlage = M[name];
+    vorlage.updateMatrixWorld(true);
+    vorlage.traverse((o) => {
+      if (!o.isMesh) return;
+      const im = new THREE.InstancedMesh(o.geometry, o.material, liste.length);
+      liste.forEach((m, k) => im.setMatrixAt(k, _m.multiplyMatrices(m, o.matrixWorld)));
+      im.instanceMatrix.needsUpdate = true;
+      im.castShadow = o.castShadow;
+      im.receiveShadow = o.receiveShadow;
+      im.userData.boden = o.userData.boden;
+      im.computeBoundingSphere();
+      scene.add(im);
+    });
+  }
 
   // ---------- Penthouse: die Fenster im obersten Stock leuchten warm, wenn Jonas oben ankommt ----------
   const glow = { value: 0 };

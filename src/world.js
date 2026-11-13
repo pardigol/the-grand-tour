@@ -1,6 +1,7 @@
 // Die 3D-Welt: Himmel bei Sonnenaufgang, Hügel, Rundstrecke, Bäume, Gras und Licht.
 // Alles wird prozedural im Code erzeugt – es werden keine Dateien geladen.
 import { buildVillage } from './village.js';
+import { buildCastle } from './castle.js';
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -125,14 +126,17 @@ export class World {
   // kind: 'road' = Landstraße (Rennrad), 'cx' = Waldweg durch dichten Wald (Cycle Cross)
   // nature = geladene Natur-Modelle (siehe nature.js) oder null
   // kind 'tt' = Zeitfahren: verwinkelte Runde durch ein Dorf (dorf = geladene Dorf-Modelle, siehe village.js)
-  constructor(renderer, kind = 'road', nature = null, dorf = null) {
+  // kind 'schnee' = Rennen 2: Landstraße durch ein verschneites Tal mit weißem Schloss (schloss = Modelle aus castle.js)
+  constructor(renderer, kind = 'road', nature = null, dorf = null, schloss = null) {
     this.kind = kind;
     this.cx = kind === 'cx';
     this.tt = kind === 'tt';
+    this.schnee = kind === 'schnee';
+    this.schlossModelle = schloss;
     this.nature = nature;
     this.dorf = dorf;
     // Jahreszeit je Welt (CONFIG.jahreszeiten): Rennrad grün, Cycle Cross Herbst
-    this.season = (CONFIG.jahreszeiten || {})[this.cx ? 'cx' : 'rennrad'] || (this.cx ? 'herbst' : 'sommer');
+    this.season = this.schnee ? 'winter' : (CONFIG.jahreszeiten || {})[this.cx ? 'cx' : 'rennrad'] || (this.cx ? 'herbst' : 'sommer');
     this.autumn = this.season === 'herbst';
     // Größte halbe Weg-/Straßenbreite. Beim Waldweg schwankt die Breite (siehe rhArr in buildTrack).
     // Dorfstraßen sind etwas schmaler als die Landstraße
@@ -164,6 +168,7 @@ export class World {
       this.clearAreas(v.footprints);
       this.scene.add(this.village);
     }
+    if (this.schnee && this.schlossModelle) this.placeCastle();
     this.buildFinishZone();
     this.buildClouds();
     this.buildMotes();
@@ -250,7 +255,7 @@ export class World {
     const m = smoothstep(660, 880, r);
     if (m > 0) {
       const ridge = 1 - Math.abs(this.fbm(x * 0.0032 + 7, z * 0.0032 - 3));
-      h += m * (35 + ridge * ridge * 120);
+      h += m * (35 + ridge * ridge * 120) * (this.schnee ? 1.8 : 1);
     }
     return h;
   }
@@ -712,7 +717,7 @@ export class World {
     const sky = new Sky();
     sky.scale.setScalar(10000);
     const u = sky.material.uniforms;
-    u.turbidity.value = 7;
+    u.turbidity.value = this.schnee ? 3 : 7;
     u.rayleigh.value = 2.4;
     u.mieCoefficient.value = 0.006;
     u.mieDirectionalG.value = 0.86;
@@ -734,25 +739,27 @@ export class World {
     envSky.material = sky.material;
     envScene.add(envSky);
     this.scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environmentIntensity = this.schnee ? 0.35 : 0.55;
     pmrem.dispose();
 
     // Im Wald dichter, leicht grünlicher Dunst
-    this.scene.fog = this.cx
-      ? new THREE.FogExp2(new THREE.Color(this.autumn ? '#a8977a' : '#9fa88f'), 0.0042)
-      : new THREE.FogExp2(new THREE.Color('#c9a58f'), 0.0013);
+    this.scene.fog = this.schnee
+      ? new THREE.FogExp2(new THREE.Color('#d9e2ec'), 0.0019)
+      : this.cx
+        ? new THREE.FogExp2(new THREE.Color(this.autumn ? '#a8977a' : '#9fa88f'), 0.0042)
+        : new THREE.FogExp2(new THREE.Color('#c9a58f'), 0.0013);
   }
 
   buildLights() {
     // im dichten Wald etwas mehr Himmelslicht, sonst wird es unter dem Blätterdach zu dunkel
-    const hemi = new THREE.HemisphereLight('#b9cdf5', '#5b4634', this.cx ? 1.35 : 0.9);
+    const hemi = new THREE.HemisphereLight('#b9cdf5', this.schnee ? '#a9b4c4' : '#5b4634', this.cx ? 1.35 : this.schnee ? 0.6 : 0.9);
     this.scene.add(hemi);
 
     // Das Sonnenlicht steht etwas höher als die sichtbare Sonne – so bleibt die Landschaft hell
     const az = Math.atan2(this.sunDir.x, this.sunDir.z);
     const el = THREE.MathUtils.degToRad(17);
     this.lightDir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
-    const sun = new THREE.DirectionalLight('#ffc994', 3.4);
+    const sun = new THREE.DirectionalLight(this.schnee ? '#fff0de' : '#ffc994', this.schnee ? 1.7 : 3.4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera;
@@ -792,13 +799,14 @@ export class World {
 
     // Im Wald: Moos und braunes Laub statt Wiese
     // Im Herbst: olivbraunes Gras und viel orange-braunes Laub am Boden
-    const cGrassA = new THREE.Color(this.autumn ? '#4a4a22' : this.cx ? '#33501f' : '#3f6b25');
-    const cGrassB = new THREE.Color(this.autumn ? '#7a6a2e' : this.cx ? '#5b6b2c' : '#86a33c');
-    const cDry = new THREE.Color(this.autumn ? '#9a5a26' : this.cx ? '#7a5a34' : '#b9a457');
-    const cRock = new THREE.Color('#7d756b');
-    const cSnow = new THREE.Color('#f4efe9');
-    const cDirt = new THREE.Color(this.cx ? '#5e4630' : '#8d7457');
-    const cSand = new THREE.Color('#cbb98b');
+    const W = this.schnee; // Winter: alles verschneit, im Schatten leicht bläulich
+    const cGrassA = new THREE.Color(W ? '#d6dde8' : this.autumn ? '#4a4a22' : this.cx ? '#33501f' : '#3f6b25');
+    const cGrassB = new THREE.Color(W ? '#e8edf4' : this.autumn ? '#7a6a2e' : this.cx ? '#5b6b2c' : '#86a33c');
+    const cDry = new THREE.Color(W ? '#c9d3e1' : this.autumn ? '#9a5a26' : this.cx ? '#7a5a34' : '#b9a457');
+    const cRock = new THREE.Color(W ? '#6c727c' : '#7d756b');
+    const cSnow = new THREE.Color(W ? '#ffffff' : '#f4efe9');
+    const cDirt = new THREE.Color(W ? '#b7bcc4' : this.cx ? '#5e4630' : '#8d7457');
+    const cSand = new THREE.Color(W ? '#e4e9f0' : '#cbb98b');
     const col = new Float32Array(count * 3);
     const c = new THREE.Color();
     for (let i = 0; i < count; i++) {
@@ -844,12 +852,13 @@ export class World {
   }
 
   buildLakes() {
+    // im Winter zugefroren: hellblaues, glattes Eis
     const mat = new THREE.MeshStandardMaterial({
-      color: '#2c6a8e',
-      roughness: 0.05,
+      color: this.schnee ? '#b9d3e6' : '#2c6a8e',
+      roughness: this.schnee ? 0.18 : 0.05,
       metalness: 0.15,
-      transparent: true,
-      opacity: 0.9,
+      transparent: !this.schnee,
+      opacity: this.schnee ? 1 : 0.9,
       envMapIntensity: 1.5,
     });
     for (const l of this.lakes) {
@@ -1154,7 +1163,7 @@ export class World {
     const flowerPalette = (this.autumn ? ['#c2461f', '#e07b24', '#e9b13a', '#8a3b1c', '#b5651d'] : ['#f2d14b', '#ffffff', '#e2455b', '#9b6bd6', '#ff9a3c']).map((c) => new THREE.Color(c));
     const pose = {};
     // Dorf: weniger Gras, und nie auf dem Pflaster (die Runde ist eng, andere Straßenstücke liegen nah)
-    for (let i = 0; i < (this.tt ? 9000 : 22000); i++) {
+    for (let i = 0; i < (this.schnee ? 0 : this.tt ? 9000 : 22000); i++) {
       const s = rand() * this.length;
       const side = rand() < 0.5 ? -1 : 1;
       const lat = side * (this.SH + 0.3 + Math.pow(rand(), 1.6) * 45);
@@ -1290,9 +1299,11 @@ export class World {
       sh.uniforms.barkMap = { value: tex };
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute float bark;\nvarying float vBark;\nvarying vec3 vBarkPos;\nvarying vec3 vBarkN;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBark = bark;\nvBarkPos = position;\nvBarkN = normal;');
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBark = bark;\nvBarkPos = position;\nvBarkN = normal;')
+        .replace('#include <common>', '#include <common>\nvarying float vSchnee;')
+        .replace('#include <defaultnormal_vertex>', '#include <defaultnormal_vertex>\nvSchnee = (vec4(transformedNormal, 0.0) * viewMatrix).y;');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform sampler2D barkMap;\nvarying float vBark;\nvarying vec3 vBarkPos;\nvarying vec3 vBarkN;')
+        .replace('#include <common>', '#include <common>\nuniform sampler2D barkMap;\nvarying float vBark;\nvarying vec3 vBarkPos;\nvarying vec3 vBarkN;\nvarying float vSchnee;')
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
@@ -1305,10 +1316,11 @@ export class World {
             vec3 rinde = mix(a, b, w);
             // etwas Farbe des Modells (und die Tönung je Baum) behalten
             diffuseColor.rgb = rinde * (0.55 + 0.6 * vColor.rgb / max(max(vColor.r, vColor.g), max(vColor.b, 0.001)) * 0.75);
-          }`,
+          }
+          ${this.schnee ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.99), smoothstep(-0.25, 0.45, vSchnee) * 0.85);' : ''}`,
         );
     };
-    mat.customProgramCacheKey = () => 'rinde' + variante;
+    mat.customProgramCacheKey = () => 'rinde' + variante + (this.schnee ? 'schnee' : '');
     return (this._natMats[variante] = mat);
   }
 
@@ -1790,6 +1802,42 @@ export class World {
   }
 
   // ---------- Wolken ----------
+  // Weißes Schloss neben der Strecke (etwa in der Mitte des Rennens), Tor zur Straße
+  placeCastle() {
+    const M = this.schlossModelle;
+    const { group, radius } = buildCastle(M);
+    const sMitte = this.length - 2.4 - 1250;
+    const pose = {};
+    let best = null;
+    // Platz suchen: weit genug weg von allen Straßenstücken, gut zu sehen
+    for (let ds = 0; ds < 600 && !best; ds += 25) {
+      for (const sd of [1, -1]) {
+        for (const abst of [radius + 18, radius + 30]) {
+          this.poseAt(sMitte + ds, sd * (this.SH + abst), pose);
+          if (!this.clearOfPath(pose.x, pose.z, radius + 8)) continue;
+          if (this.lakeAt?.(pose.x, pose.z, radius)) continue;
+          best = { x: pose.x, z: pose.z, s: sMitte + ds, sd };
+          break;
+        }
+        if (best) break;
+      }
+    }
+    if (!best) return;
+    this.poseAt(best.s, 0, pose);
+    // Höhe: tiefster Punkt unter den Mauern (der Sockel reicht nach unten)
+    let y = Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      y = Math.min(y, this.terrainHeight(best.x + Math.cos(a) * radius * 0.7, best.z + Math.sin(a) * radius * 0.7));
+    }
+    y = Math.min(y, this.terrainHeight(best.x, best.z));
+    group.position.set(best.x, y + 0.3, best.z);
+    group.rotation.y = Math.atan2(pose.x - best.x, pose.z - best.z);
+    this.clearAreas([{ x: best.x, z: best.z, r: radius + 6 }]);
+    this.scene.add(group);
+    this.schloss = { x: best.x, z: best.z, s: best.s, radius };
+  }
+
   buildClouds() {
     const rand = mulberry32(77);
     const tex = canvasTex(256, 128, (ctx, w, h) => {
@@ -1830,6 +1878,21 @@ export class World {
     for (let i = 0; i < n * 3; i++) pos[i] = (Math.random() - 0.5) * 50;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    if (this.schnee) {
+      // Schneeflocken: weiß, rund, fallen langsam
+      const flocke = canvasTex(64, 64, (ctx) => {
+        const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+        g.addColorStop(0, 'rgba(255,255,255,1)');
+        g.addColorStop(0.5, 'rgba(255,255,255,0.8)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 64, 64);
+      });
+      this.motes = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.11, map: flocke, transparent: true, depthWrite: false, color: '#ffffff' }));
+      this.motes.frustumCulled = false;
+      this.scene.add(this.motes);
+      return;
+    }
     if (this.autumn) {
       // Fallende Blätter in Herbstfarben
       const cols = new Float32Array(n * 3);
@@ -1892,7 +1955,10 @@ export class World {
       let x = p.getX(i) + Math.sin(time * 0.5 + i) * 0.15 * dt + 0.25 * dt;
       let y = p.getY(i) + Math.cos(time * 0.4 + i * 1.7) * 0.1 * dt;
       // Herbstblätter sinken taumelnd zu Boden
-      if (this.autumn) {
+      if (this.schnee) {
+        y -= (0.7 + (i % 7) * 0.08) * dt;
+        x += Math.sin(time * 0.8 + i) * 0.3 * dt;
+      } else if (this.autumn) {
         y -= (0.45 + (i % 5) * 0.08) * dt;
         x += Math.sin(time * 1.3 + i) * 0.5 * dt;
       }

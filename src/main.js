@@ -30,6 +30,7 @@ import { createModeScene } from './scenes/mode.js';
 import { createMinigameScene } from './scenes/minigame.js';
 import { createStoryScene } from './scenes/story.js';
 import { createCityScene } from './scenes/city.js';
+import { loadCastle } from './castle.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
 
@@ -111,7 +112,7 @@ async function boot() {
     worlds: { road: world },
     // Zur Welt des Modus wechseln (Landstraße oder Waldweg). Der Wald wird erst beim ersten Mal gebaut.
     useWorld(kind) {
-      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature, kind === 'tt' ? this.dorf : null);
+      if (!this.worlds[kind]) this.worlds[kind] = new World(renderer, kind, nature, kind === 'tt' ? this.dorf : null, kind === 'schnee' ? this.schloss : null);
       this.setWorld(this.worlds[kind]);
     },
     // Eine fertige Welt anzeigen (auch die Stadt aus city.js)
@@ -129,6 +130,7 @@ async function boot() {
     // Welt vorbereiten: fürs Zeitfahren erst die Dorf-Modelle laden (nur beim ersten Mal)
     async prepareWorld(kind) {
       if (kind === 'tt' && !this.dorf) this.dorf = await loadVillageModels();
+      if (kind === 'schnee' && !this.schloss) this.schloss = await loadCastle();
       this.useWorld(kind);
     },
     time: 0,

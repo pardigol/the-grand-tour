@@ -1189,39 +1189,71 @@ export class Bike {
   // Gesicht: this.ohneBrille = Brille abgenommen (Augen sichtbar), this.zwinker 0 … 1 = rechtes Auge zu
   updateGesicht() {
     const zeigen = !!this.ohneBrille;
-    if (zeigen && !this.augen) {
-      const weiss = new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.3 });
-      const dunkel = new THREE.MeshStandardMaterial({ color: '#2a1d14', roughness: 0.25 });
-      const haut = this.mats.skin;
-      this.augen = [-1, 1].map((s) => {
-        const g = new THREE.Group();
-        g.position.set(s * 0.036, 0.014, 0.088);
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0165, 14, 10), weiss);
-        const iris = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 10, 8), dunkel);
-        iris.position.z = 0.0115;
-        // Augenlid: Hautkugel, die sich beim Zwinkern von oben über das Auge schiebt
-        const lid = new THREE.Mesh(new THREE.SphereGeometry(0.0175, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), haut);
-        lid.rotation.x = -1.2;
-        const braue = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.008), dunkel);
-        braue.position.set(0, 0.026, 0.012);
-        braue.rotation.z = -s * 0.12;
-        g.add(ball, iris, lid, braue);
-        this.head.add(g);
-        return { s, g, lid, braue };
-      });
-    }
+    if (zeigen && !this.augen) this.baueAugen();
     for (const p of this.brille) p.visible = !zeigen;
     if (!this.augen) return;
+    // ab und zu blinzeln (alle 2,5 … 5,5 Sekunden, ganz kurz)
+    const jetzt = performance.now() / 1000;
+    if (!this._blinzelAb) this._blinzelAb = jetzt + 1 + Math.random() * 3;
+    let blink = 0;
+    if (jetzt > this._blinzelAb) {
+      const t = jetzt - this._blinzelAb;
+      blink = t < 0.07 ? t / 0.07 : t < 0.14 ? 1 - (t - 0.07) / 0.07 : 0;
+      if (t > 0.14) this._blinzelAb = jetzt + 2.5 + Math.random() * 3;
+    }
     const z = this.zwinker || 0;
     for (const a of this.augen) {
       a.g.visible = zeigen;
-      const k = a.s < 0 ? z : 0;
-      // Lid von halb offen (-1.2) bis ganz zu (+0.35), Braue zieht mit nach unten
-      a.lid.rotation.x = -1.2 + 1.55 * k;
-      a.braue.position.y = 0.026 - 0.008 * k;
-      // die andere Braue geht beim Zwinkern frech nach oben
-      if (a.s > 0) a.braue.position.y = 0.026 + 0.006 * z;
+      // Oberlid: offen etwas über der Iris (-1.05), zu bei +0.25; Braue zieht beim Zwinkern mit
+      const k = Math.max(blink, a.s < 0 ? z : 0);
+      a.lid.rotation.x = -1.05 + 1.3 * k;
+      a.braue.position.y = 0.031 - 0.006 * (a.s < 0 ? z : 0) + (a.s > 0 ? 0.006 * z : 0);
+      a.braue.rotation.z = a.s * (0.08 + (a.s > 0 ? 0.12 * z : 0));
     }
+  }
+
+  // Augen: Augapfel, farbige Iris mit Pupille und Lichtpunkt, Ober- und Unterlid mit Wimpernrand, gebogene Braue
+  baueAugen() {
+    const haut = this.mats.skin;
+    const weiss = new THREE.MeshStandardMaterial({ color: '#f3eee6', roughness: 0.25 });
+    const iris = new THREE.MeshStandardMaterial({ color: this.augenFarbe || '#4a78a8', roughness: 0.35 });
+    const pupille = new THREE.MeshStandardMaterial({ color: '#08080a', roughness: 0.2 });
+    const glanz = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+    const wimpern = new THREE.MeshStandardMaterial({ color: '#1a120d', roughness: 0.6 });
+    const brauenMat = new THREE.MeshStandardMaterial({ color: this.brauenFarbe || '#3b2a1e', roughness: 0.8 });
+    const R = 0.0155;
+    // Kugelkappe nach vorne (+z): für Iris und Pupille
+    const kappe = (r, winkel, mat) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 6, 0, Math.PI * 2, 0, winkel), mat);
+      m.rotation.x = Math.PI / 2;
+      return m;
+    };
+    this.augen = [-1, 1].map((s) => {
+      const g = new THREE.Group();
+      // etwas in den Kopf eingesetzt, leicht nach außen gedreht
+      g.position.set(s * 0.035, 0.012, 0.084);
+      g.rotation.y = s * 0.12;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 18, 12), weiss);
+      const ir = kappe(R * 1.012, 0.62, iris);
+      const pu = kappe(R * 1.02, 0.28, pupille);
+      const licht = new THREE.Mesh(new THREE.SphereGeometry(0.0022, 8, 6), glanz);
+      licht.position.set(-0.004, 0.004, R * 0.99);
+      // Oberlid: Hautschale, schiebt sich beim Blinzeln/Zwinkern übers Auge
+      const lid = new THREE.Mesh(new THREE.SphereGeometry(R * 1.1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), haut);
+      const rand = new THREE.Mesh(new THREE.TorusGeometry(R * 1.1, 0.0013, 4, 24, Math.PI), wimpern);
+      rand.rotation.set(Math.PI / 2, 0, 0);
+      lid.add(rand);
+      // Unterlid: schmale Hautschale von unten
+      const unter = new THREE.Mesh(new THREE.SphereGeometry(R * 1.08, 18, 6, 0, Math.PI * 2, 0, 0.75), haut);
+      unter.rotation.x = Math.PI - 0.35;
+      // Braue: gebogener Bogen über dem Auge
+      const bogen = new THREE.CatmullRomCurve3([V(-0.016, -0.002, 0), V(0, 0.003, 0.004), V(0.016, -0.003, 0)]);
+      const braue = new THREE.Mesh(new THREE.TubeGeometry(bogen, 10, 0.0028, 5, false), brauenMat);
+      braue.position.set(0, 0.031, 0.01);
+      g.add(ball, ir, pu, licht, lid, unter, braue);
+      this.head.add(g);
+      return { s, g, lid, braue };
+    });
   }
 
   // Gehen neben dem Rad: Fahrer steht links vom Rad (+x) und hält mit der rechten Hand den Lenker

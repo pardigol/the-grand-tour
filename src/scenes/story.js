@@ -44,6 +44,8 @@ const V_SPRINT = 17.4; // ≈ 63 km/h
 const ABSTAND_ZIEL = 0.5; // Sekunden hinter dem Sieger
 const GEAR = 3.6;
 const TEAM_LAT = -1.5; // auf dieser Seite der Straße fährt Team Blitz
+// ✏️ Rennen 2 im Schneetal: das sagt Jonas vor dem Start
+const JONAS_RENNEN2 = 'Na, auch hier? Dann lass mal schauen, was dir dieses Rennen beschert!';
 
 const VIEWS = [
   { name: 'Hinten', dist: 5.2, height: 2.7 },
@@ -64,6 +66,7 @@ export function createStoryScene(app) {
   let view = 0;
   let pauseIndex = 0;
   let resultIndex = 0;
+  let rennenNr = 1; // 1 = Landstraße, 2 = Schneetal mit Schloss
 
   const $ = (s) => root.querySelector(s);
 
@@ -251,6 +254,7 @@ export function createStoryScene(app) {
       dz: teamSlots[i].dz,
       lat: teamSlots[i].lat,
       latT: teamSlots[i].lat,
+      latStart: teamSlots[i].lat,
       s: st.sStart + teamSlots[i].dz - 70 - Math.random() * 0.5,
       v: 0,
       anfahrt: true,
@@ -351,7 +355,7 @@ export function createStoryScene(app) {
         // heranrollen und am eigenen Platz stehen bleiben
         const platz = st.sStart + r.dz;
         const rest = platz - r.s;
-        if (st.phase === 'anfahrt') r.v = 0;
+        if (st.phase === 'anfahrt' || st.phase === 'jonas') r.v = 0;
         else r.v = Math.min(9.5, stopSpeed(rest, 2.2), r.v + 4 * dt);
         r.s = Math.min(platz, r.s + r.v * dt);
         if (rest < 0.05) {
@@ -442,7 +446,12 @@ export function createStoryScene(app) {
       if (tm.anfahrt) {
         const platz = st.sStart + tm.dz;
         const rest = platz - tm.s;
-        if (st.phase === 'anfahrt') tm.v = 0;
+        if (st.phase === 'anfahrt' || st.phase === 'jonas') tm.v = 0;
+        // Rennen 2: Jonas steht vor dem Start neben dir
+        if (st.phase === 'jonas' && tm === L) {
+          tm.s = st.s + 0.5;
+          tm.lat = tm.latT = 1.5;
+        }
         else tm.v = Math.min(9.5, stopSpeed(rest, 2.2), tm.v + 4 * dt);
         tm.s = Math.min(platz, tm.s + tm.v * dt);
         if (rest < 0.05) {
@@ -587,6 +596,20 @@ export function createStoryScene(app) {
     app.camera.updateProjectionMatrix();
   }
 
+  // Rennen 2: vorne vor dir und Jonas, Blick auf sein Gesicht
+  function jonasCamera(dt) {
+    const w = app.world;
+    w.poseAt(st.s + 3.2, 0.2, pose);
+    _cam.set(pose.x, pose.h + 1.55, pose.z);
+    if (st.t < 0.05) app.camera.position.copy(_cam);
+    else app.camera.position.lerp(_cam, 1 - Math.exp(-3 * dt));
+    const k = leader().r.bike.head.getWorldPosition(new THREE.Vector3());
+    const me = app.bike.root.position;
+    app.camera.lookAt((k.x * 2 + me.x) / 3, k.y - 0.25, (k.z * 2 + me.z) / 3);
+    app.camera.fov = damp(app.camera.fov, 48, 3, dt);
+    app.camera.updateProjectionMatrix();
+  }
+
   // Kamera hinter dir: folgt der Richtung weich, bleibt aber immer im gleichen Abstand
   let camHeading = null;
   function followCamera(dt, snap = false) {
@@ -646,7 +669,9 @@ export function createStoryScene(app) {
   return {
     enter(params = {}) {
       // Gespielt wird auf der Landstraße mit dem Rennrad
-      if (app.world.kind !== 'road' && app.worlds.road) app.useWorld('road');
+      rennenNr = params.rennen === 2 && app.worlds.schnee ? 2 : 1;
+      const welt = rennenNr === 2 ? 'schnee' : 'road';
+      if (app.world.kind !== welt && app.worlds[welt]) app.useWorld(welt);
       app.mode = 'road';
       const alle = loadCharacters();
       char =
@@ -683,6 +708,11 @@ export function createStoryScene(app) {
           </div>
           <button class="touch-pause" data-act="pause" aria-label="Pause">❚❚</button>
           <div class="banner"></div>
+          <div class="stadt-dialog story-dialog">
+            <div class="stadt-name">Jonas</div>
+            <div class="stadt-text"></div>
+            <div class="stadt-weiter">${app.control === 'touch' ? 'Tippen' : app.control === 'keys' ? '<b>Enter</b>' : btn('A')} ▶</div>
+          </div>
           <div class="countdown"></div>
           <div class="result">
             <div class="pause-box result-box">
@@ -725,7 +755,12 @@ export function createStoryScene(app) {
       followCamera(0, true);
       app.fx.uFade.value = 1;
       app.audio.setMusicLevel(0.45);
-      banner('Das große Rennen', 'Fahr zum Start!');
+      if (rennenNr === 2) {
+        // erst spricht Jonas mit dir, dann geht es zum Start
+        goPhase('jonas');
+        st.jonasText = 0;
+        $('.story-dialog').addEventListener('click', () => app.input.inject('confirm'));
+      } else banner('Das große Rennen', 'Fahr zum Start!');
       app.story = st; // zum Ausprobieren in der Konsole
       st.riders = riders;
     },
@@ -760,8 +795,8 @@ export function createStoryScene(app) {
         } else if (inp.pressed('confirm')) {
           app.audio.select();
           // Weiter: nach dem Rennen in der Stadt – Jonas spricht dich an
-          if (resultIndex === 0) app.go('stadt', { character: char });
-          else if (resultIndex === 1) app.go('story', { character: char });
+          if (resultIndex === 0) app.go(rennenNr === 1 ? 'stadt' : 'mode', rennenNr === 1 ? { character: char } : { minigame: true });
+          else if (resultIndex === 1) app.go('story', { character: char, rennen: rennenNr });
           else app.go('mode', { minigame: true });
           return;
         }
@@ -812,7 +847,31 @@ export function createStoryScene(app) {
 
       // ---------- Ablauf ----------
       let vT = st.v;
-      if (st.phase === 'anfahrt') {
+      if (st.phase === 'jonas') {
+        vT = 0;
+        const d = $('.story-dialog');
+        if (st.t > 1.2 && !d.classList.contains('show')) d.classList.add('show');
+        if (d.classList.contains('show')) {
+          // Buchstabe für Buchstabe
+          const vorher = Math.floor(st.jonasText);
+          st.jonasText = Math.min(JONAS_RENNEN2.length, st.jonasText + dt / 0.028);
+          const n = Math.floor(st.jonasText);
+          if (n !== vorher && n % 3 === 0) app.audio.tone(330 + Math.random() * 60, 0.04, { type: 'triangle', vol: 0.035 });
+          $('.story-dialog .stadt-text').textContent = JONAS_RENNEN2.slice(0, n);
+          const fertig = n >= JONAS_RENNEN2.length;
+          $('.story-dialog .stadt-weiter').classList.toggle('show', fertig);
+          if (inp.pressed('confirm') || inp.pressed('back')) {
+            if (!fertig && !inp.pressed('back')) st.jonasText = JONAS_RENNEN2.length;
+            else {
+              d.classList.remove('show');
+              const L = leader();
+              L.latT = L.latStart;
+              goPhase('anfahrt');
+              banner('Rennen 2: Das Schneetal', 'Fahr zum Start!');
+            }
+          }
+        }
+      } else if (st.phase === 'anfahrt') {
         // selbst zur Startlinie fahren, dort hält man automatisch an
         const rest = st.sStart - st.s;
         vT = Math.min(tritt ? 6.5 : Math.max(0, st.v - 1.5 * dt), stopSpeed(rest, 2.5));
@@ -1125,7 +1184,8 @@ export function createStoryScene(app) {
       team.showDraft(st.draft > 0.2 ? team.draftFor(st.x, st.z).rival : null, st.draft, dt);
 
       // Kamera
-      if (st.phase === 'aufstellen' || (st.phase === 'countdown' && st.cd > 1.6)) frontCamera(dt);
+      if (st.phase === 'jonas') jonasCamera(dt);
+      else if (st.phase === 'aufstellen' || (st.phase === 'countdown' && st.cd > 1.6)) frontCamera(dt);
       else if (st.foto && (st.slow < 0.9 || st.fotoNach != null)) fotoCamera(realDt);
       else followCamera(dt);
       // im Sprint wackelt die Kamera ein bisschen

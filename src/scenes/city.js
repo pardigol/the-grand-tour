@@ -149,14 +149,17 @@ export function createCityScene(app) {
     jonas.root.visible = true;
     jonas.walk = true;
     jonas.schieben = true;
+    jonas.augenFarbe = '#5a3b22';
     jonas.ohneBrille = true;
     jonas.zwinker = 0;
     jonas.head.rotation.set(0, 0, 0);
     app.bike.walk = true;
+    app.bike.ohneBrille = true; // in der Stadt ohne Sportbrille: man sieht die Augen
     app.bike.schieben = true;
     app.bike.stand = 0;
     app.bike.head.rotation.set(0.05, 0, 0);
     city.penthouseLicht.intensity = 0;
+    st.weiter = false;
     Object.assign(st, { x: START.x, z: START.z, h: Math.PI / 2, v: 0, jx: JONAS_START.x, jz: JONAS_START.z, jh: -Math.PI / 2, jv: 0, text: null });
     ichStellen(0);
     jonasStellen(0);
@@ -365,9 +368,17 @@ export function createCityScene(app) {
         case 'ende': {
           kamera(dt, 1);
           app.fx.uFade.value = damp(app.fx.uFade.value, 1.05, 3, dt);
-          if (app.fx.uFade.value > 0.98) {
-            app.go('mode', { minigame: true });
-            return;
+          // weiter zum nächsten Rennen: das Schneetal (wird beim ersten Mal gebaut)
+          if (app.fx.uFade.value > 0.98 && !st.weiter) {
+            st.weiter = true;
+            const l = $('.stadt-laden');
+            l.textContent = 'Das Schneetal wird gebaut …';
+            l.style.display = '';
+            l.classList.add('show');
+            setTimeout(async () => {
+              await app.prepareWorld('schnee');
+              if (root) app.go('story', { character: char, rennen: 2 });
+            }, 60);
           }
           break;
         }
@@ -382,6 +393,7 @@ export function createCityScene(app) {
       }
       // wieder aufs Rad
       app.bike.walk = false;
+      app.bike.ohneBrille = false;
       app.bike.schieben = false;
       app.bike.head.rotation.set(0.05, 0, 0);
       app.bike.update(0, 0, 0, 0);
