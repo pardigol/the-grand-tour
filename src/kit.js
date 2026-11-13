@@ -125,26 +125,39 @@ export function drawThigh(k, shorts, skin, kit) {
 }
 
 // Helm: Lüftungsschlitze auf der Halbkugel (oben im Canvas = Helmmitte)
+// Helm-Textur: x = vorne → hinten, y = linke Seite → rechte Seite (siehe helmetGeometry in bike.js)
 export function drawHelmet(k, base) {
   const ctx = k.canvas.getContext('2d');
   const W = k.canvas.width;
   const H = k.canvas.height;
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(15,15,18,0.85)';
-  const cols = 9;
-  for (let i = 0; i < cols; i++) {
-    const x = ((i + 0.5) / cols) * W;
+  // dunkler Streifen in der Mitte (Akzent), leicht abgesetzt
+  ctx.fillStyle = shade(base, 0.82);
+  ctx.fillRect(W * 0.08, H * 0.47, W * 0.86, H * 0.06);
+  // Lüftungsschlitze: lang, abgerundet, längs von vorne nach hinten
+  const schlitz = (x0, x1, y, dicke) => {
     ctx.beginPath();
-    ctx.ellipse(x, H * 0.38, W * 0.018, H * 0.14, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x + W / cols / 2, H * 0.72, W * 0.014, H * 0.09, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // Rand unten
-  ctx.fillStyle = shade(base, 0.7);
-  ctx.fillRect(0, H * 0.93, W, H * 0.07);
+    ctx.moveTo(x0 * W, y * H);
+    ctx.lineTo(x1 * W, y * H);
+    ctx.lineWidth = dicke * H;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  };
+  ctx.strokeStyle = 'rgba(14,14,17,0.92)';
+  for (const [y, x0, x1, d] of [
+    [0.5, 0.2, 0.62, 0.05],
+    [0.39, 0.16, 0.7, 0.045],
+    [0.61, 0.16, 0.7, 0.045],
+    [0.28, 0.2, 0.66, 0.04],
+    [0.72, 0.2, 0.66, 0.04],
+    [0.18, 0.3, 0.58, 0.035],
+    [0.82, 0.3, 0.58, 0.035],
+  ])
+    schlitz(x0, x1, y, d);
+  // vorne kurze Lufteinlässe über der Stirn, hinten zwei Auslässe
+  for (const y of [0.34, 0.44, 0.56, 0.66]) schlitz(0.06, 0.1, y, 0.035);
+  for (const y of [0.42, 0.58]) schlitz(0.8, 0.88, y, 0.04);
   k.tex.needsUpdate = true;
 }
 

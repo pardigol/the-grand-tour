@@ -244,6 +244,69 @@ const SIDEWALL = new THREE.Color('#c39a5a');
 // Weltmeister-Lackierung: Rohr in Rahmenfarbe mit den fünf Regenbogenstreifen zwischen from und to
 // (0 = Rohranfang, 1 = Rohrende). Reihenfolge von oben: Blau, Rot, Schwarz, Gelb, Grün.
 const rainbowCache = {};
+// ---------- Helm ----------
+// Schale als Folge von Bögen von vorne (t = 0) nach hinten (t = 1). Jeder Bogen geht vom linken
+// Rand über den Scheitel zum rechten Rand. UV: u = vorne → hinten, v = links → rechts (für die Schlitze).
+const HELM_RINGE = 30;
+const HELM_UM = 24;
+const smooth = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+function helmForm(t) {
+  const z = 0.122 - t * 0.3;
+  const rund = (m, vorn, hinten) => {
+    const d = (t - m) / (t < m ? vorn : hinten);
+    return Math.sqrt(Math.max(0, 1 - d * d));
+  };
+  const w = 0.11 * rund(0.42, 0.42, 0.58) ** 0.9;
+  const h = 0.122 * rund(0.4, 0.4, 0.6) ** 0.85;
+  // Unterkante: vorne über den Augenbrauen, an den Seiten über den Ohren, hinten tief am Hinterkopf
+  const unten = 0.03 - 0.06 * smooth(0, 0.86, t) + 0.012 * smooth(0.86, 1, t);
+  return { z, w, h, unten };
+}
+function helmPunkt(t, a, out) {
+  const f = helmForm(t);
+  const c = Math.cos(a);
+  return out.set(f.w * Math.sin(a), f.unten + f.h * Math.sign(c) * Math.abs(c) ** 0.75, f.z);
+}
+function helmetGeometry() {
+  const pos = [];
+  const uv = [];
+  const idx = [];
+  const p = new THREE.Vector3();
+  for (let r = 0; r <= HELM_RINGE; r++) {
+    const t = r / HELM_RINGE;
+    for (let k = 0; k <= HELM_UM; k++) {
+      const v = k / HELM_UM;
+      helmPunkt(t, (v - 0.5) * Math.PI, p);
+      pos.push(p.x, p.y, p.z);
+      uv.push(t, v);
+    }
+  }
+  const n = HELM_UM + 1;
+  for (let r = 0; r < HELM_RINGE; r++) {
+    for (let k = 0; k < HELM_UM; k++) {
+      const a = r * n + k;
+      idx.push(a, a + 1, a + n, a + 1, a + n + 1, a + n);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+// dünner Rand entlang der Unterkante (links und rechts)
+function helmetRimGeometry() {
+  const pts = [];
+  const p = new THREE.Vector3();
+  for (let r = HELM_RINGE; r >= 0; r--) pts.push(helmPunkt(r / HELM_RINGE, -Math.PI / 2, p).clone());
+  for (let r = 1; r <= HELM_RINGE; r++) pts.push(helmPunkt(r / HELM_RINGE, Math.PI / 2, p).clone());
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.0045, 5, false);
+}
+
 function rainbowTexture(base, from, to, topIsStart) {
   const key = `${base}-${from}-${to}-${topIsStart}`;
   if (rainbowCache[key]) return rainbowCache[key];
@@ -728,18 +791,17 @@ export class Bike {
     // (kein extra Kinn mehr – der Kopf ist ein runder Ball)
     headMesh.castShadow = true;
     this.head.add(headMesh);
-    // Helm: Schale reicht über Stirn, Schläfen und Hinterkopf (nicht nur ein Käppchen oben drauf)
-    const helmGeo = new THREE.SphereGeometry(0.128, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.56);
+    // Rennrad-Helm: längliche Schale (vorne über der Stirn, hinten flach auslaufend), Lüftungsschlitze
+    // kommen aus der Textur (kit.js drawHelmet), innen dunkler Schaum, unten ein dünner Rand
+    const helmGeo = helmetGeometry();
     const helmet = new THREE.Mesh(helmGeo, m.helmet);
-    helmet.scale.set(1.02, 0.98, 1.24);
-    helmet.position.set(0, 0.012, -0.018);
-    helmet.rotation.x = -0.18;
+    helmet.position.set(0, 0.006, -0.004);
     helmet.castShadow = true;
     this.head.add(helmet);
-    // dunkler Rand unten am Helm (Schaum/Kante), damit die Schale dick aussieht
-    const rand = new THREE.Mesh(new THREE.TorusGeometry(0.128 * Math.sin(Math.PI * 0.56), 0.008, 6, 36), m.glassFrame);
-    rand.rotation.x = Math.PI / 2;
-    rand.position.y = 0.128 * Math.cos(Math.PI * 0.56);
+    const innen = new THREE.Mesh(helmGeo, (m.helmInnen ||= new THREE.MeshStandardMaterial({ color: '#1b1b1f', roughness: 0.9, side: THREE.BackSide })));
+    innen.scale.setScalar(0.985);
+    helmet.add(innen);
+    const rand = new THREE.Mesh(helmetRimGeometry(), m.glassFrame);
     helmet.add(rand);
     // Gebogene Sportbrille, die um den Kopf herumgeht
     const arc = 2.3;
