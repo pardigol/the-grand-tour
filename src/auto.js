@@ -10,17 +10,91 @@ const ZIER = '#d4af37'; // goldener Streifen
 const RAD_R = 0.36;
 const BREIT = 1.96;
 
-// Seitenansicht (z = vorne/hinten, y = oben) als Fläche, quer zur Fahrtrichtung in die Breite gezogen
-function profil(punkte, breite, bevel = 0.06) {
-  const s = new THREE.Shape();
-  punkte.forEach(([z, y], i) => (i ? s.lineTo(z, y) : s.moveTo(z, y)));
-  s.closePath();
-  const g = new THREE.ExtrudeGeometry(s, { depth: breite - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 4, curveSegments: 12 });
-  // Form liegt in x/y (x = Länge), Breite in z → drehen: Länge nach z, Breite nach x
-  g.translate(0, 0, -(breite - 2 * bevel) / 2);
-  g.rotateY(-Math.PI / 2);
+// Weiche Form aus vielen Querschnitten (Loft): für jede Stelle z (vorne/hinten) gibt form(z)
+// { breit, oben, unten, einzug } zurück; der Querschnitt ist ein abgerundetes Rechteck (Superellipse),
+// oben etwas schmaler (einzug) – so entstehen gewölbte Seiten wie bei einem echten Auto.
+// farbe(x, y, z) liefert optional eine Farbe pro Punkt (für Streifen im Lack).
+function loft(z0, z1, form, { n = 70, m = 48, rund = 0.32, farbe = null } = {}) {
+  const pos = [];
+  const col = [];
+  const idx = [];
+  const c = new THREE.Color();
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const z = z1 + (z0 - z1) * t; // von vorne nach hinten
+    const f = form(z);
+    const mitte = (f.oben + f.unten) / 2;
+    const hh = (f.oben - f.unten) / 2;
+    for (let k = 0; k < m; k++) {
+      const a = (k / m) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const ex = Math.sign(ca) * Math.abs(ca) ** rund;
+      const ey = Math.sign(sa) * Math.abs(sa) ** rund;
+      // oben schmaler (Seiten laufen nach innen), unten volle Breite
+      const breit = (f.breit / 2) * (ey > 0 ? 1 - f.einzug * ey : 1);
+      const x = ex * breit;
+      const y = mitte + ey * hh;
+      pos.push(x, y, z);
+      if (farbe) {
+        farbe(x, y, z, f, c);
+        col.push(c.r, c.g, c.b);
+      }
+    }
+  }
+  for (let i = 0; i < n; i++)
+    for (let k = 0; k < m; k++) {
+      const a0 = i * m + k;
+      const a1 = i * m + ((k + 1) % m);
+      const b0 = a0 + m;
+      const b1 = a1 + m;
+      idx.push(a0, b0, a1, a1, b0, b1);
+    }
+  // Enden zumachen (vorne und hinten je ein Mittelpunkt)
+  for (const [ring, flip] of [[0, false], [n, true]]) {
+    const mi = pos.length / 3;
+    let sx = 0, sy = 0, sz = 0;
+    for (let k = 0; k < m; k++) {
+      sx += pos[(ring * m + k) * 3];
+      sy += pos[(ring * m + k) * 3 + 1];
+      sz += pos[(ring * m + k) * 3 + 2];
+    }
+    pos.push(sx / m, sy / m, sz / m);
+    if (farbe) col.push(col[ring * m * 3], col[ring * m * 3 + 1], col[ring * m * 3 + 2]);
+    for (let k = 0; k < m; k++) {
+      const a0 = ring * m + k;
+      const a1 = ring * m + ((k + 1) % m);
+      if (flip) idx.push(mi, a1, a0);
+      else idx.push(mi, a0, a1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  if (farbe) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
   return g;
 }
+
+// Kurve durch Stützpunkte [z, wert] (weich zwischen den Punkten)
+function kurve(punkte) {
+  return (z) => {
+    if (z >= punkte[0][0]) return punkte[0][1];
+    for (let i = 0; i < punkte.length - 1; i++) {
+      const [za, va] = punkte[i];
+      const [zb, vb] = punkte[i + 1];
+      if (z <= za && z >= zb) {
+        const t = (za - z) / (za - zb);
+        const s = t * t * (3 - 2 * t);
+        return va + (vb - va) * s;
+      }
+    }
+    return punkte[punkte.length - 1][1];
+  };
+}
+
+const RAD_VORNE = 1.42;
+const RAD_HINTEN = -1.5;
 
 export function buildAuto() {
   const g = new THREE.Group();
@@ -38,50 +112,88 @@ export function buildAuto() {
   };
   const rund = (w, h, d, mat, x, y, z, r = 0.04) => add(new RoundedBoxGeometry(w, h, d, 3, r), mat, x, y, z);
 
-  // ---------- Karosserie: flacher Keil ----------
+  // ---------- Karosserie: weich geformt, mit ausgestellten Kotflügeln und Radhäusern ----------
+  const obenK = kurve([
+    [2.45, 0.42], // Bugspitze
+    [2.2, 0.56],
+    [1.6, 0.68], // lange, flache Haube
+    [0.9, 0.76],
+    [0.5, 0.8],
+    [-0.5, 0.84],
+    [-1.5, 0.86],
+    [-2.2, 0.92], // Heck mit Abrisskante
+    [-2.42, 0.88],
+  ]);
+  const breitK = kurve([
+    [2.45, 1.55],
+    [2.2, 1.82],
+    [1.8, 1.94],
+    [0.6, 1.9],
+    [-0.4, 1.86],
+    [-1.0, 1.94],
+    [-2.0, 1.98],
+    [-2.42, 1.84],
+  ]);
+  const form = (z) => {
+    let unten = 0.26;
+    let breit = breitK(z);
+    // Radhäuser: über den Rädern ist die Karosserie unten ausgeschnitten, Kotflügel etwas breiter
+    for (const zc of [RAD_VORNE, RAD_HINTEN]) {
+      const d = Math.abs(z - zc);
+      const R = RAD_R + 0.1;
+      if (d < R) unten = Math.max(unten, RAD_R + Math.sqrt(R * R - d * d) * 0.92);
+      breit += 0.07 * Math.max(0, 1 - (d / 0.75) ** 2);
+    }
+    const oben = obenK(z);
+    unten = Math.min(unten, oben - 0.12);
+    return { breit, oben, unten, einzug: 0.16 };
+  };
+  const karosserie = new THREE.MeshPhysicalMaterial({ color: LACK, metalness: 0.55, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05 });
+  add(loft(-2.42, 2.45, form, { m: 64, n: 110 }), karosserie);
+  // zwei goldene Streifen längs über Haube und Heck (flache Bänder knapp über dem Lack)
+  const goldMat = new THREE.MeshPhysicalMaterial({ color: ZIER, metalness: 0.8, roughness: 0.25, clearcoat: 1 });
+  for (const sx of [-0.2, 0.2]) {
+    const band = (za, zb) =>
+      add(loft(zb, za, (z) => ({ breit: 0.11, oben: obenK(z) + 0.004, unten: obenK(z) - 0.03, einzug: 0 }), { n: 50, m: 12, rund: 0.2 }), goldMat, sx, 0, 0);
+    band(2.35, 0.62); // Haube bis zur Scheibe
+    band(-1.9, -2.38); // Heckdeckel
+  }
+  // Unterboden (füllt die Mitte zwischen den Radhäusern)
+  rund(1.5, 0.08, 4.5, carbon, 0, 0.26, 0, 0.03);
+  // Glaskuppel: schmal, tropfenförmig
+  const kuppelOben = kurve([
+    [0.75, 0.8],
+    [0.3, 1.0],
+    [-0.15, 1.13],
+    [-0.8, 1.16],
+    [-1.4, 1.06],
+    [-1.95, 0.88],
+  ]);
+  const kuppelBreit = kurve([
+    [0.75, 1.3],
+    [0.0, 1.5],
+    [-0.9, 1.46],
+    [-1.95, 1.2],
+  ]);
   add(
-    profil(
-      [
-        [2.3, 0.3], // Bugspitze unten
-        [2.4, 0.46],
-        [2.05, 0.6], // flache, lange Haube
-        [1.2, 0.74],
-        [0.55, 0.82],
-        [-0.4, 0.86],
-        [-1.6, 0.88],
-        [-2.25, 0.93], // Heck mit Abrisskante
-        [-2.42, 0.78],
-        [-2.35, 0.3],
-      ],
-      BREIT,
-    ),
-    lack,
-  );
-  // Glaskuppel (Cockpit) – schmaler als die Karosserie
-  add(
-    profil(
-      [
-        [0.65, 0.8],
-        [-0.15, 1.14],
-        [-0.95, 1.16],
-        [-1.85, 0.9],
-      ],
-      1.42,
-      0.08,
-    ),
+    loft(-1.95, 0.75, (z) => ({ breit: kuppelBreit(z), oben: kuppelOben(z), unten: 0.7, einzug: 0.32 }), { n: 40, m: 40, rund: 0.45 }),
     glas,
   );
-  // Dachstreifen in Lackfarbe über der Kuppel
-  add(profil([[-0.1, 1.15], [-0.95, 1.17], [-1.0, 1.12], [-0.15, 1.1]], 0.9, 0.03), lack, 0, 0.025, 0);
-  // goldene Zierstreifen über Haube und Dach
-  for (const sx of [-0.18, 0.18]) add(profil([[2.3, 0.47], [2.05, 0.61], [1.2, 0.75], [0.6, 0.83], [0.6, 0.835], [1.2, 0.755], [2.05, 0.615], [2.3, 0.475]], 0.08, 0.005), new THREE.MeshStandardMaterial({ color: ZIER, metalness: 0.8, roughness: 0.3 }), sx, 0.065, 0);
+  // Dach in Lackfarbe über der Kuppel (schmaler Streifen)
+  add(
+    loft(-1.1, -0.05, (z) => ({ breit: kuppelBreit(z) * 0.62, oben: kuppelOben(z) + 0.012, unten: kuppelOben(z) - 0.03, einzug: 0.2 }), { n: 16, m: 24, rund: 0.4 }),
+    lack,
+  );
 
   // ---------- Details ----------
   // seitliche Lufteinlässe hinter den Türen
-  for (const sx of [-1, 1]) rund(0.06, 0.24, 0.7, carbon, sx * (BREIT / 2 + 0.005), 0.6, -0.95, 0.03);
+  for (const sx of [-1, 1]) {
+    const lufteinlass = rund(0.08, 0.2, 0.62, carbon, sx * 0.93, 0.6, -0.72, 0.04);
+    lufteinlass.rotation.y = sx * 0.06;
+  }
   // Frontsplitter, Seitenschweller und Diffusor hinten aus Carbon
   rund(1.9, 0.05, 0.4, carbon, 0, 0.27, 2.2, 0.02);
-  for (const sx of [-1, 1]) rund(0.08, 0.08, 2.4, carbon, sx * (BREIT / 2 - 0.02), 0.32, 0.0, 0.03);
+  for (const sx of [-1, 1]) rund(0.08, 0.07, 2.0, carbon, sx * 0.9, 0.3, -0.04, 0.03);
   rund(1.7, 0.16, 0.35, carbon, 0, 0.36, -2.25, 0.03);
   for (let k = -3; k <= 3; k++) rund(0.025, 0.14, 0.3, carbon, k * 0.22, 0.33, -2.3, 0.01);
   // Heckflügel auf zwei Stützen
