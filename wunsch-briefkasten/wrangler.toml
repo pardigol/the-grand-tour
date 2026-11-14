@@ -8,3 +8,8 @@ REPO = "pardigol/the-grand-tour"
 # Benachrichtigung aufs Handy (gleicher Kanal wie bisher, wird NICHT mehr zum Abholen benutzt)
 NTFY_KANAL = "grandtour-wuensche-8e640057d92d3c19"
 ERLAUBTE_SEITEN = "https://pardigol.github.io,http://localhost:5173"
+
+# Spielstände geräteübergreifend (PIN → Fortschritt und Fahrer)
+[[kv_namespaces]]
+binding = "SPIELSTAENDE"
+id = "cb12ffff21b04d3ba3bfcd9686953361"

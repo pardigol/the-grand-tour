@@ -3,7 +3,7 @@
 import { el, rideNpc, showcaseCamera } from './common.js';
 import { damp } from '../noise.js';
 import { savedControl } from './control.js';
-import { oeffnen } from '../spielstand.js';
+import { oeffnen, ausDemInternet } from '../spielstand.js';
 import { setCharacterPin } from '../storage.js';
 
 const LAENGE = 4;
@@ -53,13 +53,23 @@ export function createPinScene(app) {
       b.classList.add('wackeln');
       return;
     }
-    const { neu, ersterÜberhaupt } = oeffnen(pin);
-    setCharacterPin(pin, ersterÜberhaupt);
-    app.spielstandPin = pin;
-    app.audio.success();
-    $('.pin-info').innerHTML = neu ? `Neuer Spielstand angelegt!<small>Merk dir deine PIN: <b>${pin}</b></small>` : 'Willkommen zurück!<small>Dein Spielstand ist geladen.</small>';
+    // erst im Internet nachschauen (Spielstand von einem anderen Gerät?), dann öffnen
+    fertig = 99;
+    $('.pin-info').innerHTML = 'Spielstand wird gesucht …<small>einen Moment</small>';
     $('.pin-info').classList.add('show');
-    fertig = neu ? 2.6 : 1.4;
+    ausDemInternet(pin).then((netz) => {
+      if (!root) return;
+      const { neu, ersterÜberhaupt } = oeffnen(pin);
+      setCharacterPin(pin, ersterÜberhaupt && netz !== 'geladen');
+      app.spielstandPin = pin;
+      app.audio.success();
+      $('.pin-info').innerHTML = neu
+        ? `Neuer Spielstand angelegt!<small>Merk dir deine PIN: <b>${pin}</b><br>Damit kannst du auf jedem Gerät weiterspielen.</small>`
+        : netz === 'geladen'
+          ? 'Willkommen zurück!<small>Dein Spielstand ist geladen – auch von anderen Geräten.</small>'
+          : `Willkommen zurück!<small>Dein Spielstand ist geladen.${netz === 'offline' ? '<br>(Gerade kein Internet – nur von diesem Gerät.)' : ''}</small>`;
+      fertig = neu ? 3.2 : 1.6;
+    });
   }
 
   return {

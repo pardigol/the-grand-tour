@@ -1,6 +1,7 @@
 // Speichert die Charaktere im Browser (localStorage).
 import { CONFIG } from './config.js';
 import { DEFAULT_LOOK } from './brands.js';
+import { hochladen } from './spielstand.js';
 
 // Interner Speichername bleibt gleich, damit angelegte Fahrer erhalten bleiben
 const KEY = 'pedal-legends.characters.v1';
@@ -32,6 +33,7 @@ function saveAll(list) {
   } catch {
     /* Speicher voll oder gesperrt */
   }
+  hochladen(); // Fahrer auch im Internet speichern (für andere Geräte)
 }
 
 // Ein neuer Charakter. Weitere Felder (Aussehen, Rad ...) können später ergänzt werden.

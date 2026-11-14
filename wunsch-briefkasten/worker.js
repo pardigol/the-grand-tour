@@ -3,6 +3,8 @@
 // Das neue Issue startet die Claude-Cloud-Aufgabe, die den Wunsch umsetzt.
 // Zusätzlich geht eine Nachricht an den ntfy-Kanal, damit Papa den Wunsch sofort aufs Handy bekommt.
 //
+// Außerdem: Spielstände geräteübergreifend (KV-Speicher SPIELSTAENDE), Adresse /spielstand?pin=1234
+//
 // Geheimnis (nicht im Code!): GITHUB_TOKEN – feingranularer Token, nur "Issues: Read and write" für pardigol/the-grand-tour.
 // Einstellungen in wrangler.toml: REPO, NTFY_KANAL, ERLAUBTE_SEITEN.
 
@@ -68,6 +70,49 @@ function cors(origin, env) {
   };
 }
 
+// ---------- Spielstände (geräteübergreifend) ----------
+// Gespeichert wird pro PIN: Fortschritt in der Geschichte und die Fahrer (Aussehen, Name). Nichts weiter.
+const MAX_STAND = 60_000; // Zeichen
+const LESEN_PRO_STUNDE = 120; // Bremse gegen Durchprobieren von PINs
+const leseZaehler = new Map();
+function zuViel(map, ip, max) {
+  const jetzt = Date.now();
+  const z = (map.get(ip) || []).filter((t) => jetzt - t < 3600_000);
+  if (z.length >= max) return true;
+  z.push(jetzt);
+  map.set(ip, z);
+  return false;
+}
+async function spielstand(req, env, h) {
+  const origin = req.headers.get('Origin') || '';
+  const erlaubt = (env.ERLAUBTE_SEITEN || '').split(',').map((s) => s.trim());
+  if (!erlaubt.includes(origin)) return antwort(403, { ok: false, fehler: 'Nicht erlaubt' }, h);
+  if (!env.SPIELSTAENDE) return antwort(500, { ok: false, fehler: 'Kein Speicher eingerichtet' }, h);
+  const ip = req.headers.get('CF-Connecting-IP') || 'unbekannt';
+  if (req.method === 'GET') {
+    const pin = new URL(req.url).searchParams.get('pin') || '';
+    if (!/^\d{4}$/.test(pin)) return antwort(400, { ok: false, fehler: 'PIN ungültig' }, h);
+    if (zuViel(leseZaehler, ip, LESEN_PRO_STUNDE)) return antwort(429, { ok: false, fehler: 'Zu viele Anfragen' }, h);
+    const roh = await env.SPIELSTAENDE.get('pin:' + pin);
+    return antwort(200, { ok: true, daten: roh ? JSON.parse(roh) : null }, { ...h, 'Cache-Control': 'no-store' });
+  }
+  if (req.method === 'POST') {
+    let d;
+    try {
+      d = await req.json();
+    } catch {
+      return antwort(400, { ok: false, fehler: 'Ungültige Daten' }, h);
+    }
+    const pin = String(d.pin || '');
+    if (!/^\d{4}$/.test(pin)) return antwort(400, { ok: false, fehler: 'PIN ungültig' }, h);
+    const text = JSON.stringify({ stand: d.stand || {}, fahrer: Array.isArray(d.fahrer) ? d.fahrer : [], zeit: Date.now() });
+    if (text.length > MAX_STAND) return antwort(413, { ok: false, fehler: 'Spielstand zu groß' }, h);
+    await env.SPIELSTAENDE.put('pin:' + pin, text);
+    return antwort(200, { ok: true }, h);
+  }
+  return antwort(405, { ok: false, fehler: 'Nur GET/POST' }, h);
+}
+
 function antwort(status, daten, headers) {
   return new Response(JSON.stringify(daten), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 }
@@ -77,6 +122,7 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const h = cors(origin, env);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+    if (new URL(req.url).pathname === '/spielstand') return spielstand(req, env, h);
     // Status abfragen: GET ?nr=3,4 → { "3": {status, info, zeit}, … } (unbekannt = "angekommen")
     if (req.method === 'GET' && new URL(req.url).searchParams.has('liste')) {
       try {
