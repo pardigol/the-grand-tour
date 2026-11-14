@@ -6,7 +6,7 @@ import { groupsetById } from './brands.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
-import { kadenz } from './gang.js';
+import { kadenz, gehKadenz } from './gang.js';
 import { makeKitCanvas, drawTorso, drawSleeve, drawThigh, drawHelmet, HELM_SCHLITZE } from './kit.js';
 import { brandById, brandLabel, contrastColor, isMatte, DEFAULT_LOOK } from './brands.js';
 
@@ -181,6 +181,38 @@ function placeLimbFwd(obj, a, b, ref = VORNE) {
   _bx.crossVectors(_by, _bz);
   obj.quaternion.setFromRotationMatrix(_bm.makeBasis(_bx, _by, _bz));
 }
+
+// ---------- Gehen: Stellschrauben (Zahlen aus Ganganalysen gesunder Erwachsener, ca. 1,1–1,6 m/s) ----------
+const GEHEN = {
+  ferseVor: 0.4, // ✏️ Ferse setzt so weit vor der Hüfte auf: Anteil vom Weg, den der Körper über den Fuß geht …
+  ferseVorAb: -0.06, // … minus das (bei ganz kleinen Schritten steht der Fuß dann unter dem Körper)
+  zehenHoch: -0.25, // ✏️ Fußspitze beim Fersenaufsatz hochgezogen (rad)
+  abrollen: 0.9, // ✏️ so steil steht der Fuß beim Abdrücken über den Ballen (rad)
+  flachBis: 0.14, // bis hier (Anteil vom Bodenkontakt) rollt der Fuß von der Ferse auf die ganze Sohle
+  ferseHebt: 0.62, // ab hier hebt sich die Ferse
+  loslassen: 0.06, // so viel (m) darf der hintere Fuß am Ende fehlen – dann geht er schon von der Spitze
+  knieGestreckt: 4, // ✏️ Knie beim Aufsetzen fast gestreckt (Grad)
+  knieStandmitte: 15, // ✏️ Knie in der Standmitte leicht gebeugt (Grad), echt etwa 15–20
+  // Schwungbein bei 1/4, 1/2, 3/4 der Schwungzeit (Grad): Oberschenkel (+ = nach vorne) und Kniebeugung
+  oberschenkel: [4, 17, 24], // ✏️
+  knie: [60, 46, 14], // ✏️ ~60° kurz nach dem Abheben, dann streckt sich das Bein zum Aufsetzen
+  spur: 0.06, // ✏️ Füße setzen fast hintereinander auf (m von der Mitte)
+  vorlage: 3, // ✏️ Oberkörper fast aufrecht (Grad)
+  beckenDrehen: 4, // ✏️ Becken dreht sich mit dem vorderen Bein (Grad)
+  beckenKippen: 0.012, // Hüfte auf der Schwungbein-Seite sinkt ein bisschen (m)
+  beckenSeite: 0.02, // ✏️ Becken pendelt seitlich über das Standbein (m)
+  schulterDrehen: 1, // Schultern drehen dagegen (mal so viel wie das Becken)
+  armMitte: -3, // Oberarm im Mittel fast senkrecht (Grad)
+  armSchwung: 17, // ✏️ Arme schwingen locker vor und zurück (Grad)
+  ellbogen: 16, // ✏️ Ellbogen nur leicht gebeugt (Grad) …
+  ellbogenSpiel: 10, // … vorne etwas mehr
+  armAbspreizen: 6,
+  handNachInnen: 0.06,
+  schiebenDrehen: -8, // ✏️ beim Rad-Schieben ist der Oberkörper etwas zum Rad gedreht (Grad)
+};
+const SPITZE = new THREE.Vector3(0, 0.012, 0.085); // Schuhspitze, vom Ballen aus gesehen
+// weiches Minimum: wie Math.min, aber ohne Knick
+const smin = (a, b, k = 0.012) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
 
 // ---------- Joggen: Stellschrauben (Zahlen aus Messungen an Freizeitläufern) ----------
 const JOGGEN = {
@@ -2038,17 +2070,58 @@ export class Bike {
   // Beim Joggen bauen wir die Bewegung selbst nach echten Messwerten (jogPose) und blenden weich über.
   updateWalkAnim(dt, speed) {
     const g = this.gang;
-    g.update(dt, speed);
+    // wie schnell dreht sich die Figur gerade? (fürs Trippeln beim Umdrehen auf der Stelle)
+    const h = this.root.rotation.y;
+    const dreh = dt > 0 && this._hAlt != null ? Math.atan2(Math.sin(h - this._hAlt), Math.cos(h - this._hAlt)) / dt : 0;
+    this._hAlt = h;
+    // wie schnell bewegt sich die Figur wirklich? (beim Rad-Schieben geht sie in Kurven außen herum)
+    const ort = _k.copy(this.gehOffset || V(0.55, 0, 0.3)).applyAxisAngle(UP, h).add(this.root.position);
+    const weg = this._ortAlt && dt > 0 ? Math.hypot(ort.x - this._ortAlt.x, ort.z - this._ortAlt.z) : 0;
+    (this._ortAlt ||= new THREE.Vector3()).copy(ort);
+    const vFigur = weg < 0.5 && dt > 0 ? weg / dt : 0;
+    speed = Math.max(speed, Math.min(vFigur, 1.6)); // ✏️ nur fürs Gehen (Joggen startet erst ab 1,8 m/s)
+    g.update(dt, speed, dreh);
     const off = (this.gehOffset ||= V(0.55, 0, 0.3));
     this.rider.rotation.set(0, 0, 0);
     this.rider.position.copy(off);
     const L = (this._torsoL ||= this.hip.distanceTo(this.shoulder));
-    const jw = g.jogW;
-    let pose = jw < 0.999 ? this.gehPose(g, L) : null;
-    if (jw > 0.001) {
-      const jp = this.jogPose(g.jogPhase, Math.max(speed, 1.2), L);
-      pose = pose ? mischePose(pose, jp, jw, L) : jp;
+    // Schritte: Gehen und Joggen nach Messwerten, weich ineinander geblendet
+    let schritt = null;
+    if (g.gehW > 0.001) {
+      const jw = g.jogW;
+      if (jw < 0.999) schritt = this.schrittPose(g.jogPhase, speed, L);
+      if (jw > 0.001) {
+        const jp = this.jogPose(g.jogPhase, Math.max(speed, 1.2), L);
+        schritt = schritt ? mischePose(schritt, jp, jw, L) : jp;
+      }
     }
+    // Stehen, Reden, Sitzen kommen von der Animations-Puppe
+    let pose = g.gehW < 0.999 || !schritt ? this.animPose(g, L) : null;
+    if (schritt) pose = pose ? mischePose(pose, schritt, g.gehW, L) : schritt;
+    // Beim Losgehen und Stehenbleiben (Stehen ↔ Gehen ↔ Joggen wird überblendet) bleibt ein Fuß, der am Boden steht,
+    // in der Welt stehen, statt mitzurutschen. Die Verschiebung (korr) wird danach weich wieder abgebaut.
+    const anker = (this._anker ||= [{ welt: null, korr: new THREE.Vector3() }, { welt: null, korr: new THREE.Vector3() }]);
+    const zwischen = (w) => w > 0.02 && w < 0.98;
+    const ueber = !g.sitzen && (zwischen(g.gehW) || (g.gehW > 0.5 && zwischen(g.jogW)));
+    this.root.updateWorldMatrix(true, false);
+    this.rider.updateWorldMatrix(false, false);
+    pose.beine.forEach((b, i) => {
+      const a = anker[i];
+      const boden = b.shoe.y < 0.02; // Ballen (fast) am Boden
+      if (ueber && boden && !a.welt) a.welt = this.rider.localToWorld(b.shoe.clone().add(a.korr));
+      if (ueber && boden) {
+        a.korr.copy(this.rider.worldToLocal(a.welt.clone())).sub(b.shoe).setY(0);
+        // ✏️ zu weit weg (20 cm)? dann loslassen
+        if (a.korr.length() > 0.2) a.welt = null;
+      } else a.welt = null;
+      if (!a.welt) a.korr.multiplyScalar(Math.exp(-10 * dt)); // weich zurück zur eigentlichen Stellung
+      if (a.korr.lengthSq() < 1e-8) return;
+      b.shoe.add(a.korr);
+      const ziel = b.ankle.clone().add(a.korr);
+      b.knee = ik(b.hip, ziel, 0.44, 0.43, _k.set(0, 0, 1), new THREE.Vector3());
+      b.ankle = b.knee.clone().addScaledVector(ziel.sub(b.knee).normalize(), 0.43);
+      b.shoe = schuhVomKnoechel(b.ankle, b.tilt);
+    });
     // Beine
     for (let i = 0; i < 2; i++) {
       const l = this.legs[i];
@@ -2084,8 +2157,8 @@ export class Bike {
     }
   }
 
-  // Haltung aus der Animations-Puppe (Gehen, Stehen, Sitzen)
-  gehPose(g, L) {
+  // Haltung aus der Animations-Puppe (Stehen, Reden, Sitzen)
+  animPose(g, L) {
     const P = (n) => g.punkt(n, new THREE.Vector3());
     const dir = (a, b) => P(b).sub(P(a)).normalize();
     // Beine: Richtung der Knochen aus der Animation, Längen von unserer Figur
@@ -2120,6 +2193,185 @@ export class Bike {
       return { shp, elbow, hand };
     });
     return { beine, becken, top, tDir, nDir: dir('neck_01', 'Head'), arme };
+  }
+
+  // Gehen, nachgebaut nach Ganganalysen (ca. 1,1–1,6 m/s): ~110–120 Schritte/min, Ferse setzt mit hochgezogener
+  // Fußspitze auf, Fuß rollt über die Sohle zum Ballen ab, ~20 % der Zeit stehen beide Füße am Boden.
+  // Die Hüfte ist in der Standmitte am höchsten (Bein fast gestreckt wie ein umgedrehtes Pendel) und sinkt,
+  // wenn beide Füße am Boden sind – ca. 4–5 cm auf und ab. Arme fast gestreckt, gegengleich zu den Beinen.
+  // ph = wo im Schritt (0 = linke Ferse setzt auf), v = Tempo in m/s
+  schrittPose(ph, v, L) {
+    const J = GEHEN;
+    const D2R = Math.PI / 180;
+    const L1 = 0.44;
+    const L2 = 0.43;
+    const vS = Math.max(v, this.gang.vSchritt || 0); // Takt (auch beim Trippeln auf der Stelle)
+    const T = 120 / gehKadenz(vS); // Dauer von zwei Schritten (s)
+    const beta = THREE.MathUtils.clamp(0.66 - 0.03 * v, 0.58, 0.66); // Anteil, in dem ein Fuß am Boden ist
+    const tc = beta * T;
+    const weg = v * tc; // so weit geht der Körper über den stehenden Fuß hinweg → kein Rutschen
+    const gross = glatt(weg / 0.7); // 0 = trippeln, 1 = richtige Schritte
+    const ferseIC = J.ferseVor * weg + J.ferseVorAb;
+    const beinLang = (knick) => Math.sqrt(L1 * L1 + L2 * L2 + 2 * L1 * L2 * Math.cos(knick * D2R));
+    const lMax = beinLang(J.knieGestreckt);
+    const hTop = 0.095 + beinLang(J.knieStandmitte);
+    const pendel = glatt(vS / 0.6);
+    const cAuf = (c) => ((c % 1) + 1) % 1;
+    const legC = (s, cL) => (s > 0 ? cL : cAuf(cL + 0.5));
+    const cLvon = (s, c) => (s > 0 ? c : cAuf(c + 0.5));
+    const psiAt = (cL) => -J.beckenDrehen * D2R * Math.cos(2 * Math.PI * cL) * gross;
+    const seiteAt = (cL) => J.beckenSeite * Math.cos(2 * Math.PI * (cL - 0.3)) * pendel;
+    const kippAt = (s, cL) => s * J.beckenKippen * Math.cos(2 * Math.PI * (cL - 0.3)) * pendel;
+    const hipXZ = (s, cL) => V(s * 0.09, 0, 0).applyAxisAngle(UP, psiAt(cL)).add(_k.set(seiteAt(cL), 0, 0));
+    // Standfuß: erst Ferse (Spitze hoch), dann ganze Sohle, dann Ballen (Ferse hoch)
+    // fest[s] = wo der Fuß gerade wirklich am Boden steht (siehe unten), sonst aus Tempo und Takt ausgerechnet
+    const fest = {};
+    const standFuss = (s, c, jetzt = false) => {
+      const u = Math.min(1, c / beta);
+      const f = jetzt && fest[s];
+      const x = f ? f.x : s * J.spur;
+      const fz = f ? f.z - 0.185 : ferseIC - v * u * tc; // Ferse, als ob der Fuß flach stünde
+      let tilt;
+      let shoe;
+      if (u < J.flachBis) {
+        tilt = J.zehenHoch * (1 - glatt(u / J.flachBis));
+        shoe = V(x, 0, fz).add(V(0, 0, 0.185).applyAxisAngle(_xAxis, tilt));
+      } else {
+        tilt = u < J.ferseHebt ? 0 : J.abrollen * glatt((u - J.ferseHebt) / (1 - J.ferseHebt));
+        // Abrollen über die Schuhspitze: die Spitze bleibt am Boden, Ballen und Ferse heben sich
+        shoe = V(x, 0, fz + 0.185).add(SPITZE).sub(SPITZE.clone().applyAxisAngle(_xAxis, tilt));
+      }
+      return { shoe, tilt, ankle: shoe.clone().add(schuhVersatz(tilt)) };
+    };
+    // Hüfthöhe: so hoch wie es geht, aber jedes Standbein muss seinen Fuß noch erreichen
+    const hoehe = (cL, jetzt = false) => {
+      let h = hTop;
+      for (const s of [1, -1]) {
+        const c = legC(s, cL);
+        const hp = hipXZ(s, cL);
+        let f;
+        let los;
+        if (c < beta) {
+          f = standFuss(s, c, jetzt);
+          // kurz vor dem Abheben darf der Fuß schon von der Spitze gehen (sonst müsste die Hüfte absacken)
+          los = J.loslassen * glatt((c / beta - 0.7) / 0.3);
+        } else if (c > 0.88) {
+          // das Schwungbein kommt gleich auf: die Hüfte senkt sich schon vorher weich auf die richtige Höhe
+          f = standFuss(s, 0);
+          f.ankle.z += v * (1 - c) * T;
+          los = 0.15 * (1 - glatt((c - 0.88) / 0.12));
+        } else continue;
+        const dz = f.ankle.z - hp.z;
+        const dx = f.ankle.x - hp.x;
+        h = smin(h, f.ankle.y + Math.sqrt(Math.max(0.2, lMax * lMax - dz * dz - dx * dx)) - kippAt(s, cL) + los);
+      }
+      return h;
+    };
+    const winkel = (hp, an) => {
+      const kn = ik(hp, an, L1, L2, _k.set(0, 0, 1), new THREE.Vector3());
+      const th = Math.atan2(kn.z - hp.z, hp.y - kn.y);
+      const sh = Math.atan2(an.z - kn.z, kn.y - an.y);
+      return [th, th - sh];
+    };
+
+    const cL = cAuf(ph);
+    // Standfüße kleben in der Welt fest: auch beim Bremsen, Losgehen oder Drehen rutscht nichts.
+    // Beim Aufsetzen merken wir uns den Punkt (Ballen, flach gedacht) in Weltkoordinaten.
+    this.root.updateWorldMatrix(true, false);
+    this.rider.updateWorldMatrix(false, false);
+    const tritt = (this._tritt ||= {});
+    for (const s of [1, -1]) {
+      const c = legC(s, cL);
+      const t = tritt[s];
+      if (c >= beta) {
+        tritt[s] = null;
+        continue;
+      }
+      const soll = V(s * J.spur, 0, ferseIC - v * Math.min(1, c / beta) * tc + 0.185);
+      let hier = t && t.c <= c + 1e-6 ? this.rider.worldToLocal(t.welt.clone()).setY(0) : null;
+      if (!hier) {
+        // neuer Schritt: Punkt merken
+        hier = soll;
+        tritt[s] = { welt: this.rider.localToWorld(soll.clone()), c };
+      } else {
+        t.c = c;
+        // läuft die Figur ganz anders als gedacht (z. B. seitlich ums Rad herum), wird der Fuß höchstens
+        // 25 cm weit festgehalten und dann mitgezogen – lieber kurz schleifen als springen
+        const weit = hier.distanceTo(soll);
+        if (weit > 0.25) {
+          hier.lerp(soll, 1 - 0.25 / weit);
+          t.welt = this.rider.localToWorld(hier.clone());
+        }
+      }
+      fest[s] = hier;
+    }
+    const yH = hoehe(cL, true);
+    const psi = psiAt(cL);
+    const becken = V(seiteAt(cL), yH - 0.02, 0);
+    const neig = J.vorlage * D2R;
+    const tDir = V(0, Math.cos(neig), Math.sin(neig));
+    const top = becken.clone().addScaledVector(tDir, L);
+    const quer = V(1, 0, 0).applyAxisAngle(UP, -psi * J.schulterDrehen + (this.schieben ? J.schiebenDrehen * D2R : 0));
+
+    const beine = this.legs.map((l) => {
+      const s = l.s;
+      const c = legC(s, cL);
+      const hip = hipXZ(s, cL).setY(yH + kippAt(s, cL));
+      let knee;
+      let ankle;
+      let tilt;
+      if (c < beta) {
+        const f = standFuss(s, c, true);
+        tilt = f.tilt;
+        knee = ik(hip, f.ankle, L1, L2, _k.set(s * 0.05, 0, 1), new THREE.Vector3());
+        ankle = knee.clone().addScaledVector(f.ankle.clone().sub(knee).normalize(), L2);
+      } else {
+        // Schwungbein: Winkel aus der Messkurve; Anfang (Abdrücken) und Ende (Aufsetzen) passen zum Standbein
+        const u = (c - beta) / (1 - beta);
+        const ort = (cc) => {
+          const cl = cLvon(s, cc);
+          const f = standFuss(s, cc);
+          return winkel(hipXZ(s, cl).setY(hoehe(cl) + kippAt(s, cl)), f.ankle).concat(f.tilt);
+        };
+        const [thTO, kTO, tTO] = ort(beta - 1e-4);
+        const [thIC, kIC, tIC] = ort(0);
+        const o = J.oberschenkel.map((w) => w * (0.4 + 0.6 * gross) * D2R);
+        const k = J.knie.map((w, i) => w * (i === 2 ? 1 : 0.75 + 0.25 * gross) * D2R);
+        const th = kurve([thTO, o[0], o[1], o[2], thIC], u);
+        const kn = kurve([kTO, k[0], k[1], k[2], kIC], u);
+        const sh = th - kn; // Unterschenkel (von senkrecht, + = Fuß vor dem Knie)
+        const sh3 = o[2] - k[2];
+        tilt = kurve([tTO + (thTO - kTO), 0.1, 0, J.zehenHoch * 0.6 + sh3, tIC + (thIC - kIC)], u) - sh;
+        knee = hip.clone().add(V(0, -Math.cos(th) * L1, Math.sin(th) * L1));
+        ankle = knee.clone().add(V(0, -Math.cos(sh) * L2, Math.sin(sh) * L2));
+        const x = s * J.spur;
+        ankle.x = x;
+        knee.x = (hip.x + x) / 2 + s * 0.01;
+        // Fuß darf nicht durch den Boden schleifen: notfalls Knöchel anheben und Knie neu beugen
+        const ballen = schuhVomKnoechel(ankle, tilt);
+        const sohle = Math.min(ballen.y, ballen.y + SPITZE.clone().applyAxisAngle(_xAxis, tilt).y, ankle.y - 0.095 * Math.cos(tilt) + 0.065 * Math.sin(tilt));
+        if (sohle < 0.006) {
+          ankle.y += 0.006 - sohle;
+          knee = ik(hip, ankle, L1, L2, _k.set(s * 0.05, 0, 1), new THREE.Vector3());
+        }
+      }
+      return { hip, knee, ankle, tilt, shoe: schuhVomKnoechel(ankle, tilt) };
+    });
+
+    // Arme: locker, fast gestreckt, gegengleich zum Bein derselben Seite
+    const arme = this.arms.map((a) => {
+      const c = legC(a.s, cL);
+      const w = Math.cos(2 * Math.PI * (c - 0.5)) * gross; // +1 = Arm ganz vorne
+      const al = (J.armMitte + J.armSchwung * w) * D2R;
+      const fl = (J.ellbogen + J.ellbogenSpiel * w) * D2R;
+      const shp = top.clone().addScaledVector(quer, a.s * 0.19).add(_k.set(0, -0.03, 0));
+      const ab = J.armAbspreizen * D2R;
+      const elbow = shp.clone().addScaledVector(V(a.s * Math.sin(ab), -Math.cos(al), Math.sin(al)).normalize(), 0.27);
+      const be = al + fl;
+      const hand = elbow.clone().addScaledVector(V(-a.s * J.handNachInnen, -Math.cos(be), Math.sin(be)).normalize(), 0.26);
+      return { shp, elbow, hand };
+    });
+    return { beine, becken, top, tDir, nDir: V(0, Math.cos(3 * D2R), Math.sin(3 * D2R)), arme };
   }
 
   // Joggen, nachgebaut nach Messungen an echten Freizeitläufern (ca. 2,5–3 m/s):

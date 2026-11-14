@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Bike } from './bike.js';
@@ -28,7 +29,11 @@ export function loadMeineWohnung() {
       t.anisotropy = 8;
       return t;
     };
-    const [bett, pflanzeText] = await Promise.all([new FBXLoader().loadAsync(BASE + 'bett.fbx'), fetch(BASE + 'pflanze.obj').then((r) => r.text())]);
+    const [bett, pflanzeText, gravel] = await Promise.all([
+      new FBXLoader().loadAsync(BASE + 'bett.fbx'),
+      fetch(BASE + 'pflanze.obj').then((r) => r.text()),
+      new GLTFLoader().loadAsync(BASE + 'gravel.glb').catch(() => null),
+    ]);
     // Bett: Zentimeter → Meter, eigene Materialien mit den umgewandelten Texturen
     const bettMat = new THREE.MeshStandardMaterial({ map: tex('bett_farbe.jpg', true), normalMap: tex('bett_normal.jpg'), roughnessMap: tex('bett_rauheit.jpg'), roughness: 1 });
     bettMat.color.setScalar(1.9); // ✏️ Textur ist sehr dunkel: Bettwäsche heller (dunkelblau und grau)
@@ -52,7 +57,22 @@ export function loadMeineWohnung() {
       o.castShadow = true;
       o.receiveShadow = true;
     });
-    return { bett, pflanze };
+    // Gravel-Bike (GLB): in der Datei ist „oben“ = z und alles etwas zu groß → aufrichten und auf echte Größe bringen
+    let gravelBike = null;
+    if (gravel) {
+      gravelBike = new THREE.Group();
+      const g = gravel.scene;
+      g.rotation.x = -Math.PI / 2;
+      g.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true;
+        o.receiveShadow = true;
+        o.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2 });
+      });
+      gravelBike.add(g);
+      gravelBike.scale.setScalar(0.7); // ✏️ Größe des Gravel-Bikes
+    }
+    return { bett, pflanze, gravelBike };
   })().catch((e) => {
     console.warn('Deine Wohnung: Modelle konnten nicht geladen werden', e);
     return null;
@@ -259,6 +279,13 @@ export function buildMeineWohnung(roadWorld, M) {
   staender.position.copy(rad.root.localToWorld(new THREE.Vector3(0, 0, -0.5)));
   staender.rotation.y = rad.root.rotation.y;
   scene.add(staender);
+
+  // ---------- Gravel-Bike neben dem Colnago ----------
+  if (M?.gravelBike) {
+    M.gravelBike.position.set(-2.4, 0, -3.7);
+    M.gravelBike.rotation.y = 0.15;
+    scene.add(M.gravelBike);
+  }
 
   // ---------- Licht ----------
   const sky = new Sky();
