@@ -126,14 +126,16 @@ function baueFrisur(stil, mat) {
     // Darunter wird die Haarfläche weich unter die Haut gezogen (kein treppiger Rand).
     const phi = Math.atan2(d.x, d.z);
     const zacken = 0.035 * Math.max(0, Math.sin(phi * 26)) * glatt(0.1, 0.8, vorn); // Haarspitzen am Stirnrand
-    const grenze = 0.3 + 0.32 * glatt(0.05, 0.85, vorn) - 0.5 * glatt(0.5, 0.95, -vorn) - 0.24 * glatt(0.45, 0.95, seite) * glatt(-0.35, 0.1, -vorn) - zacken;
+    const grenze = 0.3 + 0.32 * glatt(0.05, 0.85, vorn) - 0.62 * glatt(0.45, 0.95, -vorn) - 0.24 * glatt(0.45, 0.95, seite) * glatt(-0.35, 0.1, -vorn) - zacken;
     const da = glatt(grenze - 0.02, grenze + 0.07, oben);
     // versteckter Teil weit genug nach innen (unten wird der Kopf zum Kinn schmaler)
     const innen = -0.007 - 0.045 * (1 - glatt(-0.35, 0.25, oben));
     const r = innen + (dicke - innen) * da;
+    // Hinterkopf ist im Kopf-Modell runder (z * 1,06 hinten) – dort muss die Haarschicht mit nach außen
+    const kz = d.z < 0 && d.y > -0.3 ? KZ * 1.07 : KZ;
     const x = d.x * (KX + r) + quer * da;
     const y = d.y * (KY + r);
-    const z = d.z * (KZ + r) + vorschub * da;
+    const z = d.z * (kz + r) + vorschub * da;
     pos.setXYZ(i, x, y, z);
     // Farbe: Seiten dunkler (kurz), oben heller, Spitzen der Tolle noch etwas heller
     const hell = 0.62 + 0.38 * top + (stil === 'wuschel' ? 0.12 * top * glatt(0.3, 0.9, vorn) : 0);
