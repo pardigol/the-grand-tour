@@ -212,10 +212,12 @@ export function createWohnungScene(app) {
       jonas.applyLook(JONAS_LOOK);
       jonas.setTires('road');
       jonas.augenFarbe = '#5a3b22';
+      jonas.setFrisur('scheitel', '#2b1d14'); // Jonas: dunkler Seitenscheitel
       if (gangDatei) jonas.gang = new Gang(gangDatei);
     }
     zuFuss(jonas, true);
     wohnung.scene.add(jonas.root);
+    st.jonas = jonas; // zum Ausprobieren in der Konsole
     if (!chef && chefDatei) chef = makeChef(chefDatei);
     if (chef) {
       wohnung.scene.add(chef.obj);

@@ -43,6 +43,113 @@ function zahnrad(r, zaehne, dicke, innen = r * 0.55) {
   return g;
 }
 
+// Frisur als geformte Haar-Oberfläche über dem Kopf (Kopf-Koordinaten: vorne = +z, oben = +y, links = +x).
+// 'wuschel' (du): Seiten kurz, oben länger, vorne eine Tolle nach vorne-oben, feine Kämmrillen von vorne nach hinten.
+// 'scheitel' (Jonas): Seitenscheitel rechts, oben glatt zur Seite und nach hinten gekämmt.
+// Strähnen-Textur: viele feine helle und dunkle Linien, die vom Wirbel aus nach unten laufen
+let haarTex = null;
+function haarTextur() {
+  if (haarTex) return haarTex;
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#c4c4c4';
+  g.fillRect(0, 0, 1024, 256);
+  let seed = 3;
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 2600; i++) {
+    const x = r() * 1024;
+    const y0 = r() * 60;
+    const len = 80 + r() * 180;
+    const hell = r() < 0.5;
+    g.strokeStyle = hell ? `rgba(255,255,255,${0.12 + r() * 0.25})` : `rgba(0,0,0,${0.12 + r() * 0.3})`;
+    g.lineWidth = 1 + r() * 1.6;
+    g.beginPath();
+    g.moveTo(x, y0);
+    g.bezierCurveTo(x + (r() - 0.5) * 14, y0 + len * 0.4, x + (r() - 0.5) * 18, y0 + len * 0.7, x + (r() - 0.5) * 22, y0 + len);
+    g.stroke();
+  }
+  haarTex = new THREE.CanvasTexture(c);
+  haarTex.colorSpace = THREE.SRGBColorSpace;
+  haarTex.wrapS = THREE.RepeatWrapping;
+  haarTex.flipY = false; // Bild oben = Wirbel (v = 0 oben an der Kugel)
+  haarTex.anisotropy = 8;
+  return haarTex;
+}
+
+function baueFrisur(stil, mat) {
+  const g = new THREE.Group();
+  // Kopfform (wie headGeo): Kugel r = 0,1, skaliert
+  const KX = 0.095;
+  const KY = 0.108;
+  const KZ = 0.106;
+  const glatt = (a, b, x) => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  const geo = new THREE.SphereGeometry(1, 72, 44, 0, Math.PI * 2, 0, Math.PI * 0.66);
+  const pos = geo.attributes.position;
+  const farben = new Float32Array(pos.count * 3);
+  const d = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    d.fromBufferAttribute(pos, i).normalize();
+    const oben = d.y; // 1 = Scheitelpunkt
+    const vorn = d.z; // 1 = Stirn
+    const seite = Math.abs(d.x);
+    const top = glatt(0.45, 0.85, oben); // oberer Bereich (lange Haare)
+    let dicke;
+    let vorschub = 0;
+    let quer = 0;
+    if (stil === 'scheitel') {
+      dicke = 0.005 + top * 0.018;
+      // Scheitel rechts (x < 0): dort eine Rille, links davon voller (zur Seite gekämmt)
+      const scheitel = Math.exp(-(((d.x + 0.32) / 0.05) ** 2)) * glatt(0.2, 0.6, oben) * glatt(-0.6, 0.2, vorn);
+      dicke -= scheitel * 0.006;
+      dicke += glatt(-0.3, 0.6, d.x) * top * 0.006;
+      // vorne etwas Schwung zur Seite (links)
+      quer = glatt(0.2, 0.9, vorn) * top * 0.022;
+      vorschub = glatt(0.3, 0.9, vorn) * top * 0.014;
+      // Kämmrillen schräg nach hinten
+      dicke += 0.0016 * Math.sin((d.x * 0.8 + d.z * 0.6) * 95) * top;
+    } else {
+      // Seiten kurz (Übergang), oben lang, vorne die Tolle (hoch und etwas nach vorne)
+      const tolle = top * glatt(-0.1, 0.75, vorn);
+      dicke = 0.004 + top * 0.016 + tolle * 0.032;
+      vorschub = tolle * 0.024;
+      // Kämmrillen von vorne nach hinten (oben), an den Seiten feiner
+      dicke += 0.0022 * Math.sin(d.x * 110 + Math.sin(d.z * 7) * 1.5) * top;
+      dicke += 0.0008 * Math.sin(d.z * 140) * (1 - top);
+    }
+    // Haaransatz: vorne an der Stirn hoch, an den Schläfen und über den Ohren mittel, hinten tief im Nacken.
+    // Darunter wird die Haarfläche weich unter die Haut gezogen (kein treppiger Rand).
+    const phi = Math.atan2(d.x, d.z);
+    const zacken = 0.035 * Math.max(0, Math.sin(phi * 26)) * glatt(0.1, 0.8, vorn); // Haarspitzen am Stirnrand
+    const grenze = 0.3 + 0.32 * glatt(0.05, 0.85, vorn) - 0.5 * glatt(0.5, 0.95, -vorn) - 0.24 * glatt(0.45, 0.95, seite) * glatt(-0.35, 0.1, -vorn) - zacken;
+    const da = glatt(grenze - 0.02, grenze + 0.07, oben);
+    // versteckter Teil weit genug nach innen (unten wird der Kopf zum Kinn schmaler)
+    const innen = -0.007 - 0.045 * (1 - glatt(-0.35, 0.25, oben));
+    const r = innen + (dicke - innen) * da;
+    const x = d.x * (KX + r) + quer * da;
+    const y = d.y * (KY + r);
+    const z = d.z * (KZ + r) + vorschub * da;
+    pos.setXYZ(i, x, y, z);
+    // Farbe: Seiten dunkler (kurz), oben heller, Spitzen der Tolle noch etwas heller
+    const hell = 0.62 + 0.38 * top + (stil === 'wuschel' ? 0.12 * top * glatt(0.3, 0.9, vorn) : 0);
+    farben[i * 3] = farben[i * 3 + 1] = farben[i * 3 + 2] = Math.min(1.1, hell);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(farben, 3));
+  geo.computeVertexNormals();
+  const haarMat = mat.clone();
+  haarMat.vertexColors = true;
+  haarMat.map = haarTextur();
+  mat.userData.kopien = [...(mat.userData.kopien || []), haarMat];
+  const m = new THREE.Mesh(geo, haarMat);
+  m.castShadow = true;
+  g.add(m);
+  return g;
+}
+
 function tube(a, b, r, mat, r2 = r, seg = 10) {
   const len = a.distanceTo(b);
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r, len, seg), mat);
@@ -547,7 +654,7 @@ export class Bike {
       }),
       glassFrame: new THREE.MeshStandardMaterial({ color: '#111114', roughness: 0.4 }),
       glove: fabric({ color: '#f1f1ee', roughness: 0.75 }),
-      hair: new THREE.MeshStandardMaterial({ color: '#4a3324', roughness: 0.9 }),
+      hair: new THREE.MeshPhysicalMaterial({ color: '#9c6a3c', roughness: 0.65, sheen: 0.6, sheenRoughness: 0.4, sheenColor: new THREE.Color('#c08a5a') }),
       jerseyPlain: fabric({}),
       sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.6 }),
       sleeve: fabric({}),
@@ -1178,13 +1285,10 @@ export class Bike {
     this.head.add(helmet);
     this.helmMesh = helmet;
     // Volle Haare (nur sichtbar ohne Helm, z. B. beim Joggen im Park)
-    const haarGeo = new THREE.SphereGeometry(0.1, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
-    haarGeo.scale(0.98, 1.1, 1.1);
-    this.haarVoll = new THREE.Mesh(haarGeo, m.hair);
-    this.haarVoll.position.set(0, 0.01, -0.006);
-    this.haarVoll.rotation.x = -0.32;
+    this.haarVoll = new THREE.Group();
     this.haarVoll.visible = false;
     this.head.add(this.haarVoll);
+    this.setFrisur('wuschel');
     this.riemen = [];
     const innen = new THREE.Mesh(helmGeo, (m.helmInnen ||= new THREE.MeshStandardMaterial({ color: '#1b1b1f', roughness: 0.9, side: THREE.BackSide })));
     innen.scale.setScalar(0.985);
@@ -1328,6 +1432,7 @@ export class Bike {
     hair.scale.set(0.97, 1.08, 1.08);
     hair.position.set(0, -0.004, -0.004);
     this.head.add(hair);
+    this.haarHinten = hair; // nur mit Helm sichtbar (ohne Helm gibt es die ganze Frisur)
     // (kein Grat mehr oben auf dem Helm – stand wie eine Antenne ab)
     // Kopf tiefer, Blick trotzdem nach vorne auf die Straße
     this.head.position.set(0, 1.31, 0.39);
@@ -1556,11 +1661,24 @@ export class Bike {
     this.mats.tire.color.set(this.aero && this.tireColor ? this.tireColor : '#1c1c1c');
   }
 
+  // ✏️ Frisur (sichtbar ohne Helm): 'wuschel' = Strähnen mit Pony, 'scheitel' = Seitenscheitel mit Tolle
+  setFrisur(stil = 'wuschel', farbe = null) {
+    if (farbe) {
+      this.mats.hair.color.set(farbe);
+      for (const k of this.mats.hair.userData.kopien || []) k.color.set(farbe);
+    }
+    if (this.frisur === stil) return;
+    this.frisur = stil;
+    this.haarVoll.clear();
+    this.haarVoll.add(baueFrisur(stil, this.mats.hair));
+  }
+
   // ohne Helm (Park): Helm und Kinnriemen weg, dafür volle Haare
   setOhneHelm(an) {
     this.helmMesh.visible = !an;
     for (const r of this.riemen) r.visible = !an;
     this.haarVoll.visible = an;
+    if (this.haarHinten) this.haarHinten.visible = !an;
   }
 
   // Anderes Outfit (z. B. Winter-Laufsachen im Park): { jacke, hose, muetze, handschuhe } oder null = wieder Radtrikot

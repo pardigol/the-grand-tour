@@ -204,6 +204,7 @@ export function createCityScene(app) {
       jonas.applyLook(JONAS_LOOK);
       jonas.setTires('road');
       jonas.setPlate(11, 'Jonas');
+      jonas.setFrisur('scheitel', '#2b1d14'); // Jonas: dunkler Seitenscheitel
     }
     city.scene.add(jonas.root);
     st.jonas = jonas;
