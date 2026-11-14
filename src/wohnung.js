@@ -145,7 +145,7 @@ export function buildWohnung(roadWorld) {
     scene.add(m);
     return m;
   };
-  const stoff = new THREE.MeshStandardMaterial({ color: '#4a5568', roughness: 0.95 });
+  const stoff = new THREE.MeshStandardMaterial({ color: '#d9c7a7', roughness: 0.95 }); // ✏️ Sofa: beige
   const kissenMat = [
     new THREE.MeshStandardMaterial({ color: '#c8352c', roughness: 0.9 }),
     new THREE.MeshStandardMaterial({ color: '#e9dcc3', roughness: 0.95 }),

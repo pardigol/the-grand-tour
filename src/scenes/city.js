@@ -9,6 +9,8 @@ import { Bike } from '../bike.js';
 import { buildCity, PENTHOUSE } from '../city.js';
 import { loadGang, Gang } from '../gang.js';
 import { WHEEL_R } from '../bike.js';
+import { loadCharacters } from '../storage.js';
+import { rennenFreischalten } from '../spielstand.js';
 
 // ✏️ Was Jonas sagt und was du dir danach denkst
 const JONAS_SAGT = 'Wenn du so weitermachst, müssen wir dich wohl ins Team einkaufen. Mal schauen, was das nächste Rennen bringt!';
@@ -264,7 +266,9 @@ export function createCityScene(app) {
 
   return {
     enter(params = {}) {
-      char = params.character || char || { name: 'Du', number: 1, jersey: '#d23c3c' };
+      const alle = loadCharacters();
+      char = params.character || char || alle.find((c) => (c.mode || 'road') === 'road') || alle[0] || { name: 'Du', number: 1, jersey: '#d23c3c' };
+      if (params.ziel !== 'jonas') rennenFreischalten(2); // Stadt nach Rennen 1 erreicht: Rennen 2 ist frei
       st.zuJonas = params.ziel === 'jonas';
       app.mode = 'road';
       app.bike.applyLook(char);
@@ -286,7 +290,6 @@ export function createCityScene(app) {
             ${KLINGELN.map((k, i) => `<button class="klingel-knopf" data-i="${i}"><span>${k.name}</span><i></i></button>`).join('')}
             <div class="klingel-tipp">${app.control === 'touch' ? 'Antippen zum Klingeln' : app.control === 'keys' ? '<b>↑</b> <b>↓</b> wählen · <b>Enter</b> klingeln' : `${btn('A')} klingeln`}</div>
           </div>
-          <div class="stadt-skip">${app.control === 'touch' ? '' : app.control === 'keys' ? '<b>Esc</b> überspringen' : `${btn('B')} überspringen`}</div>
         </div>`);
       $('.stadt-dialog').addEventListener('click', () => app.input.inject('confirm'));
       root.querySelectorAll('.klingel-knopf').forEach((b) =>
@@ -323,16 +326,6 @@ export function createCityScene(app) {
       inp.touchRide = st.phase === 'laufen' || st.phase === 'fahren';
       const ok = inp.pressed('confirm') || inp.pressed('x');
       if (st.phase === 'klingel') inp.touchRide = false;
-      if (st.zuJonas && (inp.pressed('back') || inp.pressed('start')) && st.phase !== 'fahrtEnde') {
-        dialogZu();
-        tipp('');
-        phase('fahrtEnde');
-      }
-      if ((inp.pressed('back') || inp.pressed('start')) && st.phase !== 'ende' && !st.zuJonas) {
-        dialogZu();
-        tipp('');
-        phase('ende');
-      }
       tippen(dt);
       app.focus.set(st.x, 0, st.z);
 

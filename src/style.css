@@ -2696,3 +2696,28 @@ body.control-touch .wish-button .btn {
   text-align: center;
   opacity: 0.8;
 }
+
+/* Kapitel-Auswahl (Rennen und Zwischenszenen) */
+.rennen-wahl .rennen-karten {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 240px));
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 6px;
+}
+.rennen-wahl .rennen-karte {
+  width: auto;
+  cursor: pointer;
+}
+.rennen-wahl .rennen-karte b {
+  font-size: 22px;
+}
+.rennen-karte.zu {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (max-width: 760px) {
+  .rennen-wahl .rennen-karten {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

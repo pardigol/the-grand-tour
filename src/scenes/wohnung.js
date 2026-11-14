@@ -162,7 +162,6 @@ export function createWohnungScene(app) {
             <div class="stadt-text"></div>
             <div class="stadt-weiter">${app.control === 'touch' ? 'Tippen' : app.control === 'keys' ? '<b>Enter</b>' : btn('A')} ▶</div>
           </div>
-          <div class="stadt-skip">${app.control === 'touch' ? '' : app.control === 'keys' ? '<b>Esc</b> überspringen' : `${btn('B')} überspringen`}</div>
         </div>`);
       $('.stadt-dialog').addEventListener('click', () => app.input.inject('confirm'));
       app.ui.append(root);
@@ -191,10 +190,6 @@ export function createWohnungScene(app) {
       const b = app.bike;
       st.t += dt;
       const ok = inp.pressed('confirm') || inp.pressed('x');
-      if ((inp.pressed('back') || inp.pressed('start')) && st.phase !== 'ende') {
-        dialogZu();
-        phase('ende');
-      }
       tippen(dt);
       app.focus.set(st.x, 0, st.z);
       chef?.update(dt);

@@ -27,6 +27,16 @@ const HINTS_GAME = [
   ['B', 'Zurück'],
 ];
 
+// ✏️ Kapitel der Geschichte: Rennen und Zwischenszenen. ab = ab welchem Fortschritt freigeschaltet
+const KAPITEL = [
+  { name: 'Rennen 1', sub: 'Das große Rennen · Landstraße', ab: 1, art: 'rennen', n: 1 },
+  { name: 'In der Stadt', sub: 'Jonas wartet vor seinem Hochhaus', ab: 2, art: 'szene', szene: 'stadt' },
+  { name: 'Rennen 2', sub: 'Schneetal mit Schloss', ab: 2, art: 'rennen', n: 2 },
+  { name: 'Im Park', sub: 'Joggen am zugefrorenen See', ab: 3, art: 'szene', szene: 'park' },
+  { name: 'Zu Jonas', sub: 'Mit dem Rad zur Parker Street 7', ab: 3, art: 'szene', szene: 'stadt', params: { ziel: 'jonas' } },
+  { name: 'Bei Jonas', sub: 'Die Wohnung voller Räder', ab: 4, art: 'szene', szene: 'wohnung' },
+];
+
 export function createModeScene(app) {
   let root;
   let index = 0;
@@ -55,6 +65,7 @@ export function createModeScene(app) {
   let wahl = null;
   function zeigeWahl() {
     root.querySelectorAll('.rennen-karte').forEach((k, i) => k.classList.toggle('selected', i === wahl));
+    root.querySelector('.rennen-karte.selected')?.scrollIntoView({ block: 'nearest' });
   }
   async function starteRennen(n) {
     busy = true;
@@ -80,11 +91,35 @@ export function createModeScene(app) {
     else if (n >= 2) starteRennen(2);
     else app.go('story');
   }
-  // A auf der Game-Karte: anderen Spielstand wählen (PIN eingeben), danach zurück zur Game-Karte
+  // A auf der Game-Karte: anderen Spielstand wählen (PIN eingeben), danach Kapitel wählen
   function spielstandWaehlen() {
     if (busy) return;
     app.audio.select();
-    app.go('pin', { next: 'mode', nachParams: { minigame: true }, zurueck: true });
+    app.go('pin', { next: 'mode', nachParams: { minigame: true, kapitel: true }, zurueck: true });
+  }
+  const offen = () => KAPITEL.filter((k) => (stand().rennen || 1) >= k.ab);
+  function kapitelZeigen() {
+    const liste = offen();
+    root.querySelector('.rennen-karten').innerHTML = KAPITEL.map((k, i) => {
+      const zu = i >= liste.length;
+      return `<div class="rennen-karte ${zu ? 'zu' : ''}" data-i="${i}"><b>${zu ? '🔒 ' : ''}${esc(k.name)}</b><small>${k.art === 'rennen' ? '🚴 ' : '🎬 '}${esc(k.sub)}</small></div>`;
+    }).join('');
+    root.querySelectorAll('.rennen-karte').forEach((el) =>
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const i = Number(el.dataset.i);
+        if (i < offen().length) kapitelStarten(i);
+      }),
+    );
+    wahl = liste.length - 1;
+    root.querySelector('.rennen-wahl').classList.add('show');
+    zeigeWahl();
+  }
+  function kapitelStarten(i) {
+    const k = KAPITEL[i];
+    app.audio.select();
+    if (k.art === 'rennen') starteRennen(k.n);
+    else app.go(k.szene, k.params || {});
   }
 
   async function choose() {
@@ -143,11 +178,8 @@ export function createModeScene(app) {
           ${hintBar(HINTS)}
           <div class="mode-building">Der Wald wird gebaut …</div>
           <div class="rennen-wahl">
-            <div class="rennen-titel">Welches Rennen?</div>
-            <div class="rennen-karten">
-              <div class="rennen-karte" data-n="1"><b>Rennen 1</b><small>Das große Rennen · Landstraße</small></div>
-              <div class="rennen-karte" data-n="2"><b>Rennen 2</b><small>Schneetal mit Schloss</small></div>
-            </div>
+            <div class="rennen-titel">Wo willst du weitermachen?</div>
+            <div class="rennen-karten"></div>
           </div>
         </div>`);
       app.ui.append(root);
@@ -166,13 +198,9 @@ export function createModeScene(app) {
         e.stopPropagation();
         spielstandWaehlen();
       });
-      root.querySelectorAll('.rennen-karte').forEach((k) =>
-        k.addEventListener('click', (e) => {
-          e.stopPropagation();
-          starteRennen(Number(k.dataset.n));
-        }),
-      );
+
       wahl = null;
+      if (params.kapitel) kapitelZeigen();
       highlight(true);
       first = true;
       app.npc.speed = 4;
@@ -192,9 +220,13 @@ export function createModeScene(app) {
       if (busy) return;
       // Rennen-Auswahl offen
       if (wahl != null) {
-        if (inp.pressed('left') || inp.pressed('up')) wahl = 0;
-        else if (inp.pressed('right') || inp.pressed('down')) wahl = 1;
-        else if (inp.pressed('confirm')) starteRennen(wahl + 1);
+        const n = offen().length;
+        if (inp.pressed('left') || inp.pressed('up')) wahl = (wahl + n - 1) % n;
+        else if (inp.pressed('right') || inp.pressed('down')) wahl = (wahl + 1) % n;
+        else if (inp.pressed('confirm')) {
+          kapitelStarten(wahl);
+          return;
+        }
         else if (inp.pressed('back')) {
           wahl = null;
           root.querySelector('.rennen-wahl').classList.remove('show');
