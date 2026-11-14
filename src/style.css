@@ -2435,7 +2435,7 @@ body.control-touch .wish-button .btn {
   padding: 28px 32px 30px;
   border-radius: 22px;
   background: rgba(12, 14, 22, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: none;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
   color: #fff;
@@ -2473,7 +2473,8 @@ body.control-touch .wish-button .btn {
   width: 46px;
   height: 56px;
   border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.1);
   position: relative;
   transition: border-color 0.2s;
 }
@@ -2499,7 +2500,7 @@ body.control-touch .wish-button .btn {
 .pin-taste {
   height: 58px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   font-family: var(--ui);
