@@ -95,31 +95,63 @@ export async function buildCity(roadWorld) {
   boden.userData.boden = true;
   scene.add(boden);
 
-  // ---------- Zebrastreifen an allen Kreuzungen ----------
-  // Je Kreuzung vier Überwege, direkt vor der Kreuzung quer über die Fahrbahn
+  // ---------- Zebrastreifen und Haltelinien an allen Kreuzungen ----------
+  // Je Kreuzung vier Überwege (Streifen 0,5 m breit, 3 m lang, 0,5 m Abstand), davor auf der Zufahrt eine Haltelinie
   const streifen = [];
+  const halte = [];
   const FAHRBAHN = 6.2; // halbe Fahrbahnbreite (ohne Gehweg)
   for (const kx of XS)
     for (const kz of ZS)
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const mx = kx + dx * (KREUZ + 2.2);
-        const mz = kz + dz * (KREUZ + 2.2);
-        // Streifen liegen in Fahrtrichtung, nebeneinander quer über die Straße
-        for (let q = -FAHRBAHN + 0.5; q <= FAHRBAHN - 0.4; q += 1.1) {
+        const mx = kx + dx * (KREUZ + 2.4);
+        const mz = kz + dz * (KREUZ + 2.4);
+        for (let q = -FAHRBAHN + 0.45; q <= FAHRBAHN - 0.3; q += 1.0) {
           if (dx) streifen.push([mx, mz + q, 0]);
           else streifen.push([mx + q, mz, Math.PI / 2]);
         }
+        // Haltelinie auf der Spur, die zur Kreuzung fährt (Rechtsverkehr), 2,4 m vor dem Überweg
+        const rx = dz;
+        const rz = -dx;
+        halte.push([mx + dx * 2.6 + (rx * FAHRBAHN) / 2, mz + dz * 2.6 + (rz * FAHRBAHN) / 2, dx ? Math.PI / 2 : 0]);
       }
-  {
-    const g = new THREE.PlaneGeometry(3.2, 0.55);
+  // abgefahrene weiße Farbe: kleine Lücken und Kratzer (durchsichtig)
+  const farbeTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f3f3ee';
+    g.fillRect(0, 0, 256, 64);
+    g.globalCompositeOperation = 'destination-out';
+    let seed = 9;
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 260; i++) {
+      g.globalAlpha = 0.4 + r() * 0.6;
+      g.beginPath();
+      g.ellipse(r() * 256, r() * 64, 1 + r() * 4, 0.6 + r() * 2.2, r() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Reifenspuren: zwei abgefahrene Bänder
+    g.globalAlpha = 0.35;
+    for (const x of [70, 180]) g.fillRect(x, 0, 26, 64);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  })();
+  const farbe = new THREE.MeshStandardMaterial({ map: farbeTex, alphaTest: 0.35, transparent: false, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -4 });
+  const legeHin = (liste, w, d) => {
+    const g = new THREE.PlaneGeometry(w, d);
     g.rotateX(-Math.PI / 2);
-    const im = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: '#f2f2ee', roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4 }), streifen.length);
+    const im = new THREE.InstancedMesh(g, farbe, liste.length);
     const q = new THREE.Quaternion();
-    streifen.forEach(([x, z, r], k) => im.setMatrixAt(k, new THREE.Matrix4().compose(new THREE.Vector3(x, 0.035, z), q.setFromAxisAngle(_y, r), _one)));
+    liste.forEach(([x, z, r], k) => im.setMatrixAt(k, new THREE.Matrix4().compose(new THREE.Vector3(x, 0.035, z), q.setFromAxisAngle(_y, r), _one)));
     im.receiveShadow = true;
     im.computeBoundingSphere();
-    zebra = im;
-  }
+    return im;
+  };
+  zebra = new THREE.Group();
+  zebra.add(legeHin(streifen, 3.0, 0.5), legeHin(halte, FAHRBAHN - 0.4, 0.35));
 
   // ---------- Häuserreihen ----------
   // Breite der Häuser entlang der Front (aus den Modellen gemessen)
