@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Bike } from './bike.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // ✏️ Raumgröße (Meter): x = Breite, z = Tiefe. Fenster vorne bei z = -TIEF/2, Eingang hinten links.
 export const RAUM = { breit: 12, tief: 10, hoch: 3.3 };
@@ -92,33 +93,192 @@ export function buildWohnung(roadWorld) {
   box(B, 0.1, 0.14, rahmen, 0, 0.05, -T / 2);
   box(B, 0.1, 0.14, rahmen, 0, H - 0.05, -T / 2);
   // Skyline draußen: viele Hochhäuser in der Tiefe, mit hellen Fenstern
-  const stadtMat = new THREE.MeshStandardMaterial({ color: '#8d97a6', roughness: 0.9 });
-  const fensterMat = new THREE.MeshStandardMaterial({ color: '#2a3140', emissive: '#ffd79a', emissiveIntensity: 0.25, roughness: 0.4 });
+  // Hochhausfassaden mit vielen Fenstern (einige leuchten warm)
+  const fassade = (grund) => {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = grund;
+    g.fillRect(0, 0, 128, 256);
+    const em = document.createElement('canvas');
+    em.width = 128;
+    em.height = 256;
+    const ge = em.getContext('2d');
+    ge.fillStyle = '#000';
+    ge.fillRect(0, 0, 128, 256);
+    for (let y = 6; y < 250; y += 14)
+      for (let x = 6; x < 124; x += 14) {
+        const an = Math.random() < 0.3;
+        g.fillStyle = an ? '#ffd79a' : '#33404f';
+        g.fillRect(x, y, 9, 9);
+        if (an) {
+          ge.fillStyle = '#ffd79a';
+          ge.fillRect(x, y, 9, 9);
+        }
+      }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    const te = new THREE.CanvasTexture(em);
+    te.wrapS = te.wrapT = THREE.RepeatWrapping;
+    return new THREE.MeshStandardMaterial({ map: t, emissiveMap: te, emissive: '#ffffff', emissiveIntensity: 0.6, roughness: 0.8 });
+  };
+  const stadtMat = fassade('#9aa3b1');
+  const fensterMat = fassade('#7f8899');
   let seed = 7;
   const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < 70; i++) {
     const w = 10 + r() * 22;
     const h = 20 + r() * 90;
     const x = (r() - 0.5) * 520;
-    const z = -40 - r() * 260;
+    const z = -75 - r() * 260;
     box(w, h, w, i % 3 ? stadtMat : fensterMat, x, -45 + h / 2, z);
   }
 
   // ---------- Möbel ----------
-  const stoff = new THREE.MeshStandardMaterial({ color: '#3d4553', roughness: 0.95 });
-  // Sofa (Blick zum Fenster)
-  box(3.2, 0.42, 1.0, stoff, 0.5, 0.21, 1.2);
-  box(3.2, 0.5, 0.25, stoff, 0.5, 0.55, 1.62);
-  box(0.25, 0.62, 1.0, stoff, -1.1, 0.31, 1.2);
-  box(0.25, 0.62, 1.0, stoff, 2.1, 0.31, 1.2);
-  // Couchtisch und Teppich
-  box(1.4, 0.06, 0.8, new THREE.MeshStandardMaterial({ color: '#2b2118', roughness: 0.5 }), 0.5, 0.42, -0.2);
-  for (const [x, z] of [[-0.1, -0.5], [1.1, -0.5], [-0.1, 0.1], [1.1, 0.1]]) box(0.05, 0.4, 0.05, rahmen, x, 0.2, z);
-  const teppich = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 3.2), new THREE.MeshStandardMaterial({ color: '#b9a98f', roughness: 1 }));
+  const rund = (w, h, d, mat, x, y, z, r = 0.06) => {
+    const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  };
+  const stoff = new THREE.MeshStandardMaterial({ color: '#4a5568', roughness: 0.95 });
+  const kissenMat = [
+    new THREE.MeshStandardMaterial({ color: '#c8352c', roughness: 0.9 }),
+    new THREE.MeshStandardMaterial({ color: '#e9dcc3', roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ color: '#2f6b4f', roughness: 0.9 }),
+  ];
+  const holzDunkel = new THREE.MeshStandardMaterial({ color: '#3a2a1e', roughness: 0.45 });
+  const metall = new THREE.MeshStandardMaterial({ color: '#c9a45c', metalness: 0.9, roughness: 0.3 });
+  // Sofa (Blick zum Fenster) mit runden Polstern und Kissen
+  rund(3.2, 0.36, 1.0, stoff, 0.5, 0.26, 1.2, 0.08);
+  rund(3.2, 0.55, 0.28, stoff, 0.5, 0.62, 1.6, 0.1);
+  rund(0.28, 0.6, 1.0, stoff, -1.1, 0.38, 1.2, 0.1);
+  rund(0.28, 0.6, 1.0, stoff, 2.1, 0.38, 1.2, 0.1);
+  for (const [x, k] of [[-0.6, 0], [0.1, 1], [1.4, 2], [0.8, 1]]) {
+    const c = rund(0.42, 0.38, 0.14, kissenMat[k], x, 0.6, 1.4, 0.07);
+    c.rotation.x = -0.25;
+  }
+  for (const x of [-0.9, 1.9]) box(0.05, 0.1, 0.05, metall, x, 0.05, 1.2);
+  // zwei Sessel
+  for (const [x, z, h] of [[-2.0, -0.6, 0.9], [3.0, -0.4, -0.9]]) {
+    const g = new THREE.Group();
+    const sitz = new THREE.Mesh(new RoundedBoxGeometry(0.85, 0.35, 0.8, 3, 0.08), kissenMat[1]);
+    sitz.position.y = 0.3;
+    const lehne = new THREE.Mesh(new RoundedBoxGeometry(0.85, 0.6, 0.18, 3, 0.08), kissenMat[1]);
+    lehne.position.set(0, 0.65, -0.35);
+    g.add(sitz, lehne);
+    g.traverse((o) => o.isMesh && ((o.castShadow = true), (o.receiveShadow = true)));
+    g.position.set(x, 0, z);
+    g.rotation.y = h;
+    scene.add(g);
+  }
+  // Couchtisch (Holz, runde Kanten) und gemusterter Teppich
+  rund(1.5, 0.07, 0.85, holzDunkel, 0.5, 0.42, -0.2, 0.03);
+  for (const [x, z] of [[-0.1, -0.5], [1.1, -0.5], [-0.1, 0.1], [1.1, 0.1]]) box(0.04, 0.4, 0.04, metall, x, 0.2, z);
+  const buch = rund(0.3, 0.05, 0.22, kissenMat[0], 0.2, 0.48, -0.25, 0.01);
+  buch.rotation.y = 0.3;
+  const tc = document.createElement('canvas');
+  tc.width = tc.height = 256;
+  const tg = tc.getContext('2d');
+  tg.fillStyle = '#cbbd9f';
+  tg.fillRect(0, 0, 256, 256);
+  tg.strokeStyle = '#8e2b36';
+  tg.lineWidth = 10;
+  tg.strokeRect(14, 14, 228, 228);
+  tg.strokeStyle = '#2f3a4d';
+  tg.lineWidth = 4;
+  tg.strokeRect(34, 34, 188, 188);
+  for (let i = 0; i < 6; i++) {
+    tg.beginPath();
+    tg.arc(128, 128, 20 + i * 14, 0, Math.PI * 2);
+    tg.stroke();
+  }
+  const tt = new THREE.CanvasTexture(tc);
+  tt.colorSpace = THREE.SRGBColorSpace;
+  const teppich = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 3.2), new THREE.MeshStandardMaterial({ map: tt, roughness: 1 }));
   teppich.rotation.x = -Math.PI / 2;
   teppich.position.set(0.5, 0.01, 0.4);
   teppich.receiveShadow = true;
   scene.add(teppich);
+  // Kücheninsel mit Barhockern und Hängelampen (hinten rechts)
+  const marmor = new THREE.MeshStandardMaterial({ color: '#f1efe9', roughness: 0.25, metalness: 0.05 });
+  rund(2.6, 0.9, 0.9, holzDunkel, 3.2, 0.45, 3.3, 0.03);
+  rund(2.75, 0.06, 1.05, marmor, 3.2, 0.93, 3.3, 0.02);
+  for (const x of [2.4, 3.2, 4.0]) {
+    box(0.04, 0.7, 0.04, metall, x, 0.35, 2.55);
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 18), kissenMat[0]);
+    s.position.set(x, 0.72, 2.55);
+    s.castShadow = true;
+    scene.add(s);
+  }
+  for (const x of [2.5, 3.9]) {
+    const kabel = box(0.01, 1.2, 0.01, metall, x, H - 0.6, 3.3);
+    kabel.castShadow = false;
+    const schirm = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#c9a45c', metalness: 0.8, roughness: 0.3, side: THREE.DoubleSide }));
+    schirm.position.set(x, H - 1.2, 3.3);
+    scene.add(schirm);
+    const birne = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#ffdca8', emissiveIntensity: 2 }));
+    birne.position.set(x, H - 1.25, 3.3);
+    scene.add(birne);
+    const l = new THREE.PointLight('#ffd9a0', 4, 4, 2);
+    l.position.set(x, H - 1.35, 3.3);
+    scene.add(l);
+  }
+  // Stehlampe neben dem Sofa
+  box(0.03, 1.7, 0.03, metall, 2.6, 0.85, 1.7);
+  const lampe = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 0.3, 18, 1, true), new THREE.MeshStandardMaterial({ color: '#efe6d4', emissive: '#ffe1b0', emissiveIntensity: 0.6, side: THREE.DoubleSide }));
+  lampe.position.set(2.6, 1.75, 1.7);
+  scene.add(lampe);
+  const stehLicht = new THREE.PointLight('#ffd9a0', 3, 4, 2);
+  stehLicht.position.set(2.6, 1.6, 1.7);
+  scene.add(stehLicht);
+  // Holzlatten hinter den Rädern (linke und rechte Wand)
+  const latte = new THREE.MeshStandardMaterial({ color: '#8a6142', roughness: 0.6 });
+  for (const sx of [-1, 1])
+    for (let z = -T / 2 + 0.6; z < T / 2 - 0.5; z += 0.16) box(0.04, H - 0.3, 0.09, latte, sx * (B / 2 - 0.03), (H - 0.3) / 2 + 0.15, z);
+  // Rad-Poster an der Rückwand
+  const poster = (titel, farbe, x) => {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 360;
+    const g = c.getContext('2d');
+    g.fillStyle = farbe;
+    g.fillRect(0, 0, 256, 360);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 6;
+    g.beginPath();
+    g.arc(80, 230, 46, 0, Math.PI * 2);
+    g.arc(180, 230, 46, 0, Math.PI * 2);
+    g.moveTo(80, 230);
+    g.lineTo(125, 170);
+    g.lineTo(180, 230);
+    g.moveTo(125, 170);
+    g.lineTo(115, 230);
+    g.lineTo(80, 230);
+    g.moveTo(110, 165);
+    g.lineTo(140, 165);
+    g.stroke();
+    g.fillStyle = '#ffffff';
+    g.font = '800 30px sans-serif';
+    g.textAlign = 'center';
+    g.fillText(titel, 128, 70);
+    g.font = '600 16px sans-serif';
+    g.fillText('THE GRAND TOUR', 128, 330);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const bild = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 1.05), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
+    bild.position.set(x, 1.75, T / 2 - 0.02);
+    bild.rotation.y = Math.PI;
+    scene.add(bild);
+    box(0.82, 1.12, 0.03, holzDunkel, x, 1.75, T / 2 - 0.005);
+  };
+  poster('SCHNEETAL', '#2f6b9a', -0.2);
+  poster('LANDSTRASSE', '#c8352c', 0.8);
+
   // Pflanzen in Töpfen
   const topf = new THREE.MeshStandardMaterial({ color: '#e7e2d9', roughness: 0.8 });
   const blatt = new THREE.MeshStandardMaterial({ color: '#3f7d34', roughness: 0.8, flatShading: true });
@@ -176,6 +336,12 @@ export function buildWohnung(roadWorld) {
       scene.add(hk);
     }
     raeder.push(b);
+    // kleiner Strahler, der das Rad anleuchtet
+    const lp = b.root.localToWorld(new THREE.Vector3(0, 0.8, 0));
+    const zur = r.wand === 'links' ? 1 : r.wand === 'rechts' ? -1 : 0;
+    const licht = new THREE.PointLight('#fff1d8', 2.2, 3.2, 2);
+    licht.position.set(lp.x + zur * 1.0, H - 0.4, lp.z + (r.wand === 'hinten' ? -1.0 : 0));
+    scene.add(licht);
   }
 
   // ---------- Licht ----------
@@ -186,7 +352,7 @@ export function buildWohnung(roadWorld) {
   scene.environment = roadWorld.scene.environment;
   scene.environmentIntensity = 0.5;
   scene.fog = new THREE.FogExp2(new THREE.Color('#d6c7b8'), 0.0035);
-  scene.add(new THREE.HemisphereLight('#fff6ea', '#7d6a58', 1.4));
+  scene.add(new THREE.HemisphereLight('#fff3e2', '#7d6a58', 1.2));
   // Sonne fällt durch die Fensterfront herein
   const sun = new THREE.DirectionalLight('#ffe2c0', 2.4);
   sun.position.set(-6, 9, -18);
@@ -204,9 +370,12 @@ export function buildWohnung(roadWorld) {
   // Deckenspots
   for (const x of [-4.5, 0, 4.5])
     for (const z of [-2.5, 2.5]) {
-      const l = new THREE.PointLight('#ffe7c4', 6, 7, 2);
-      l.position.set(x, H - 0.25, z);
-      scene.add(l);
+      // (nur jeder zweite Spot bekommt echtes Licht – schont das iPad)
+      if (z > 0 && x !== 0) {
+        const l = new THREE.PointLight('#ffe7c4', 5, 7, 2);
+        l.position.set(x, H - 0.25, z);
+        scene.add(l);
+      }
       const spot = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 14), new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff3dc', emissiveIntensity: 1.5 }));
       spot.position.set(x, H - 0.02, z);
       scene.add(spot);

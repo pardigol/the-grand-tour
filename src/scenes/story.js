@@ -541,7 +541,7 @@ export function createStoryScene(app) {
 
   // ---------- Ergebnis ----------
   function showResult() {
-    const w = leader().ziel;
+    const w = Math.min(leader().ziel ?? Infinity, st.meZiel ?? Infinity);
     const zeilen = [];
     const zeitVon = (t) => (t == null ? '–' : t - w < 0.05 ? formatTime(t) : `+${(t - w).toFixed(1).replace('.', ',')} s`);
     const alle = [
@@ -560,8 +560,9 @@ export function createStoryScene(app) {
     zeilen.push(`<div class="result-row"><b>${alle.length + 1}.</b><i style="background:#888"></i><span class="result-name">Das Feld · ${N_FELD} Fahrer</span>
       <span class="result-time">+${m}:${String(s).padStart(2, '0')}</span></div>`);
     $('.result-list').innerHTML = zeilen.join('');
-    const abstand = st.meZiel - w;
-    $('.result-title').innerHTML = `Platz 2 – nur ${abstand.toFixed(1).replace('.', ',')} Sekunden!`;
+    const abstand = st.meZiel - (leader().ziel ?? st.meZiel);
+    $('.result-title').innerHTML =
+      abstand < 0 ? `Sieg! ${(-abstand).toFixed(1).replace('.', ',')} Sekunden vor ${esc(leader().r.name)}` : `Platz 2 – nur ${abstand.toFixed(1).replace('.', ',')} Sekunden!`;
     resultIndex = 0;
     renderResult();
     $('.result').classList.add('show');
@@ -830,7 +831,8 @@ export function createStoryScene(app) {
         if (st.fotoNach <= 0) {
           st.fotoNach = null;
           st.slowZiel = 1;
-          banner('Platz 2!', `Nur ${(st.meZiel - (leader().ziel ?? st.meZiel)).toFixed(1).replace('.', ',')} Sekunden hinter ${leader().r.name}`);
+          if (rennenNr === 2 && (leader().ziel == null || st.meZiel < leader().ziel)) banner('Sieg!', `Du gewinnst im Schneetal vor ${leader().r.name}!`);
+          else banner('Platz 2!', `Nur ${(st.meZiel - (leader().ziel ?? st.meZiel)).toFixed(1).replace('.', ',')} Sekunden hinter ${leader().r.name}`);
           app.audio.success();
           app.input.rumble(0.8, 400);
           setTimeout(() => root && st.phase === 'auslaufen' && showResult(), 3000);
@@ -1104,9 +1106,13 @@ export function createStoryScene(app) {
             $('.story-phase').textContent = 'Sprint!';
           }
         } else {
-          // Schlusssprint: Jonas zieht los. Du kommst ran – aber nur bis auf eine halbe Sekunde.
+          // Schlusssprint: Jonas zieht los. Rennen 1: du kommst ran – aber nur bis auf eine halbe Sekunde.
+          // Rennen 2 (Schneetal): du ziehst auf den letzten Metern vorbei und gewinnst!
+          const sieg = rennenNr === 2;
           st.sprintT += dt;
-          if (sprintKey && !st.sprint) {
+          // im Schneetal startet der Sprint spätestens 1,5 s nach „Schlusssprint!“ von selbst, damit du sicher gewinnst
+          const autoSprint = sieg && !st.sprint && st.sprintT > 1.5;
+          if ((sprintKey || autoSprint) && !st.sprint) {
             st.sprint = true;
             st.sprintGap = L.s - st.s;
             st.sprintRest = Math.max(1, st.sZiel - L.s);
@@ -1120,14 +1126,16 @@ export function createStoryScene(app) {
           if (st.sprint) {
             // Du holst auf – genau bis auf eine halbe Sekunde, wenn Jonas über die Linie fährt
             const anteil = clamp((st.sZiel - L.s) / st.sprintRest, 0, 1);
-            const ziel = end + (Math.max(st.sprintGap, end) - end) * anteil;
-            vT = Math.min(19.2, L.v + clamp((gap - ziel) * 1.6, -3, 6));
+            // Schneetal: am Ziel bist du gut eine halbe Radlänge (0,3 s) vor Jonas
+            const zielGap = sieg ? -0.3 * Math.max(L.v, 10) : end;
+            const ziel = zielGap + (Math.max(st.sprintGap, end) - zielGap) * anteil;
+            vT = Math.min(sieg ? 22.5 : 19.2, L.v + clamp((gap - ziel) * 1.6, -3, 6));
             tipp('');
           } else {
             vT = tritt ? L.v - 2.5 : L.v - 4;
             tipp(`SPRINT: ${sprintText()}!`);
           }
-          if (gap < end) {
+          if (!sieg && gap < end) {
             st.s = L.s - end;
             st.v = Math.min(st.v, L.v);
           }
