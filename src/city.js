@@ -48,6 +48,13 @@ async function laden() {
   return M;
 }
 
+// Die Stadt nur einmal bauen und in allen Szenen (Stadt, Autofahrt) wiederverwenden
+let stadtLaden = null;
+export function getCity(roadWorld) {
+  stadtLaden ||= buildCity(roadWorld);
+  return stadtLaden;
+}
+
 export async function buildCity(roadWorld) {
   const M = await laden();
   const scene = new THREE.Scene();

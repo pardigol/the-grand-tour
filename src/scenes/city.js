@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { el, btn } from './common.js';
 import { clamp, damp } from '../noise.js';
 import { Bike } from '../bike.js';
-import { buildCity, PENTHOUSE } from '../city.js';
+import { getCity, PENTHOUSE } from '../city.js';
 import { loadGang, Gang } from '../gang.js';
 import { WHEEL_R } from '../bike.js';
 import { loadCharacters } from '../storage.js';
@@ -308,7 +308,7 @@ export function createCityScene(app) {
       phase('laden');
       if (city) start();
       else {
-        laden ||= Promise.all([buildCity(app.worlds.road), loadGang()]).then(([c, g]) => {
+        laden ||= Promise.all([getCity(app.worlds.road), loadGang()]).then(([c, g]) => {
           city = c;
           gangDatei = g;
         });

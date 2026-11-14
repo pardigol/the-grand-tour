@@ -5,12 +5,17 @@ import { el, btn } from './common.js';
 import { damp } from '../noise.js';
 import { buildMeineWohnung, loadMeineWohnung, MEIN_EINGANG } from '../meineWohnung.js';
 import { loadGang, Gang } from '../gang.js';
+import { Bike } from '../bike.js';
 import { rennenFreischalten } from '../spielstand.js';
 import { loadCharacters } from '../storage.js';
 
 // ✏️ Was du denkst
 const GEDANKE_REIN = 'Das ist jetzt wirklich MEINE Wohnung? Wahnsinn …';
 const GEDANKE_RAD = 'Und da steht es: mein eigenes Colnago mit Dura-Ace. Morgen geht es los mit Team Blitz!';
+// ✏️ Wenn Jonas dich nach Hause gebracht hat, sagt er beim Reinkommen:
+const JONAS_SAGT = 'So, da wären wir – willkommen in deinem neuen Zuhause! Ruh dich aus, morgen geht das Training los.';
+const JONAS_LOOK = { jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' };
+const JONAS_STEHT = { x: -2.0, z: 1.4 };
 const ZIEL = { x: -0.6, z: 0.2 }; // hier bleibst du in der Mitte stehen
 const AM_FENSTER = { x: -0.3, z: -2.4 }; // hier stehst du am Ende vor deinem Rad
 const TEMPO = 1.3;
@@ -22,6 +27,7 @@ export function createMeineWohnungScene(app) {
   let laden = null;
   let gangDatei = null;
   let char = null;
+  let jonas = null;
   const st = {};
   const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), zielPos: new THREE.Vector3(), zielLook: new THREE.Vector3() };
   const $ = (s) => root.querySelector(s);
@@ -111,6 +117,24 @@ export function createMeineWohnungScene(app) {
     if (b.gang) b.gang.sitzen = false;
     Object.assign(st, { x: MEIN_EINGANG.x, z: MEIN_EINGANG.z, h: Math.PI, v: 0, text: null, weiter: false });
     figur(b, st.x, st.z, st.h, 0, 0);
+    // Jonas kommt mit herein (wenn er dich gefahren hat)
+    if (st.mitJonas) {
+      if (!jonas) {
+        jonas = new Bike();
+        jonas.applyLook(JONAS_LOOK);
+        jonas.setTires('road');
+        jonas.setFrisur('scheitel', '#2b1d14');
+        jonas.augenFarbe = '#5a3b22';
+        if (gangDatei) jonas.gang = new Gang(gangDatei);
+      }
+      jonas.walk = true;
+      jonas.ohneBrille = true;
+      jonas.setOhneRad(true);
+      jonas.setOhneHelm(true);
+      welt.scene.add(jonas.root);
+      st.jo = { x: MEIN_EINGANG.x, z: MEIN_EINGANG.z + 1.4, h: Math.PI, v: 0 };
+      figur(jonas, st.jo.x, st.jo.z, st.jo.h, 0, 0);
+    }
     cam.zielPos.set(st.x + 0.4, 1.7, st.z + 2.4);
     cam.zielLook.set(st.x + 1, 1.3, st.z - 3);
     cam.pos.copy(cam.zielPos);
@@ -125,6 +149,7 @@ export function createMeineWohnungScene(app) {
   return {
     enter(params = {}) {
       const alle = loadCharacters();
+      st.mitJonas = !!params.mitJonas;
       char = params.character || alle.find((c) => (c.mode || 'road') === 'road') || alle[0] || { name: 'Du', number: 1, jersey: '#d23c3c' };
       app.mode = 'road';
       app.bike.applyLook({ ...char, jersey: '#efeee9' });
@@ -168,6 +193,26 @@ export function createMeineWohnungScene(app) {
       const ok = inp.pressed('confirm') || inp.pressed('x');
       tippen(dt);
       app.focus.set(st.x, 0, st.z);
+      if (st.mitJonas && jonas) {
+        // Jonas geht hinter dir herein und bleibt neben dem Sessel stehen, schaut zu dir
+        const j = st.jo;
+        const zx = JONAS_STEHT.x - j.x;
+        const zz = JONAS_STEHT.z - j.z;
+        const d = Math.hypot(zx, zz);
+        if (st.t > 0.8 || st.phase !== 'rein') {
+          if (d > 0.1) {
+            j.h = drehe(j.h, Math.atan2(zx, zz), 3, dt);
+            j.v = damp(j.v, TEMPO * Math.min(1, d), 4, dt);
+            j.x += Math.sin(j.h) * j.v * dt;
+            j.z += Math.cos(j.h) * j.v * dt;
+          } else {
+            j.v = damp(j.v, 0, 8, dt);
+            j.h = drehe(j.h, Math.atan2(st.x - j.x, st.z - j.z), 3, dt);
+          }
+        }
+        if (jonas.gang) jonas.gang.reden = st.phase === 'jonas';
+        figur(jonas, j.x, j.z, j.h, j.v, dt);
+      }
 
       switch (st.phase) {
         case 'rein': {
@@ -179,6 +224,25 @@ export function createMeineWohnungScene(app) {
           cam.zielLook.set(st.x + 1.2, 1.2, st.z - 2.5);
           kamera(dt, 1.5);
           if (da && st.t > 1) {
+            if (st.mitJonas && jonas) {
+              sag('Jonas', JONAS_SAGT);
+              phase('jonas');
+            } else {
+              sag(char.name || 'Du', GEDANKE_REIN, true);
+              phase('umschauen');
+            }
+          }
+          break;
+        }
+        case 'jonas': {
+          figur(b, st.x, st.z, (st.h = drehe(st.h, Math.atan2(st.jo.x - st.x, st.jo.z - st.z), 3, dt)), 0, dt);
+          const k = jonas.head.getWorldPosition(new THREE.Vector3());
+          const ich = b.head.getWorldPosition(new THREE.Vector3());
+          cam.zielPos.set(ich.x + (ich.x - k.x) * 0.5 + 0.3, ich.y + 0.25, ich.z + (ich.z - k.z) * 0.5 + 0.3);
+          cam.zielLook.copy(k).add(new THREE.Vector3(0, -0.15, 0));
+          kamera(dt, 1.5);
+          if (ok && weiterGedrueckt()) {
+            dialogZu();
             sag(char.name || 'Du', GEDANKE_REIN, true);
             phase('umschauen');
           }
@@ -240,6 +304,7 @@ export function createMeineWohnungScene(app) {
     },
 
     exit() {
+      if (jonas) welt?.scene.remove(jonas.root);
       const b = app.bike;
       b.walk = false;
       b.ohneBrille = false;

@@ -17,6 +17,7 @@ const CHEF_SAGT = 'Schön, dass Sie gekommen sind. Setzen wir uns – wir haben 
 const DU_DENKST = 'Wahnsinn … überall Räder! Das rote Colnago, das grüne Canyon in Team-Lackierung …';
 const VERTRAG_SAGT =
   'In dem Vertrag sind enthalten: eine Penthouse-Wohnung, ein Vollsponsoring, die Aufnahme in unser Team – und dass Sie sich aussuchen können, was Sie machen wollen: Kletterer, Sprinter oder Allrounder. Da aber nur die Nummer zwei.';
+const CHEF_FAHREN = 'Jonas, fährst du so freundlich unseren Neuzugang zu seiner Wohnung?';
 const JONAS_RAD = 'Und du bekommst dein eigenes Rennrad: ein Colnago mit einer Shimano Dura-Ace!';
 const DU_UEBERLEGST = 'Penthouse, Vollsponsoring, ein eigenes Colnago … und ich bin jetzt bei Team Blitz!';
 // ✏️ Sitzplätze auf dem Sofa (Becken) und wo der Chef am Tisch steht
@@ -344,7 +345,7 @@ export function createWohnungScene(app) {
       app.focus.set(st.x, 0, st.z);
       chef?.update(dt);
 
-      const sitzPhase = ['hinsetzen', 'vertragHin', 'vertrag', 'wahl', 'unterschrift', 'unterschrieben', 'rad', 'ueberlegen', 'ende'].includes(st.phase);
+      const sitzPhase = ['hinsetzen', 'vertragHin', 'vertrag', 'wahl', 'unterschrift', 'unterschrieben', 'rad', 'ueberlegen', 'chefFahren', 'ende'].includes(st.phase);
       // Jonas: erst schaut er zu dir, beim Hinsetzen geht er zum Sofa
       if (jonas.gang) jonas.gang.reden = st.phase === 'jonas' || st.phase === 'rad';
       if (!sitzPhase) {
@@ -452,7 +453,8 @@ export function createWohnungScene(app) {
         case 'unterschrift':
         case 'unterschrieben':
         case 'rad':
-        case 'ueberlegen': {
+        case 'ueberlegen':
+        case 'chefFahren': {
           const ich = { x: st.x, z: st.z, h: st.h, v: st.v };
           const sitzt = hinsetzen(b, ich, SITZ_ICH, dt);
           Object.assign(st, { x: ich.x, z: ich.z, h: ich.h, v: ich.v });
@@ -543,10 +545,21 @@ export function createWohnungScene(app) {
               sag(char.name || 'Du', DU_UEBERLEGST, true);
               phase('ueberlegen');
             }
-          } else {
+          } else if (st.phase === 'ueberlegen') {
             const k = kopf(b.head);
             cam.zielPos.set(k.x + 0.25, k.y + 0.05, k.z - 0.9);
             cam.zielLook.copy(k);
+            kamera(dt, 1.3);
+            if (ok && weiterGedrueckt()) {
+              dialogZu();
+              // zum Schluss: der Chef bittet Jonas, dich nach Hause zu fahren
+              sag(CHEF_NAME, CHEF_FAHREN);
+              phase('chefFahren');
+            }
+          } else {
+            const k = kopf(b.head);
+            cam.zielPos.set(k.x - 0.45, k.y + 0.35, k.z + 0.9);
+            cam.zielLook.copy(chef ? kopf(chef.kopf) : k).add(new THREE.Vector3(0, -0.3, 0));
             kamera(dt, 1.3);
             if (ok && weiterGedrueckt()) {
               dialogZu();
@@ -562,10 +575,10 @@ export function createWohnungScene(app) {
           if (app.fx.uFade.value > 0.98 && !st.weiter) {
             st.weiter = true;
             const l = $('.stadt-laden');
-            // weiter: am Abend in deine eigene neue Wohnung
-            l.textContent = 'Am Abend …';
+            // weiter: mit Jonas runter zum Teamauto
+            l.textContent = 'Runter zum Auto …';
             l.classList.add('show');
-            setTimeout(() => root && app.go('meineWohnung', { character: char }), 2200);
+            setTimeout(() => root && app.go('autofahrt', { character: char }), 1800);
           }
           break;
         }
