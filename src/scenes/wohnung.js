@@ -562,9 +562,10 @@ export function createWohnungScene(app) {
           if (app.fx.uFade.value > 0.98 && !st.weiter) {
             st.weiter = true;
             const l = $('.stadt-laden');
-            l.textContent = 'Fortsetzung folgt …';
+            // weiter: am Abend in deine eigene neue Wohnung
+            l.textContent = 'Am Abend …';
             l.classList.add('show');
-            setTimeout(() => root && app.go('mode', { minigame: true }), 2500);
+            setTimeout(() => root && app.go('meineWohnung', { character: char }), 2200);
           }
           break;
         }

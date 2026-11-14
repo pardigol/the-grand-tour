@@ -35,6 +35,7 @@ const KAPITEL = [
   { name: 'Im Park', sub: 'Joggen am zugefrorenen See', ab: 3, art: 'szene', szene: 'park' },
   { name: 'Zu Jonas', sub: 'Mit dem Rad zur Parker Street 7', ab: 3, art: 'szene', szene: 'stadt', params: { ziel: 'jonas' } },
   { name: 'Bei Jonas', sub: 'Die Wohnung voller Räder', ab: 4, art: 'szene', szene: 'wohnung' },
+  { name: 'Deine Wohnung', sub: 'Dein eigenes Penthouse', ab: 5, art: 'szene', szene: 'meineWohnung' },
 ];
 
 export function createModeScene(app) {
@@ -86,7 +87,8 @@ export function createModeScene(app) {
     app.audio.select();
     app.input.rumble(0.35, 80);
     const n = stand().rennen || 1;
-    if (n >= 4) app.go('wohnung'); // bei Jonas in der Wohnung
+    if (n >= 5) app.go('meineWohnung'); // deine eigene Wohnung
+    else if (n >= 4) app.go('wohnung'); // bei Jonas in der Wohnung
     else if (n >= 3) app.go('park'); // nach Rennen 2: Park mit dem Chef von Team Blitz
     else if (n >= 2) starteRennen(2);
     else app.go('story');
@@ -168,7 +170,7 @@ export function createModeScene(app) {
             ).join('')}
               <div class="mode-card mode-card-game" data-i="${MODES.length}">
                 <div class="mode-name">🎮 Game</div>
-                <div class="control-sub">${aktuellePin() ? `Spielstand ${esc(aktuellePin())} · ${(stand().rennen || 1) >= 4 ? 'Bei Jonas' : (stand().rennen || 1) >= 3 ? 'Nach Rennen 2' : 'Rennen ' + (stand().rennen || 1)}` : 'Das große Rennen'}</div>
+                <div class="control-sub">${aktuellePin() ? `Spielstand ${esc(aktuellePin())} · ${(stand().rennen || 1) >= 5 ? 'Deine Wohnung' : (stand().rennen || 1) >= 4 ? 'Bei Jonas' : (stand().rennen || 1) >= 3 ? 'Nach Rennen 2' : 'Rennen ' + (stand().rennen || 1)}` : 'Das große Rennen'}</div>
                 <div class="game-knoepfe">
                   <button class="game-knopf game-weiter">${btn('X')}Weiterspielen</button>
                   <button class="game-knopf game-stand">${btn('A')}Spielstand wählen</button>

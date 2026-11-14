@@ -33,6 +33,7 @@ import { createCityScene } from './scenes/city.js';
 import { createPinScene } from './scenes/pin.js';
 import { createParkScene } from './scenes/park.js';
 import { createWohnungScene } from './scenes/wohnung.js';
+import { createMeineWohnungScene } from './scenes/meineWohnung.js';
 import { loadCastle } from './castle.js';
 import { createCreatorScene } from './scenes/creator.js';
 import { createRideScene } from './scenes/ride.js';
@@ -162,6 +163,7 @@ async function boot() {
     pin: createPinScene(app),
     park: createParkScene(app),
     wohnung: createWohnungScene(app),
+    meineWohnung: createMeineWohnungScene(app),
   };
   // Steuerung: gemerkte Wahl, sonst erst einmal geraten (die Abfrage kommt nach dem Titel)
   applyControl(app, savedControl() || guess(app), !!savedControl());
