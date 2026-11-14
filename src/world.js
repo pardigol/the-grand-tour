@@ -170,7 +170,7 @@ export class World {
       this.scene.add(this.village);
     }
     if (this.schnee && this.schlossModelle) this.placeCastle();
-    if (!this.cx && !this.tt) this.buildFelswand();
+    if (this.schnee) this.buildFelswand(); // Felshang nur im Schneetal (Rennen 2)
     this.buildFinishZone();
     this.buildClouds();
     this.buildMotes();
