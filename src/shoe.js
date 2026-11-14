@@ -204,6 +204,22 @@ function geos() {
     heel: new THREE.BoxGeometry(0.03, 0.006, 0.022),
     // zwei Klettriemen quer über den Vorfuß
     draht: drahtGeometry(),
+    // heller Rand oben an der Sohle, rundherum
+    sohlenRand: (() => {
+      const pts = [];
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        pts.push(new THREE.Vector3((shape(t).w / 2) * endScale(t) + 0.0045, 0.0245, t * LEN - BALL));
+      }
+      for (let i = 39; i >= 1; i--) {
+        const t = i / 40;
+        pts.push(new THREE.Vector3(-(shape(t).w / 2) * endScale(t) - 0.0045, 0.0245, t * LEN - BALL));
+      }
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 120, 0.0022, 5, true);
+    })(),
+    // Schlaufe zum Anziehen hinten an der Ferse und Reflektor
+    schlaufe: new THREE.TorusGeometry(0.011, 0.0028, 6, 14, Math.PI),
+    reflektor: patchGeometry(0.015, 0.075, Math.PI * 0.38, Math.PI * 0.62, 0.0032, 6, 6),
     // Zunge/Laschenabdeckung unter der Drahtschnürung
     lasche: patchGeometry(0.35, 0.66, Math.PI * 0.28, Math.PI * 0.72, 0.0022, 12, 8),
     fuehrung: new THREE.BoxGeometry(0.005, 0.0025, 0.007),
@@ -238,6 +254,10 @@ export function buildShoe(mats) {
   add(G.heel, mats.sole, 0, 0.002, -BALL + 0.02);
   // Riemen und Streifen in Trikotfarbe, Fersen- und Zehenkappe dunkel
   add(G.lasche, mats.accent, 0, 0, 0);
+  add(G.sohlenRand, (mats.rand ||= new THREE.MeshStandardMaterial({ color: '#d9dbe0', roughness: 0.5 })), 0, 0, 0);
+  add(G.reflektor, (mats.reflektor ||= new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.8, roughness: 0.2, emissive: '#3a3a3a' })), 0, 0, 0);
+  const fersenOben = surf(0.0, Math.PI / 2, 0);
+  add(G.schlaufe, mats.accent, 0, fersenOben[1] + 0.004, fersenOben[2] + 0.004, 0, Math.PI / 2, 0);
   add(G.draht, (mats.draht ||= new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.9, roughness: 0.3 })), 0, 0, 0);
   // kleine Drahtführungen links und rechts
   for (let i = 0; i <= 6; i++) {

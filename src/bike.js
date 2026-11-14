@@ -129,6 +129,37 @@ function shapedLimb(len, radius, mat, steps = 10) {
   return m;
 }
 
+// Socke: oben (Bund) etwas weiter, zum Knöchel enger; +y zeigt zum Knöchel (placeLimb)
+function sockeMesh(mat) {
+  const pts = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12; // 0 = Bund oben, 1 = Knöchel
+    const r = 0.047 - 0.007 * t + (t < 0.12 ? 0.003 * (1 - t / 0.12) : 0);
+    pts.push(new THREE.Vector2(r, -0.09 + t * 0.18));
+  }
+  const g = new THREE.LatheGeometry(pts, 20);
+  const m = new THREE.Mesh(g, mat);
+  m.castShadow = true;
+  return m;
+}
+// Strick-Textur der Socken: feine Längsrippen, zwei Streifen in Trikotfarbe am Bund
+function drawSocke(canvas, akzent) {
+  const g = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  g.fillStyle = '#f7f7f4';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(0,0,0,0.07)';
+  for (let x = 0; x < W; x += 6) g.fillRect(x, 0, 2, H);
+  // Lathe: v = 0 oben am Bund (Bild unten, flipY), v = 1 am Knöchel
+  g.fillStyle = akzent;
+  g.fillRect(0, H * 0.84, W, H * 0.05);
+  g.fillRect(0, H * 0.74, W, H * 0.05);
+  // dunklerer, gerippter Bund ganz oben
+  g.fillStyle = 'rgba(0,0,0,0.12)';
+  g.fillRect(0, H * 0.93, W, H * 0.07);
+}
+
 function limb(len, r, mat) {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(0.01, len - 2 * r), 4, 10), mat);
   m.castShadow = true;
@@ -136,6 +167,94 @@ function limb(len, r, mat) {
 }
 
 const rimCache = {};
+// Brillenglas: Verlauf von dunkel oben nach hell unten, zwei Lüftungsschlitze oben (durchsichtig)
+let glasTex = null;
+function brillenglasTextur() {
+  if (glasTex) return glasTex;
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const g = c.getContext('2d');
+  const v = g.createLinearGradient(0, 0, 0, 64);
+  // (flipY aus: Bildzeile 0 = Unterkante des Glases)
+  v.addColorStop(0, '#ffd08a');
+  v.addColorStop(0.55, '#ff6a2a');
+  v.addColorStop(1, '#5a2a8a');
+  g.fillStyle = v;
+  g.fillRect(0, 0, 256, 64);
+  g.globalCompositeOperation = 'destination-out';
+  for (const x of [0.12, 0.88]) {
+    g.beginPath();
+    g.ellipse(x * 256, 55, 14, 3.2, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  glasTex = new THREE.CanvasTexture(c);
+  glasTex.colorSpace = THREE.SRGBColorSpace;
+  glasTex.flipY = false;
+  return glasTex;
+}
+
+// Bremsscheibe: Bremsspur mit Bohrungen und welligem Rand, innen ein Stern mit Löchern (alles andere durchsichtig)
+let bremsTex = null;
+function bremsscheibeTextur() {
+  if (bremsTex) return bremsTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const M = 128;
+  const R = 128; // = 0,081 m
+  const r = (m) => (m / 0.081) * R;
+  // Bremsspur mit welligem Außenrand
+  g.fillStyle = '#d4d7dc';
+  g.beginPath();
+  for (let i = 0; i <= 360; i++) {
+    const a = (i / 360) * Math.PI * 2;
+    const rr = r(0.079) + Math.sin(a * 12) * 2.5;
+    i ? g.lineTo(M + Math.cos(a) * rr, M + Math.sin(a) * rr) : g.moveTo(M + Math.cos(a) * rr, M + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.arc(M, M, r(0.06), 0, Math.PI * 2, true);
+  g.fill('evenodd');
+  // Bohrungen in der Bremsspur
+  g.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 36; i++) {
+    const a = (i / 36) * Math.PI * 2;
+    const rr = i % 2 ? r(0.067) : r(0.073);
+    g.beginPath();
+    g.arc(M + Math.cos(a) * rr, M + Math.sin(a) * rr, 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+  // Stern: sechs geschwungene Arme zur Mitte (dunkel)
+  g.fillStyle = '#2b2d33';
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    g.save();
+    g.translate(M, M);
+    g.rotate(a);
+    g.beginPath();
+    g.moveTo(r(0.016), -6);
+    g.quadraticCurveTo(r(0.04), -14, r(0.063), -9);
+    g.lineTo(r(0.063), 9);
+    g.quadraticCurveTo(r(0.04), 2, r(0.016), 6);
+    g.closePath();
+    g.fill();
+    g.restore();
+  }
+  g.beginPath();
+  g.arc(M, M, r(0.022), 0, Math.PI * 2);
+  g.fill();
+  // Ring zwischen Stern und Spur
+  g.strokeStyle = '#9ea2a9';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.arc(M, M, r(0.061), 0, Math.PI * 2);
+  g.stroke();
+  bremsTex = new THREE.CanvasTexture(c);
+  bremsTex.colorSpace = THREE.SRGBColorSpace;
+  return bremsTex;
+}
+
 function rimTexture(style = 'gold') {
   if (rimCache[style]) return rimCache[style];
   const team = style === 'team';
@@ -432,6 +551,8 @@ export class Bike {
       jerseyPlain: fabric({}),
       sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.6 }),
       sleeve: fabric({}),
+      // Socken: weißer Strick mit Rippen und Streifen in Trikotfarbe am Bund
+      sock: fabric({ roughness: 0.85 }),
       thigh: fabric({ roughness: 0.6 }),
     });
     // Vorderer, farbiger Teil beim Team-Design (mit gezacktem Übergang)
@@ -476,6 +597,16 @@ export class Bike {
     this.tubes.top.scale.z = 1.4;
     this.tubes.head.scale.z = 1.3;
     f.add(this.tubes.down, this.tubes.top, this.tubes.head);
+    // weiche Übergänge an den Rohrverbindungen (oben und unten am Steuerrohr, am Sitzrohr oben)
+    this.gelenke = [];
+    for (const [p, r, sz] of [[HT, 0.03, 1.3], [HB, 0.034, 1.5], [ST, 0.024, 1.4]]) {
+      const k = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), m.frame);
+      k.position.copy(p);
+      k.scale.set(1, 1, sz);
+      k.castShadow = true;
+      f.add(k);
+      this.gelenke.push(k);
+    }
     this.tubes.seat = tube(BB, ST, 0.019, m.frame, 0.017);
     this.tubes.seat.scale.z = 1.5; // Aero-Sitzrohr
     f.add(this.tubes.seat);
@@ -664,7 +795,11 @@ export class Bike {
     }
     this.deepRim.visible = false;
     this.frontWheel.add(this.deepRim);
-    this.forkTubes = [-1, 1].map((s) => tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.014, m.frame, 0.018));
+    this.forkTubes = [-1, 1].map((s) => {
+      const t = tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.011, m.frame, 0.018);
+      t.scale.z = 1.7; // Aero-Gabel: von der Seite breit
+      return t;
+    });
     this.forkCrown = tube(V(0, 0.7, -0.05), V(0, 0.72, -0.05), 0.03, m.frame);
     this.steer.add(...this.forkTubes, this.forkCrown);
     // Kassette: 11 Ritzel, außen klein, innen groß
@@ -679,31 +814,98 @@ export class Bike {
     const cas = new THREE.Mesh(mergeGeometries(ritzel), m.alu);
     cas.position.set(0, WHEEL_R, -0.5);
     this.root.add(cas);
-    // Scheibenbremsen: Bremsscheiben drehen sich mit, die Sättel sitzen am Rahmen und an der Gabel
-    const scheibe = new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 1, roughness: 0.3, side: THREE.DoubleSide });
+    // Scheibenbremsen: Bremsscheibe mit Bohrungen und Stern (dreht sich mit), Bremssattel am Rahmen bzw. an der Gabel
+    const scheibe = new THREE.MeshStandardMaterial({ map: bremsscheibeTextur(), alphaTest: 0.5, metalness: 0.85, roughness: 0.32, side: THREE.DoubleSide });
     for (const w of [this.rearWheel, this.frontWheel]) {
-      const d = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.08, 32, 1), scheibe);
+      const d = new THREE.Mesh(new THREE.CircleGeometry(0.081, 48), scheibe);
       d.rotation.y = Math.PI / 2;
-      d.position.x = 0.045;
+      d.position.x = 0.046;
       w.add(d);
-      const stern = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 6), m.black);
-      stern.rotation.z = Math.PI / 2;
-      stern.position.x = 0.045;
-      w.add(stern);
+      const nabe = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.012, 16), m.black);
+      nabe.rotation.z = Math.PI / 2;
+      nabe.position.x = 0.046;
+      w.add(nabe);
     }
+    const RoundBox = (w, h, d, r) => {
+      const g = new THREE.BoxGeometry(w, h, d, 4, 4, 4);
+      const p = g.attributes.position;
+      const v = new THREE.Vector3();
+      const hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        const c = new THREE.Vector3(Math.max(-hw, Math.min(hw, v.x)), Math.max(-hh, Math.min(hh, v.y)), Math.max(-hd, Math.min(hd, v.z)));
+        v.sub(c).normalize().multiplyScalar(r).add(c);
+        p.setXYZ(i, v.x, v.y, v.z);
+      }
+      g.computeVertexNormals();
+      return g;
+    };
+    const sattelMat = new THREE.MeshPhysicalMaterial({ color: '#2a2b30', metalness: 0.6, roughness: 0.35, clearcoat: 0.6 });
     const sattel = () => {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.055), m.black);
-      b.castShadow = true;
-      return b;
+      const g = new THREE.Group();
+      // zwei Hälften links und rechts der Scheibe, oben verbunden
+      for (const sx of [-1, 1]) {
+        const h = new THREE.Mesh(RoundBox(0.014, 0.032, 0.062, 0.006), sattelMat);
+        h.position.x = sx * 0.01;
+        h.castShadow = true;
+        g.add(h);
+      }
+      const bruecke = new THREE.Mesh(RoundBox(0.034, 0.012, 0.05, 0.005), sattelMat);
+      bruecke.position.y = 0.018;
+      g.add(bruecke);
+      // Zierplatte außen in der Farbe der Schaltgruppe
+      const zier = new THREE.Mesh(RoundBox(0.003, 0.02, 0.046, 0.0014), m.groupAccent);
+      zier.position.set(0.0175, -0.001, 0);
+      g.add(zier);
+      // Bremsbeläge im Schlitz (links und rechts der Scheibe)
+      for (const sx of [-1, 1]) {
+        const belag = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.016, 0.036), new THREE.MeshStandardMaterial({ color: '#8a7a5c', roughness: 0.8 }));
+        belag.position.set(sx * 0.0035, -0.004, 0);
+        g.add(belag);
+      }
+      // Entlüftungsnippel oben
+      const nippel = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.003, 0.008, 8), m.alu);
+      nippel.position.set(0.006, 0.027, 0.012);
+      g.add(nippel);
+      // Befestigungsplatte mit zwei Schrauben (zum Rahmen bzw. zur Gabel)
+      const platte = new THREE.Mesh(RoundBox(0.01, 0.012, 0.07, 0.004), sattelMat);
+      platte.position.set(0.004, 0.03, 0);
+      g.add(platte);
+      for (const z of [-0.026, 0.026]) {
+        const kopf = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.005, 10), m.alu);
+        kopf.position.set(0.004, 0.038, z);
+        g.add(kopf);
+      }
+      for (const z of [-0.018, 0.018]) {
+        const schraube = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.006, 8), m.alu);
+        schraube.rotation.z = Math.PI / 2;
+        schraube.position.set(0.019, 0.004, z);
+        g.add(schraube);
+      }
+      return g;
     };
     const hs = sattel();
-    hs.position.set(0.052, WHEEL_R - 0.058, -0.445);
+    hs.position.set(0.046, WHEEL_R - 0.06, -0.445);
     hs.rotation.x = -0.75;
     this.root.add(hs);
     const vs = sattel();
-    vs.position.set(0.052, WHEEL_R - 0.06, -0.008);
+    vs.position.set(0.046, WHEEL_R - 0.062, -0.008);
     vs.rotation.x = 0.8;
     this.steer.add(vs);
+    // Bremsleitungen: vorne an der Gabel hoch zum Lenker, hinten an der Kettenstrebe entlang
+    const leitung = new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.5 });
+    this.steer.add(
+      new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0.058, WHEEL_R - 0.04, -0.02), V(0.06, WHEEL_R + 0.12, 0.0), V(0.055, 0.7, -0.03), V(0.05, 0.84, -0.05), V(0.12, 0.9, 0.02)]), 24, 0.0028, 5),
+        leitung,
+      ),
+    );
+    this.root.add(
+      new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0.05, WHEEL_R - 0.035, -0.43), V(0.04, 0.3, -0.25), V(0.03, 0.28, -0.1), V(0.03, 0.42, 0.05), V(0.03, 0.66, 0.33)]), 30, 0.0025, 5),
+        leitung,
+      ),
+    );
   }
 
   buildDrivetrain(m) {
@@ -805,7 +1007,12 @@ export class Bike {
     // Rennlenker (beim Zeitfahren ausgeblendet)
     const road = (this.roadBars = new THREE.Group());
     s.add(road);
-    road.add(tube(V(-0.21, 0.9, 0.03), V(0.21, 0.9, 0.03), 0.013, m.tape));
+    // Aero-Oberlenker: in der Mitte flach (wie ein Flügel), außen rund mit Lenkerband
+    const flach = tube(V(-0.13, 0.9, 0.03), V(0.13, 0.9, 0.03), 0.013, m.black);
+    flach.scale.set(1, 1, 2.2);
+    flach.rotation.z += 0;
+    road.add(flach);
+    for (const sx of [-1, 1]) road.add(tube(V(sx * 0.13, 0.9, 0.03), V(sx * 0.21, 0.9, 0.03), 0.013, m.tape));
     for (const side of [-1, 1]) {
       const x = side * 0.21;
       const pts = [V(x, 0.9, 0.03), V(x, 0.91, 0.1), V(x, 0.86, 0.13), V(x, 0.79, 0.09), V(x, 0.78, 0.0)];
@@ -813,6 +1020,11 @@ export class Bike {
       const drop = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.013, 8), m.tape);
       drop.castShadow = true;
       road.add(drop);
+      // Lenkerstopfen am Ende
+      const stopfen = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.01, 12), m.black);
+      stopfen.position.set(x, 0.78, -0.004);
+      stopfen.rotation.x = Math.PI / 2;
+      road.add(stopfen);
       // Schalt-/Bremsgriffe: runder Griffkörper mit Hörnchen vorne und Bremshebel nach unten
       const hood = new THREE.Mesh(new THREE.CapsuleGeometry(0.017, 0.055, 4, 10), m.black);
       hood.position.set(x, 0.925, 0.105);
@@ -979,6 +1191,27 @@ export class Bike {
     helmet.add(innen);
     const rand = new THREE.Mesh(helmetRimGeometry(), m.glassFrame);
     helmet.add(rand);
+    // Mittelrippe: erhöhter Grat von vorne nach hinten über die Mitte des Helms
+    {
+      const pts = [];
+      const q = new THREE.Vector3();
+      for (let i = 0; i <= 20; i++) pts.push(helmPunkt(0.1 + i * 0.039, 0, q).clone().add(new THREE.Vector3(0, 0.002, 0)));
+      const rippe = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.0055, 8), m.helmet);
+      rippe.scale.x = 1.8;
+      rippe.castShadow = true;
+      helmet.add(rippe);
+    }
+    // rotes Rücklicht hinten am Helm
+    {
+      const f = helmForm(0.93);
+      const licht = new THREE.Mesh(
+        new THREE.BoxGeometry(0.03, 0.011, 0.008),
+        new THREE.MeshStandardMaterial({ color: '#ff3a2a', emissive: '#ff1a0a', emissiveIntensity: 1.2, roughness: 0.3 }),
+      );
+      licht.position.set(0, f.unten + 0.03, f.z - 0.012);
+      licht.rotation.x = 0.5;
+      helmet.add(licht);
+    }
     // Verstellrad hinten am Hinterkopf (wie bei echten Helmen)
     const rad = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.01, 14), m.glassFrame);
     rad.rotation.x = Math.PI / 2 - 0.4;
@@ -988,24 +1221,77 @@ export class Bike {
     band.rotation.set(Math.PI / 2 + 0.35, 0, Math.PI * 0.05 + Math.PI);
     band.position.set(0, -0.035, -0.08);
     helmet.add(band);
-    // Gebogene Sportbrille, die um den Kopf herumgeht
-    const arc = 2.3;
-    const lens = new THREE.Mesh(new THREE.TorusGeometry(0.104, 0.021, 6, 24, arc), m.glasses);
-    lens.rotation.set(Math.PI / 2, 0, 0);
-    const lensPivot = new THREE.Group();
-    lensPivot.rotation.y = arc / 2 - Math.PI / 2;
-    lensPivot.add(lens);
-    lens.scale.set(1, 1, 0.55);
-    lensPivot.position.set(0, 0.008, 0.004);
-    this.head.add(lensPivot);
-    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.106, 0.006, 4, 24, arc + 0.2), m.glassFrame);
-    frame.rotation.set(Math.PI / 2, 0, 0);
-    const framePivot = new THREE.Group();
-    framePivot.rotation.y = (arc + 0.2) / 2 - Math.PI / 2;
-    framePivot.add(frame);
-    framePivot.position.set(0, 0.03, 0.004);
-    this.head.add(framePivot);
-    this.brille = [lensPivot, framePivot];
+    // Sportbrille: ein gewölbtes Schild-Glas über beiden Augen (mit Aussparung für die Nase),
+    // oben ein schmaler Rahmen, seitlich Bügel bis zu den Ohren
+    const brille = new THREE.Group();
+    const RX = 0.104;
+    const RZ = 0.124;
+    const A = 1.12; // so weit geht das Glas um den Kopf (Winkel)
+    const glasPunkt = (u, v, aussen = 0) => {
+      const a = u * A;
+      const oben = 0.024 - 0.008 * u * u;
+      const nase = 0.016 * Math.exp(-((u / 0.2) ** 2));
+      const unten = -0.03 + 0.014 * u * u + nase;
+      const y = unten + (oben - unten) * v;
+      const bauch = 0.004 * Math.sin(Math.PI * v) + aussen;
+      return new THREE.Vector3(Math.sin(a) * (RX + bauch), y, Math.cos(a) * (RZ + bauch) - 0.004);
+    };
+    {
+      const NU = 40;
+      const NV = 8;
+      const pos = [];
+      const uvs = [];
+      const idx = [];
+      for (let i = 0; i <= NU; i++)
+        for (let k = 0; k <= NV; k++) {
+          const p = glasPunkt(-1 + (2 * i) / NU, k / NV);
+          pos.push(p.x, p.y, p.z);
+          uvs.push(i / NU, k / NV);
+        }
+      for (let i = 0; i < NU; i++)
+        for (let k = 0; k < NV; k++) {
+          const a0 = i * (NV + 1) + k;
+          const b0 = a0 + NV + 1;
+          idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1);
+        }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      // Glas mit Farbverlauf (oben dunkler) und zwei kleinen Lüftungsschlitzen oben in den Ecken
+      m.glasses.map = brillenglasTextur();
+      m.glasses.color.set('#ffffff');
+      m.glasses.side = THREE.DoubleSide;
+      m.glasses.alphaTest = 0.5;
+      const glas = new THREE.Mesh(g, m.glasses);
+      brille.add(glas);
+    }
+    // Rahmen oben am Glas und kleine Nasenpads
+    const rahmenPunkte = [];
+    for (let i = 0; i <= 24; i++) rahmenPunkte.push(glasPunkt(-1.02 + (2.04 * i) / 24, 1, 0.001));
+    brille.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rahmenPunkte), 48, 0.0035, 6), m.glassFrame));
+    for (const sx of [-1, 1]) {
+      const pad = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 4), m.glassFrame);
+      pad.position.copy(glasPunkt(sx * 0.16, 0.25, -0.006));
+      brille.add(pad);
+      // Bügel: vom Glasrand nach hinten zum Ohr
+      const start = glasPunkt(sx * 1.02, 0.85, 0.001);
+      const buegelKurve = new THREE.CatmullRomCurve3([start, new THREE.Vector3(sx * 0.103, 0.012, 0.03), new THREE.Vector3(sx * 0.1, 0.004, -0.02), new THREE.Vector3(sx * 0.092, -0.012, -0.04)]);
+      const buegel = new THREE.Mesh(new THREE.TubeGeometry(buegelKurve, 16, 0.0028, 5), m.glassFrame);
+      buegel.scale.set(1, 1.6, 1);
+      brille.add(buegel);
+      // Gummi-Enden in Trikotfarbe hinter dem Ohr
+      const endKurve = new THREE.CatmullRomCurve3([new THREE.Vector3(sx * 0.1, 0.002, -0.022), new THREE.Vector3(sx * 0.094, -0.01, -0.038), new THREE.Vector3(sx * 0.085, -0.022, -0.046)]);
+      brille.add(new THREE.Mesh(new THREE.TubeGeometry(endKurve, 8, 0.0036, 6), m.jerseyPlain));
+      // Scharnier am Glasrand
+      const scharnier = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.012, 0.01), m.glassFrame);
+      scharnier.position.copy(start);
+      brille.add(scharnier);
+    }
+    brille.position.set(0, 0.004, 0);
+    this.head.add(brille);
+    this.brille = [brille];
     // Nase und Ohren
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.035, 6), m.skin);
     nose.rotation.x = Math.PI / 2;
@@ -1077,7 +1363,7 @@ export class Bike {
       thigh: shapedLimb(0.44, (t) => 0.086 - 0.026 * t + 0.007 * Math.sin(Math.PI * t), m.thigh),
       shin: shapedLimb(0.43, (t) => 0.044 + 0.02 * Math.exp(-(((t - 0.3) / 0.17) ** 2)) - 0.008 * t, m.skin),
       knee: new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 8), m.skin),
-      sock: limb(0.18, 0.058, m.shoe),
+      sock: sockeMesh(m.sock),
       shoe: buildShoe(this.shoeMats),
     }));
     for (const a of this.arms) {
@@ -1101,6 +1387,12 @@ export class Bike {
     m.sleeve.map = this.kitTex.sleeve.tex;
     m.thigh.map = this.kitTex.thigh.tex;
     m.helmet.map = this.kitTex.helmet.tex;
+    this.sockCanvas = document.createElement('canvas');
+    this.sockCanvas.width = 128;
+    this.sockCanvas.height = 128;
+    this.sockTex = new THREE.CanvasTexture(this.sockCanvas);
+    this.sockTex.colorSpace = THREE.SRGBColorSpace;
+    m.sock.map = this.sockTex;
     this.kitCol = { jersey: CONFIG.colors.jersey, shorts: '#16161b', helmet: '#f6f6f6' };
     this.kit = 'plain';
     this.updateKit();
@@ -1112,7 +1404,9 @@ export class Bike {
     this.mats.jerseyPlain.color.set(c.jersey);
     drawSleeve(this.kitTex.sleeve, c.jersey, this.kit);
     drawThigh(this.kitTex.thigh, c.shorts, '#' + this.mats.skin.color.getHexString(), this.kit);
-    drawHelmet(this.kitTex.helmet, c.helmet);
+    drawHelmet(this.kitTex.helmet, c.helmet, c.jersey);
+    drawSocke(this.sockCanvas, c.jersey);
+    this.sockTex.needsUpdate = true;
     // Goldener Helm glänzt wie echtes Gold
     const gold = c.helmet.toLowerCase() === '#d4af37';
     this.mats.helmet.metalness = gold ? 0.85 : 0;
@@ -1378,6 +1672,7 @@ export class Bike {
     this.tubes.down.material = team ? t.down : m.frame;
     this.tubes.top.material = team ? t.top : m.frame;
     this.tubes.head.material = team ? t.solid : m.frame;
+    this.gelenke[0].material = this.gelenke[1].material = team ? t.solid : m.frame;
     for (const f of this.forkTubes) f.material = team ? t.fork : rainbow ? this.rainbowMats.fork : m.frame;
     this.forkCrown.material = team ? t.solid : m.frame;
     const dark = team || rainbow;

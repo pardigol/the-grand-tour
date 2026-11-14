@@ -143,7 +143,7 @@ export const HELM_SCHLITZE = [
   [0.58, 0.8, 0.88, 0.04],
 ];
 
-export function drawHelmet(k, base) {
+export function drawHelmet(k, base, akzent = null) {
   const ctx = k.canvas.getContext('2d');
   const W = k.canvas.width;
   const H = k.canvas.height;
@@ -152,6 +152,15 @@ export function drawHelmet(k, base) {
   // dunkler Streifen in der Mitte (Akzent), leicht abgesetzt
   ctx.fillStyle = shade(base, 0.82);
   ctx.fillRect(W * 0.08, H * 0.47, W * 0.86, H * 0.06);
+  // zwei Zierstreifen in Trikotfarbe links und rechts der Mitte
+  if (akzent) {
+    ctx.fillStyle = akzent;
+    for (const y of [0.33, 0.67]) ctx.fillRect(W * 0.1, (y - 0.012) * H, W * 0.82, H * 0.024);
+  }
+  // unten rundherum ein dunkler Rand (wie die Kunststoffkante echter Helme)
+  ctx.fillStyle = '#1c1d22';
+  ctx.fillRect(0, 0, W, H * 0.07);
+  ctx.fillRect(0, H * 0.93, W, H * 0.07);
   // Lüftungsschlitze: lang, abgerundet, längs von vorne nach hinten
   const schlitz = (x0, x1, y, dicke) => {
     ctx.beginPath();
