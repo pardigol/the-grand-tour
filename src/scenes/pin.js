@@ -16,6 +16,8 @@ export function createPinScene(app) {
   let first = true;
   let fertig = 0; // > 0: Spielstand geöffnet, kurz anzeigen, dann weiter
   let next = 'mode';
+  let nachParams = {};
+  let zurueck = false; // von der Game-Karte gekommen: B bei leerer PIN = zurück
   let onKey = null;
 
   const $ = (s) => root.querySelector(s);
@@ -67,6 +69,8 @@ export function createPinScene(app) {
       fertig = 0;
       first = true;
       next = params.next || (savedControl() ? 'mode' : 'control');
+      nachParams = params.nachParams || {};
+      zurueck = !!params.zurueck;
       root = el(`
         <div class="screen pin-screen">
           <div class="pin-box">
@@ -105,7 +109,7 @@ export function createPinScene(app) {
       app.fx.uFade.value = damp(app.fx.uFade.value, 0, 5, dt);
       if (fertig) {
         fertig -= dt;
-        if (fertig <= 0) app.go(next, { fromTransition: true });
+        if (fertig <= 0) app.go(next, { fromTransition: true, ...nachParams });
         return;
       }
       const inp = app.input;
@@ -118,7 +122,14 @@ export function createPinScene(app) {
         // mit dem Controller: markierte Taste; mit der Tastatur: Enter = OK
         if (app.control === 'pad') taste(TASTEN[index]);
         else bestaetigen();
-      } else if (inp.pressed('back')) taste('⌫');
+      } else if (inp.pressed('back')) {
+        if (zurueck && !pin.length) {
+          app.audio.back();
+          app.go(next, nachParams);
+          return;
+        }
+        taste('⌫');
+      }
       else if (inp.pressed('start')) bestaetigen();
       else return;
       zeichnen();

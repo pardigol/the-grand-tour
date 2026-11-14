@@ -1,8 +1,8 @@
 // Auswahl vor dem Hauptmenü: Rennrad oder Cycle Cross (CX)
 import { CONFIG } from '../config.js';
-import { el, esc, hintBar, rideNpc, showcaseCamera } from './common.js';
+import { btn, el, esc, hintBar, rideNpc, showcaseCamera } from './common.js';
 import { damp } from '../noise.js';
-import { stand } from '../spielstand.js';
+import { stand, aktuellePin } from '../spielstand.js';
 
 export const MODES = [
   { id: 'road', name: 'Rennrad' },
@@ -14,6 +14,19 @@ export const modeName = (id) => (MODES.find((m) => m.id === id) || MODES[0]).nam
 // Zeitfahren fährt auf der Landstraße, Cycle Cross im Wald
 export const worldOf = (mode) => (mode === 'cx' ? 'cx' : mode === 'tt' ? 'tt' : 'road');
 
+const HINTS = [
+  ['A', 'Auswählen'],
+  ['Y', 'Steuerung ändern'],
+  ['X', 'Flaschenjagd'],
+  ['B', 'Zurück'],
+];
+const HINTS_GAME = [
+  ['X', 'Weiterspielen'],
+  ['A', 'Spielstand wählen'],
+  ['Y', 'Steuerung ändern'],
+  ['B', 'Zurück'],
+];
+
 export function createModeScene(app) {
   let root;
   let index = 0;
@@ -24,6 +37,14 @@ export function createModeScene(app) {
     root.querySelectorAll('.mode-card').forEach((c, i) => c.classList.toggle('selected', i === index));
     // Das Rad im Hintergrund zeigt gleich die passenden Reifen
     if (MODES[index]) app.bike.setTires(MODES[index].id);
+    // Hinweise unten: auf der Game-Karte heißt A „Spielstand wählen“ und X „Weiterspielen“
+    const aufGame = index === MODES.length;
+    const hints = root.querySelector('.hints');
+    if (hints && hints.dataset.game !== String(aufGame)) {
+      const neu = el(hintBar(aufGame ? HINTS_GAME : HINTS));
+      neu.dataset.game = String(aufGame);
+      hints.replaceWith(neu);
+    }
     if (!silent) {
       app.audio.nav();
       app.input.rumble(0.15, 30);
@@ -48,19 +69,27 @@ export function createModeScene(app) {
     app.go('story', { rennen: n });
   }
 
+  // X auf der Game-Karte: da weitermachen, wo man aufgehört hat (das zuletzt erreichte Rennen)
+  function weiterspielen() {
+    if (busy) return;
+    app.audio.select();
+    app.input.rumble(0.35, 80);
+    const n = Math.min(2, stand().rennen || 1);
+    if (n >= 2) starteRennen(2);
+    else app.go('story');
+  }
+  // A auf der Game-Karte: anderen Spielstand wählen (PIN eingeben), danach zurück zur Game-Karte
+  function spielstandWaehlen() {
+    if (busy) return;
+    app.audio.select();
+    app.go('pin', { next: 'mode', nachParams: { minigame: true }, zurueck: true });
+  }
+
   async function choose() {
     if (busy) return;
-    // letzte Karte: das Game (großes Rennen mit Geschichte)
+    // letzte Karte: das Game (großes Rennen mit Geschichte) → A = Spielstand wählen
     if (index === MODES.length) {
-      app.audio.select();
-      // Rennen 2 schon erreicht? Dann wählen, welches Rennen
-      if (stand().rennen >= 2) {
-        wahl = wahl == null ? stand().rennen - 1 : wahl;
-        root.querySelector('.rennen-wahl').classList.add('show');
-        zeigeWahl();
-        return;
-      }
-      app.go('story');
+      spielstandWaehlen();
       return;
     }
     app.mode = MODES[index].id;
@@ -102,15 +131,14 @@ export function createModeScene(app) {
             ).join('')}
               <div class="mode-card mode-card-game" data-i="${MODES.length}">
                 <div class="mode-name">🎮 Game</div>
-                <div class="control-sub">Das große Rennen</div>
+                <div class="control-sub">${aktuellePin() ? `Spielstand ${esc(aktuellePin())} · Rennen ${Math.min(2, stand().rennen || 1)}` : 'Das große Rennen'}</div>
+                <div class="game-knoepfe">
+                  <button class="game-knopf game-weiter">${btn('X')}Weiterspielen</button>
+                  <button class="game-knopf game-stand">${btn('A')}Spielstand wählen</button>
+                </div>
               </div>
           </div>
-          ${hintBar([
-            ['A', 'Auswählen'],
-            ['Y', 'Steuerung ändern'],
-            ['X', 'Flaschenjagd'],
-            ['B', 'Zurück'],
-          ])}
+          ${hintBar(HINTS)}
           <div class="mode-building">Der Wald wird gebaut …</div>
           <div class="rennen-wahl">
             <div class="rennen-titel">Welches Rennen?</div>
@@ -128,6 +156,14 @@ export function createModeScene(app) {
           choose();
         }),
       );
+      root.querySelector('.game-weiter').addEventListener('click', (e) => {
+        e.stopPropagation();
+        weiterspielen();
+      });
+      root.querySelector('.game-stand').addEventListener('click', (e) => {
+        e.stopPropagation();
+        spielstandWaehlen();
+      });
       root.querySelectorAll('.rennen-karte').forEach((k) =>
         k.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -175,6 +211,10 @@ export function createModeScene(app) {
         highlight();
       } else if (inp.pressed('confirm')) choose();
       else if (inp.pressed('x')) {
+        if (index === MODES.length) {
+          weiterspielen();
+          return;
+        }
         app.audio.select();
         app.go('minigame');
       } else if (inp.pressed('y')) {
