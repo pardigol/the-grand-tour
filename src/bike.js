@@ -164,6 +164,50 @@ function placeLimb(obj, a, b) {
   obj.quaternion.setFromUnitVectors(UP, _d.copy(b).sub(a).normalize());
 }
 
+// Wie placeLimb, aber dreht das Glied so, dass seine Vorderseite (+z) nach vorne zeigt (für Wade/Oberschenkel)
+const _bx = new THREE.Vector3();
+const _by = new THREE.Vector3();
+const _bz = new THREE.Vector3();
+const _bm = new THREE.Matrix4();
+const VORNE = new THREE.Vector3(0, 0, 1);
+const VORNE_OBEN = new THREE.Vector3(0, 0.6, 1).normalize(); // für den Oberschenkel (beim Fahren zeigt die Vorderseite nach oben)
+function placeLimbFwd(obj, a, b, ref = VORNE) {
+  obj.position.copy(a).add(b).multiplyScalar(0.5);
+  _by.copy(b).sub(a).normalize();
+  _bz.copy(ref).addScaledVector(_by, -ref.dot(_by));
+  if (_bz.lengthSq() < 1e-6) _bz.set(0, 1, 0);
+  _bz.normalize();
+  _bx.crossVectors(_by, _bz);
+  obj.quaternion.setFromRotationMatrix(_bm.makeBasis(_bx, _by, _bz));
+}
+
+// Bein-Formen: Wade hinten gewölbt, Schienbein vorne flacher; Oberschenkel vorne kräftiger, unten Hosenbund
+function beinForm(mesh, len, art) {
+  const p = mesh.geometry.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const t = (p.getY(i) + len / 2) / len; // 0 = oben (Hüfte/Knie), 1 = unten
+    let x = p.getX(i);
+    let z = p.getZ(i);
+    if (art === 'wade') {
+      // Placement: +y zeigt vom Knie zum Knöchel; -z = hinten
+      if (z < 0) z *= 1 + 0.42 * Math.exp(-(((t - 0.3) / 0.17) ** 2));
+      else z *= 0.9;
+      x *= 1 - 0.06 * Math.exp(-(((t - 0.3) / 0.2) ** 2));
+    } else {
+      if (z > 0) z *= 1 + 0.14 * Math.exp(-(((t - 0.45) / 0.25) ** 2));
+      else z *= 1 + 0.06 * Math.exp(-(((t - 0.4) / 0.25) ** 2));
+      // kleiner Wulst am Hosenbund (Silikonband)
+      const bund = Math.exp(-(((t - 0.715) / 0.018) ** 2)) * 0.05;
+      x *= 1 + bund;
+      z *= 1 + bund;
+    }
+    p.setX(i, x);
+    p.setZ(i, z);
+  }
+  mesh.geometry.computeVertexNormals();
+  return mesh;
+}
+
 // Zwei-Knochen-IK: liefert das Gelenk (Knie/Ellbogen) zwischen a und c
 function ik(a, c, l1, l2, pole, out) {
   _d.copy(c).sub(a);
@@ -225,13 +269,13 @@ function gloveGeometry(side) {
 }
 
 // Körperteil mit Muskelform: radius(t) für t = 0 (Anfang) bis 1 (Ende), entlang der Länge len
-function shapedLimb(len, radius, mat, steps = 10) {
+function shapedLimb(len, radius, mat, steps = 10, um = 14) {
   const pts = [];
   for (let k = 0; k <= steps; k++) {
     const t = k / steps;
     pts.push(new THREE.Vector2(radius(t), -len / 2 + t * len));
   }
-  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 14), mat);
+  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, um), mat);
   m.castShadow = true;
   return m;
 }
@@ -1465,9 +1509,9 @@ export class Bike {
     this.legs = [-1, 1].map((s) => ({
       s,
       // Oberschenkel oben kräftig, zum Knie schmaler; Wade mit Muskel
-      thigh: shapedLimb(0.44, (t) => 0.086 - 0.026 * t + 0.007 * Math.sin(Math.PI * t), m.thigh),
-      shin: shapedLimb(0.43, (t) => 0.044 + 0.02 * Math.exp(-(((t - 0.3) / 0.17) ** 2)) - 0.008 * t, m.skin),
-      knee: new THREE.Mesh(new THREE.SphereGeometry(0.058, 12, 8), m.skin),
+      thigh: beinForm(shapedLimb(0.44, (t) => 0.086 - 0.026 * t + 0.007 * Math.sin(Math.PI * t), m.thigh, 18), 0.44, 'oberschenkel'),
+      shin: beinForm(shapedLimb(0.43, (t) => 0.043 + 0.012 * Math.exp(-(((t - 0.3) / 0.2) ** 2)) - 0.012 * t, m.skin, 16), 0.43, 'wade'),
+      knee: new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), m.skin),
       sock: sockeMesh(m.sock),
       shoe: buildShoe(this.shoeMats),
     }));
@@ -1952,9 +1996,9 @@ export class Bike {
       const l = b.l;
       l.shoe.position.copy(b.shoe);
       l.shoe.rotation.set(b.tilt, 0, 0);
-      placeLimb(l.thigh, b.hip, b.knee);
+      placeLimbFwd(l.thigh, b.hip, b.knee, VORNE_OBEN);
       l.knee.position.copy(b.knee);
-      placeLimb(l.shin, b.knee, b.ankle);
+      placeLimbFwd(l.shin, b.knee, b.ankle);
       const d = b.ankle.clone().sub(b.knee).normalize();
       placeLimb(l.sock, b.ankle.clone().addScaledVector(d, -0.16), b.ankle.clone().addScaledVector(d, 0.02));
     }
@@ -2022,11 +2066,11 @@ export class Bike {
       const ankle = _b.copy(foot).add(_k.set(0, 0.095, -0.12));
       const hipC = hip.clone().add(_k.set(s * 0.09, 0, 0));
       const knee = ik(hipC, ankle, 0.44, 0.43, _k.set(s * 0.05, 0, 1), new THREE.Vector3());
-      placeLimb(l.thigh, hipC, knee);
+      placeLimbFwd(l.thigh, hipC, knee, VORNE_OBEN);
       l.knee.position.copy(knee);
       const dir = ankle.clone().sub(knee).normalize();
       const ankleR = knee.clone().addScaledVector(dir, 0.43);
-      placeLimb(l.shin, knee, ankleR);
+      placeLimbFwd(l.shin, knee, ankleR);
       placeLimb(l.sock, ankleR.clone().addScaledVector(dir, -0.16), ankleR.clone().addScaledVector(dir, 0.02));
     }
     for (const a of this.arms) {
@@ -2116,12 +2160,12 @@ export class Bike {
       const hip = _p.copy(this.hip).add(_k.set(s * 0.09, 0, 0));
       const hipC = hip.clone();
       const knee = ik(hipC, ankle, 0.44, 0.43, _k.set(s * 0.12, 0.1, 1), new THREE.Vector3());
-      placeLimb(l.thigh, hipC, knee);
+      placeLimbFwd(l.thigh, hipC, knee, VORNE_OBEN);
       l.knee.position.copy(knee);
       // Schienbein mit fester Länge Richtung Knöchel
       const dir = ankle.clone().sub(knee).normalize();
       const ankleR = knee.clone().addScaledVector(dir, 0.43);
-      placeLimb(l.shin, knee, ankleR);
+      placeLimbFwd(l.shin, knee, ankleR);
       // Socken bis zur Wadenmitte
       placeLimb(l.sock, ankleR.clone().addScaledVector(dir, -0.16), ankleR.clone().addScaledVector(dir, 0.02));
     }
