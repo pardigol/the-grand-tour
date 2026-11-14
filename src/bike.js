@@ -945,6 +945,16 @@ export class Bike {
     helmet.position.set(0, 0.006, -0.004);
     helmet.castShadow = true;
     this.head.add(helmet);
+    this.helmMesh = helmet;
+    // Volle Haare (nur sichtbar ohne Helm, z. B. beim Joggen im Park)
+    const haarGeo = new THREE.SphereGeometry(0.1, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
+    haarGeo.scale(0.98, 1.1, 1.1);
+    this.haarVoll = new THREE.Mesh(haarGeo, m.hair);
+    this.haarVoll.position.set(0, 0.01, -0.006);
+    this.haarVoll.rotation.x = -0.32;
+    this.haarVoll.visible = false;
+    this.head.add(this.haarVoll);
+    this.riemen = [];
     const innen = new THREE.Mesh(helmGeo, (m.helmInnen ||= new THREE.MeshStandardMaterial({ color: '#1b1b1f', roughness: 0.9, side: THREE.BackSide })));
     innen.scale.setScalar(0.985);
     helmet.add(innen);
@@ -984,6 +994,7 @@ export class Bike {
         m.glassFrame,
       );
       this.head.add(strap);
+      this.riemen.push(strap);
     }
     // Zeitfahrhelm: lange Spitze nach hinten (nur beim Zeitfahren sichtbar)
     const tail = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), m.helmet);
@@ -1221,6 +1232,72 @@ export class Bike {
   // Reifenfarbe (nur beim Zeitfahrrad einstellbar, sonst schwarz)
   applyTireColor() {
     this.mats.tire.color.set(this.aero && this.tireColor ? this.tireColor : '#1c1c1c');
+  }
+
+  // ohne Helm (Park): Helm und Kinnriemen weg, dafür volle Haare
+  setOhneHelm(an) {
+    this.helmMesh.visible = !an;
+    for (const r of this.riemen) r.visible = !an;
+    this.haarVoll.visible = an;
+  }
+
+  // Anderes Outfit (z. B. Winter-Laufsachen im Park): { jacke, hose, muetze, handschuhe } oder null = wieder Radtrikot
+  setOutfit(o) {
+    const teile = [];
+    const torso = this.torso.children.find((c) => c.isMesh && c !== this.backPlate);
+    teile.push([torso, 'jacke'], [this.kragen, 'jacke'], [this.pelvis, 'hose']);
+    for (const a of this.arms) teile.push([a.upper, 'jacke'], [a.lower, 'jacke'], [a.elbow, 'jacke'], [a.cap, 'jacke'], [a.hand, 'handschuhe']);
+    for (const l of this.legs) teile.push([l.thigh, 'hose'], [l.shin, 'hose'], [l.knee, 'hose']);
+    if (o && !this._outfitAlt) {
+      this._outfitAlt = new Map(teile.map(([m]) => [m, m.material]));
+      const stoff = (farbe, rau = 0.8) => new THREE.MeshPhysicalMaterial({ color: farbe, roughness: rau, sheen: 0.4, sheenColor: new THREE.Color('#ffffff') });
+      const mats = { jacke: stoff(o.jacke), hose: stoff(o.hose, 0.7), handschuhe: stoff(o.handschuhe || o.hose) };
+      for (const [m, k] of teile) m.material = mats[k];
+      this.backPlate.visible = false;
+      // Mütze mit Bommel
+      if (!this.muetze) {
+        const g = new THREE.Group();
+        const kappe = new THREE.Mesh(new THREE.SphereGeometry(0.106, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), stoff('#fff'));
+        kappe.scale.set(0.98, 1.12, 1.1);
+        const rand = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.018, 8, 26), stoff('#fff'));
+        rand.rotation.x = Math.PI / 2;
+        rand.position.y = 0.01;
+        rand.scale.set(1.0, 1.1, 1);
+        const bommel = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), stoff('#fff', 1));
+        bommel.position.y = 0.125;
+        g.add(kappe, rand, bommel);
+        g.position.set(0, 0.012, -0.006);
+        g.rotation.x = -0.18;
+        g.traverse((x) => x.isMesh && (x.castShadow = true));
+        this.head.add(g);
+        this.muetze = g;
+      }
+      const [kappe, rand, bommel] = this.muetze.children;
+      kappe.material.color.set(o.muetze || o.jacke);
+      rand.material.color.set(o.muetzeRand || o.muetze || o.jacke);
+      bommel.material.color.set(o.bommel || '#ffffff');
+      this.muetze.visible = true;
+    } else if (!o && this._outfitAlt) {
+      for (const [m, mat] of this._outfitAlt) m.material = mat;
+      this._outfitAlt = null;
+      this.backPlate.visible = true;
+      if (this.muetze) this.muetze.visible = false;
+    }
+  }
+
+  // nur die Figur zeigen, das Rad ausblenden (zu Fuß unterwegs)
+  setOhneRad(an) {
+    if (an && !this._radSicht) {
+      this._radSicht = new Map();
+      for (const c of this.root.children) {
+        if (c === this.rider) continue;
+        this._radSicht.set(c, c.visible);
+        c.visible = false;
+      }
+    } else if (!an && this._radSicht) {
+      for (const [c, v] of this._radSicht) c.visible = v;
+      this._radSicht = null;
+    }
   }
 
   setGroupset(id) {

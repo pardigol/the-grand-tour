@@ -8,6 +8,7 @@ import { clamp, damp } from '../noise.js';
 import { Bike } from '../bike.js';
 import { buildCity, PENTHOUSE } from '../city.js';
 import { loadGang, Gang } from '../gang.js';
+import { WHEEL_R } from '../bike.js';
 
 // ✏️ Was Jonas sagt und was du dir danach denkst
 const JONAS_SAGT = 'Wenn du so weitermachst, müssen wir dich wohl ins Team einkaufen. Mal schauen, was das nächste Rennen bringt!';
@@ -23,6 +24,9 @@ const TEMPO = 1.6; // m/s zügig gehen
 const ABSTAND = 2.7; // so nah kommt ihr euch beim Reden
 
 const TIPP_ZEIT = 0.028; // Sekunden pro Buchstabe
+// ✏️ Am Tag nach dem Park: mit dem Rad zu Jonas (Parker Street 7 = sein Hochhaus)
+const FAHRT_START = { x: -170, z: 3.2 };
+const ANGEKOMMEN = 'Parker Street 7 … hier wohnt Jonas. Mal sehen, was Team Blitz zu sagen hat!';
 
 export function createCityScene(app) {
   let root = null;
@@ -86,6 +90,12 @@ export function createCityScene(app) {
     if (text) t.innerHTML = text;
     t.classList.toggle('show', !!text);
   }
+  const fahrText = () =>
+    app.control === 'touch'
+      ? 'Nach oben wischen = treten, links/rechts halten = lenken'
+      : app.control === 'keys'
+        ? '<b>W</b> treten · <b>A</b> <b>D</b> lenken'
+        : `${btn('A')} halten = treten · ${btn('LT')}${btn('RT')} lenken`;
   const gehText = () =>
     app.control === 'touch'
       ? 'Nach oben wischen = gehen, links/rechts halten = lenken'
@@ -94,10 +104,10 @@ export function createCityScene(app) {
         : `${btn('A')} halten = gehen · ${btn('LT')}${btn('RT')} lenken`;
 
   // ---------- Figuren (beide gehen und schieben ihr Rad) ----------
-  function stell(bike, x, z, heading, speed, dt) {
+  function stell(bike, x, z, heading, speed, dt, kurbel = 0) {
     bike.root.position.set(x, city.hoehe(x, z), z);
     bike.root.rotation.set(0, heading, 0);
-    bike.update(dt, speed, 0, 0);
+    bike.update(dt, speed, kurbel, 0);
   }
   // Ich: Position, Richtung, Tempo
   function ichStellen(dt) {
@@ -160,6 +170,26 @@ export function createCityScene(app) {
     app.bike.head.rotation.set(0.05, 0, 0);
     city.penthouseLicht.intensity = 0;
     st.weiter = false;
+    st.gesagt = false;
+    if (st.zuJonas) {
+      // mit dem Rad auf der Straße, Jonas ist schon oben
+      jonas.root.visible = false;
+      app.bike.walk = false;
+      app.bike.schieben = false;
+      app.bike.ohneBrille = false;
+      Object.assign(st, { x: FAHRT_START.x, z: FAHRT_START.z, h: Math.PI / 2, v: 0, jx: 999, jz: 0, jh: 0, jv: 0, text: null });
+      ichStellen(0);
+      folgeKamera();
+      cam.pos.copy(cam.zielPos);
+      cam.look.copy(cam.zielLook);
+      kamera(0);
+      $('.stadt-laden').classList.remove('show');
+      $('.stadt-ort').textContent = 'Am nächsten Tag · in der Stadt';
+      $('.stadt-ort').classList.add('show');
+      app.fx.uFade.value = 1;
+      phase('fahren');
+      return;
+    }
     Object.assign(st, { x: START.x, z: START.z, h: Math.PI / 2, v: 0, jx: JONAS_START.x, jz: JONAS_START.z, jh: -Math.PI / 2, jv: 0, text: null });
     ichStellen(0);
     jonasStellen(0);
@@ -176,6 +206,7 @@ export function createCityScene(app) {
   return {
     enter(params = {}) {
       char = params.character || char || { name: 'Du', number: 1, jersey: '#d23c3c' };
+      st.zuJonas = params.ziel === 'jonas';
       app.mode = 'road';
       app.bike.applyLook(char);
       app.bike.setPlate(char.number, char.name);
@@ -217,9 +248,14 @@ export function createCityScene(app) {
       dt = Math.min(dt, 0.05);
       const inp = app.input;
       st.t += dt;
-      inp.touchRide = st.phase === 'laufen';
+      inp.touchRide = st.phase === 'laufen' || st.phase === 'fahren';
       const ok = inp.pressed('confirm') || inp.pressed('x');
-      if ((inp.pressed('back') || inp.pressed('start')) && st.phase !== 'ende') {
+      if (st.zuJonas && (inp.pressed('back') || inp.pressed('start')) && st.phase !== 'fahrtEnde') {
+        dialogZu();
+        tipp('');
+        phase('fahrtEnde');
+      }
+      if ((inp.pressed('back') || inp.pressed('start')) && st.phase !== 'ende' && !st.zuJonas) {
         dialogZu();
         tipp('');
         phase('ende');
@@ -232,6 +268,61 @@ export function createCityScene(app) {
       const hoch = st.phase === 'penthouse' || st.phase === 'gedanke';
       app.bike.head.rotation.x = damp(app.bike.head.rotation.x, hoch ? -0.35 : 0.05, 2, dt);
       app.bike.head.rotation.y = damp(app.bike.head.rotation.y, reden ? -0.12 : hoch ? 0.5 : 0, 3, dt);
+
+      // ---------- Am nächsten Tag: mit dem Rad zu Jonas ----------
+      if (st.phase === 'fahren' || st.phase === 'angekommen' || st.phase === 'fahrtEnde') {
+        app.fx.uFade.value = damp(app.fx.uFade.value, st.phase === 'fahrtEnde' ? 1.05 : 0, 2, dt);
+        if (st.t > 2.8 && st.phase === 'fahren') $('.stadt-ort').classList.remove('show');
+        const zielX = TUER.x - 1.5;
+        if (st.phase === 'fahren') {
+          if (st.t > 1.2) tipp(st.x < zielX - 25 ? `${fahrText()}<br><small>Zu Jonas: Parker Street 7 – das hohe Haus rechts an der Hauptstraße</small>` : '');
+          st.v = damp(st.v, 9 * inp.throttle, 1.5, dt);
+          if (st.v > 0.5) st.h -= inp.steer * 1.2 * dt;
+          st.h = clamp(st.h, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5);
+          // ohne Lenken bleibt das Rad auf seiner Spur
+          if (Math.abs(inp.steer) < 0.1) st.h = drehe(st.h, Math.PI / 2, 1.5, dt);
+          st.x += Math.sin(st.h) * st.v * dt;
+          st.z += Math.cos(st.h) * st.v * dt;
+          st.z = clamp(st.z, -5.6, 5.6);
+          if (st.x > zielX - 12) {
+            tipp('');
+            phase('angekommen');
+          }
+        } else if (st.phase === 'angekommen') {
+          // an den Bordstein vor Jonas' Haus rollen und anhalten
+          const rest = zielX - st.x;
+          st.v = damp(st.v, Math.max(0, Math.min(st.v, rest * 0.8)), 3, dt);
+          st.h = drehe(st.h, Math.PI / 2 + (st.z > -4.6 ? 0.25 : 0), 2, dt);
+          st.x += Math.sin(st.h) * st.v * dt;
+          st.z = clamp(st.z + Math.cos(st.h) * st.v * dt, -5.4, 5.6);
+          if (rest < 0.3 && !st.text && !st.gesagt) {
+            st.gesagt = true;
+            sag(char.name || 'Du', ANGEKOMMEN, true);
+          }
+          if (st.gesagt && ok && weiterGedrueckt()) {
+            dialogZu();
+            app.audio.success();
+            phase('fahrtEnde');
+          }
+        } else if (st.phase === 'fahrtEnde' && app.fx.uFade.value > 0.98 && !st.weiter) {
+          st.weiter = true;
+          const l = $('.stadt-laden');
+          l.textContent = 'Fortsetzung folgt …';
+          l.classList.add('show');
+          setTimeout(() => root && app.go('mode', { minigame: true }), 2500);
+        }
+        stell(app.bike, st.x, st.z, st.h, st.v, dt, st.v / WHEEL_R / 3.6);
+        if (st.phase === 'angekommen' && st.gesagt) {
+          // Blick am Haus hoch zum Penthouse
+          cam.zielPos.set(st.x - 3, 1.8, st.z + 6);
+          cam.zielLook.set(TUER.x, 6, TUER.z);
+          kamera(dt, 1.2);
+        } else {
+          folgeKamera();
+          kamera(dt, 3);
+        }
+        return;
+      }
 
       // ---------- du gehst selbst ----------
       if (st.phase === 'laufen') {

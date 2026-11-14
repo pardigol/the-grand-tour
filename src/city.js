@@ -153,6 +153,42 @@ export async function buildCity(roadWorld) {
     for (let i = 0; i < ZS.length - 1; i++)
       for (const seite of [-1, 1]) reiheZ(xs, seite, ZS[i] + TIEFE, ZS[i + 1] - TIEFE);
 
+  // ---------- Hausnummer: Parker Street 7 (Jonas' Hochhaus) ----------
+  {
+    const cv = document.createElement('canvas');
+    cv.width = 512;
+    cv.height = 160;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#1d4f8f';
+    c.fillRect(0, 0, 512, 160);
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 8;
+    c.strokeRect(10, 10, 492, 140);
+    c.fillStyle = '#ffffff';
+    c.font = '700 64px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('Parker Street 7', 256, 84);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const schild = new THREE.Group();
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 10), new THREE.MeshStandardMaterial({ color: '#4a4f57', metalness: 0.7, roughness: 0.4 }));
+    mast.position.y = 1.3;
+    const tafel = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.47, 0.03), [
+      new THREE.MeshStandardMaterial({ color: '#1d4f8f' }),
+      new THREE.MeshStandardMaterial({ color: '#1d4f8f' }),
+      new THREE.MeshStandardMaterial({ color: '#1d4f8f' }),
+      new THREE.MeshStandardMaterial({ color: '#1d4f8f' }),
+      new THREE.MeshStandardMaterial({ map: t }),
+      new THREE.MeshStandardMaterial({ map: t }),
+    ]);
+    tafel.position.y = 2.45;
+    schild.add(mast, tafel);
+    schild.traverse((o) => o.isMesh && (o.castShadow = true));
+    schild.position.set(PENTHOUSE.x + 4.2, 0.15, -7.4);
+    scene.add(schild);
+  }
+
   // ---------- Kleinkram am Gehweg (keine Poller mehr) ----------
   for (const x of [-30, -44, 34, 52, -110, 120]) setze('Prop_Planter_Single', x, x > 0 ? 7.2 : -7.2);
   setze('Prop_ManholeCover', -6, 2.5);

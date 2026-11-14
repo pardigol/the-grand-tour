@@ -811,7 +811,8 @@ export function createStoryScene(app) {
         } else if (inp.pressed('confirm')) {
           app.audio.select();
           // Weiter: nach dem Rennen in der Stadt – Jonas spricht dich an
-          if (resultIndex === 0) app.go(rennenNr === 1 ? 'stadt' : 'mode', rennenNr === 1 ? { character: char } : { minigame: true });
+          // Weiter: nach Rennen 1 in die Stadt, nach Rennen 2 in den Park
+          if (resultIndex === 0) app.go(rennenNr === 1 ? 'stadt' : 'park', { character: char });
           else if (resultIndex === 1) app.go('story', { character: char, rennen: rennenNr });
           else app.go('mode', { minigame: true });
           return;
