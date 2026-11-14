@@ -170,6 +170,7 @@ export class World {
       this.scene.add(this.village);
     }
     if (this.schnee && this.schlossModelle) this.placeCastle();
+    if (!this.cx && !this.tt) this.buildFelswand();
     this.buildFinishZone();
     this.buildClouds();
     this.buildMotes();
@@ -1830,6 +1831,130 @@ export class World {
       break;
     }
     this.scene.add(g);
+  }
+
+  // ---------- Felswand ----------
+  // Auf einer Seite der Strecke steigt ein steiler Berghang aus Fels auf (Rock035 von ambientCG, CC0).
+  // Liegt im ersten Teil des Rennens, dort wo sich das Feld langzieht.
+  buildFelswand() {
+    const L = this.length;
+    const sStart = L - 2.4 - 1800; // Start des Rennens (siehe story.js)
+    // ✏️ wo die Wand steht (Meter nach dem Start) und wie hoch sie wird
+    const von = sStart + (this.schnee ? 120 : 140);
+    const bis = sStart + (this.schnee ? 560 : 600);
+    const HOCH = 34;
+    const TIEF = 26; // so weit reicht der steile Hang von der Straße weg
+    const RUECK = 45; // dahinter fällt der Berg wieder zum Gelände ab
+    // Außenseite der Runde (dort ist Platz)
+    const pose = {};
+    this.poseAt((von + bis) / 2, 1, pose);
+    const a = Math.hypot(pose.x, pose.z);
+    this.poseAt((von + bis) / 2, -1, pose);
+    const sd = a > Math.hypot(pose.x, pose.z) ? 1 : -1;
+
+    const NQ = 16; // Punkte im Querschnitt
+    const pos = [];
+    const uv = [];
+    const col = [];
+    const idx = [];
+    const fels = new THREE.Color('#ffffff');
+    const c = new THREE.Color();
+    const kreise = [];
+    let reihen = 0;
+    for (let s = von; s <= bis + 0.01; s += 2) {
+      // Rampe an den Enden, damit die Wand sanft aus dem Boden wächst
+      const ramp = smoothstep(von, von + 70, s) * (1 - smoothstep(bis - 70, bis, s));
+      const base = this.poseAt(s, 0, pose).h;
+      const hoch = HOCH * (0.8 + 0.4 * (this.n2(s * 0.012, 3.1) * 0.5 + 0.5)) * ramp;
+      let vLen = 0;
+      let prev = null;
+      for (let k = 0; k <= NQ; k++) {
+        const t = k / NQ;
+        let d;
+        let h;
+        if (t <= 0.7) {
+          // steiler Hang: unten fast senkrecht, oben flacher
+          const q = t / 0.7;
+          d = this.SH + 0.9 + q * TIEF;
+          h = hoch * (1 - Math.pow(1 - q, 2.4));
+        } else {
+          // Rückseite: wieder hinunter bis aufs Gelände
+          const q = (t - 0.7) / 0.3;
+          d = this.SH + 0.9 + TIEF + q * RUECK;
+          h = hoch * (1 - q * q);
+        }
+        // Felsen sind nicht glatt: Buckel und Vorsprünge
+        const n = this.n3(s * 0.05, t * 4.0);
+        const zack = (k > 0 && k < NQ ? 1 : 0) * ramp;
+        d += n * 2.2 * zack;
+        h += this.n1(s * 0.09, t * 6.0) * 2.2 * zack;
+        this.poseAt(s, sd * d, pose);
+        const boden = k === NQ ? this.terrainHeight(pose.x, pose.z) - 0.6 : base - 0.25;
+        const y = k === 0 ? base - 0.25 : Math.max(boden, base - 0.25) + h;
+        pos.push(pose.x, y, pose.z);
+        if (prev) vLen += Math.hypot(pose.x - prev[0], y - prev[1], pose.z - prev[2]);
+        prev = [pose.x, y, pose.z];
+        uv.push(s / 9, vLen / 9);
+        // Farbe: Schnee auf flachen Stellen oben (Schneetal), sonst Fels
+        c.copy(fels).multiplyScalar(0.85 + n * 0.15);
+        col.push(c.r, c.g, c.b);
+      }
+      if (ramp > 0.05 && reihen % 5 === 0) {
+        this.poseAt(s, sd * (this.SH + 1.5 + 30), pose);
+        kreise.push({ x: pose.x, z: pose.z, r: 30 });
+      }
+      reihen++;
+    }
+    for (let r = 0; r < reihen - 1; r++)
+      for (let k = 0; k < NQ; k++) {
+        const a0 = r * (NQ + 1) + k;
+        const b0 = a0 + NQ + 1;
+        if (sd > 0) idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1);
+        else idx.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
+      }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const tl = new THREE.TextureLoader();
+    const tex = (name, srgb) => {
+      const t = tl.load('texturen/fels/' + name + '.jpg');
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 8;
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    };
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex('farbe', true),
+      normalMap: tex('normal', false),
+      roughnessMap: tex('rauheit', false),
+      vertexColors: true,
+      roughness: 1,
+      side: THREE.DoubleSide,
+    });
+    // ✏️ Helligkeit des Felsens (das Bild ist schon aufgehellt)
+    mat.color.setRGB(1, 1, 1);
+    mat.normalScale.set(1.4, 1.4);
+    // Schneetal: auf allem, was nach oben zeigt, liegt Schnee
+    if (this.schnee) {
+      mat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying float vOben;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOben = normal.y;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying float vOben;')
+          .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.99) * 1.1, smoothstep(0.35, 0.7, abs(vOben)));');
+      };
+    }
+    const wand = new THREE.Mesh(g, mat);
+    wand.castShadow = true;
+    wand.receiveShadow = true;
+    this.scene.add(wand);
+    this.felswand = { von, bis, sd };
+    // Bäume, Büsche und Steine im Berg wegräumen
+    this.clearAreas(kreise);
   }
 
   // ---------- Wolken ----------
