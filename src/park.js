@@ -28,8 +28,9 @@ export function parkHoehe(x, z) {
     return -1.3 * t * (2 - t) * 0.9;
   }
   const ramp = smoothstep(1.15, 1.9, d);
-  const beiBank = smoothstep(5, 15, Math.hypot(x - BANK.x, z - BANK.z));
-  const hug = 3.6 * Math.sin(x * 0.055 + 1.3) * Math.cos(z * 0.06 - 0.4) + 2.2 * Math.sin(x * 0.021 - z * 0.034 + 2) + 2.4;
+  // ✏️ rund um die Bank flach, die Hügel steigen erst langsam an (früher zu steil)
+  const beiBank = smoothstep(12, 75, Math.hypot(x - BANK.x, z - BANK.z));
+  const hug = 2.6 * Math.sin(x * 0.045 + 1.3) * Math.cos(z * 0.05 - 0.4) + 1.8 * Math.sin(x * 0.021 - z * 0.034 + 2) + 2.2;
   return Math.max(0, hug) * ramp * beiBank + Math.max(0, d - 2.4) * 6;
 }
 
@@ -41,6 +42,14 @@ export function buildPark(roadWorld) {
     const t = tl.load('texturen/schnee/' + name + '.jpg');
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(rep, rep);
+    t.anisotropy = 8;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+
+  const kies = (name, srgb) => {
+    const t = tl.load('texturen/kies/' + name + '.jpg');
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return t;
@@ -69,7 +78,10 @@ export function buildPark(roadWorld) {
   // ---------- Joggingrunde (festgetretener Schnee) ----------
   const N = 360;
   const pos = [];
+  const uv = [];
   const idx = [];
+  let lang = 0;
+  let vorher = null;
   for (let i = 0; i <= N; i++) {
     const a = (i / N) * Math.PI * 2;
     const p = rundenPunkt(a);
@@ -79,25 +91,42 @@ export function buildPark(roadWorld) {
     const l = Math.hypot(tx, tz);
     const nx = -tz / l;
     const nz = tx / l;
+    if (vorher) lang += Math.hypot(p.x - vorher.x, p.z - vorher.z);
+    vorher = p;
     for (const s of [-1, 1]) {
       const x = p.x + nx * s * WEG_BREIT;
       const z = p.z + nz * s * WEG_BREIT;
       pos.push(x, parkHoehe(x, z) + 0.05, z);
+      // ein Texturbild = 2,5 m
+      uv.push(((s + 1) * WEG_BREIT) / 2.5, lang / 2.5);
     }
     if (i < N) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
   }
   const wegGeo = new THREE.BufferGeometry();
   wegGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  wegGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   wegGeo.setIndex(idx);
   wegGeo.computeVertexNormals();
   const weg = new THREE.Mesh(
     wegGeo,
-    new THREE.MeshStandardMaterial({ color: '#c4c9d1', roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }),
+    // Kiesweg: Rocks015 von ambientCG (CC0), mit etwas Schnee aufgehellt
+    new THREE.MeshStandardMaterial({
+      map: kies('farbe', true),
+      normalMap: kies('normal', false),
+      roughnessMap: kies('rauheit', false),
+      color: new THREE.Color(1.75, 1.7, 1.65), // Textur ist dunkel: heller machen, damit es wie Kies aussieht
+      roughness: 1,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    }),
   );
   weg.receiveShadow = true;
   scene.add(weg);
   // kurzer Weg von der Runde zur Bank
-  const zurBank = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.6), weg.material);
+  const zbGeo = new THREE.PlaneGeometry(2.4, 3.6);
+  zbGeo.attributes.uv.array.forEach((v, i, a) => (a[i] = v * (i % 2 ? 3.6 : 2.4) / 2.5));
+  const zurBank = new THREE.Mesh(zbGeo, weg.material);
   zurBank.rotation.x = -Math.PI / 2;
   zurBank.position.set(BANK.x, 0.05, BANK.z - 1.8);
   scene.add(zurBank);
