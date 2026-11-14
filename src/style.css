@@ -2721,3 +2721,51 @@ body.control-touch .wish-button .btn {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Vertrag in der Wohnung */
+.vertrag-karte {
+  position: absolute;
+  left: 4vw;
+  top: 8vh;
+  width: min(320px, calc(100vw - 32px));
+  padding: 20px 22px 16px;
+  border-radius: 6px;
+  background: #fbfaf6;
+  color: #1d2430;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  transform: rotate(1.5deg) translateY(-10px);
+  opacity: 0;
+  transition: opacity 0.4s, transform 0.4s;
+  pointer-events: none;
+}
+.vertrag-karte.show {
+  opacity: 1;
+  transform: rotate(1.5deg);
+}
+.vertrag-titel {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: 22px;
+  color: #8e2b36;
+  border-bottom: 2px solid #8e2b36;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.vertrag-karte ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vertrag-karte li {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 17px;
+  margin: 8px 0;
+}
+.vertrag-karte li small {
+  display: block;
+  margin-left: 28px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #8e2b36;
+}

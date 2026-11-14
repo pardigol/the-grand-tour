@@ -74,10 +74,102 @@ export function buildWohnung(roadWorld) {
   box(B / 2 + EINGANG.x - 0.6, H, 0.2, weiss, (-B / 2 + EINGANG.x - 0.6) / 2, H / 2, T / 2 + 0.1);
   box(B / 2 - EINGANG.x - 0.6, H, 0.2, weiss, (B / 2 + EINGANG.x + 0.6) / 2, H / 2, T / 2 + 0.1);
   box(1.2, H - 2.2, 0.2, weiss, EINGANG.x, 2.2 + (H - 2.2) / 2, T / 2 + 0.1);
-  const tuer = box(1.1, 2.15, 0.06, new THREE.MeshStandardMaterial({ color: '#3a2a1e', roughness: 0.6 }), EINGANG.x + 0.5, 1.08, T / 2 + 0.05);
-  tuer.rotation.y = -1.2; // offen
-  tuer.position.x = EINGANG.x - 0.55 + Math.cos(1.2) * 0.55;
-  tuer.position.z = T / 2 - Math.sin(1.2) * 0.55;
+  // ---------- Eingangstür: Zarge, Türblatt mit Kassetten und Klinke (steht offen), dahinter ein Flur ----------
+  {
+    const zarge = new THREE.MeshStandardMaterial({ color: '#f7f5f0', roughness: 0.6 });
+    const blattMat = new THREE.MeshStandardMaterial({ color: '#2f2620', roughness: 0.55 });
+    const ZB = 1.2; // Breite der Öffnung
+    const ZH = 2.2;
+    const zx = EINGANG.x;
+    const zz = T / 2;
+    // Zarge (links, rechts, oben) mit etwas Tiefe
+    box(0.08, ZH, 0.26, zarge, zx - ZB / 2 - 0.04, ZH / 2, zz + 0.05);
+    box(0.08, ZH, 0.26, zarge, zx + ZB / 2 + 0.04, ZH / 2, zz + 0.05);
+    box(ZB + 0.16, 0.08, 0.26, zarge, zx, ZH + 0.04, zz + 0.05);
+    // Türblatt an Scharnieren links, nach innen zur linken Wand geöffnet (nicht im Weg)
+    const tuer = new THREE.Group();
+    const blatt = new THREE.Mesh(new THREE.BoxGeometry(ZB - 0.04, ZH - 0.04, 0.045), blattMat);
+    blatt.position.set((ZB - 0.04) / 2, (ZH - 0.04) / 2, 0);
+    blatt.castShadow = true;
+    tuer.add(blatt);
+    // zwei erhabene Kassetten auf der Innenseite
+    for (const [y, h] of [[0.62, 0.9], [1.6, 0.85]]) {
+      const k = new THREE.Mesh(new THREE.BoxGeometry(ZB - 0.3, h, 0.012), new THREE.MeshStandardMaterial({ color: '#3a2f27', roughness: 0.5 }));
+      k.position.set((ZB - 0.04) / 2, y, -0.028);
+      tuer.add(k);
+    }
+    // Klinke und Schlossrosette
+    const metall = new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.9, roughness: 0.25 });
+    const rosette = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.012, 16), metall);
+    rosette.rotation.x = Math.PI / 2;
+    rosette.position.set(ZB - 0.14, 1.02, -0.03);
+    tuer.add(rosette);
+    const griff = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.13, 10), metall);
+    griff.rotation.z = Math.PI / 2;
+    griff.position.set(ZB - 0.14 - 0.06, 1.02, -0.06);
+    tuer.add(griff);
+    // Scharniere
+    for (const y of [0.3, 1.9]) {
+      const sch = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), metall);
+      sch.position.set(0, y, -0.03);
+      tuer.add(sch);
+    }
+    tuer.position.set(zx - ZB / 2 + 0.02, 0, zz - 0.02);
+    tuer.rotation.y = 1.45; // offen
+    scene.add(tuer);
+    // kurzer Flur hinter der Tür (damit man nicht ins Leere schaut)
+    const flur = new THREE.MeshStandardMaterial({ color: '#d8d2c6', roughness: 0.9 });
+    box(0.1, 2.6, 3, flur, zx - 0.85, 1.3, zz + 1.6);
+    box(0.1, 2.6, 3, flur, zx + 0.85, 1.3, zz + 1.6);
+    box(1.8, 0.1, 3, flur, zx, 2.6, zz + 1.6);
+    box(1.8, 2.6, 0.1, flur, zx, 1.3, zz + 3.1);
+    const flurBoden = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 3), new THREE.MeshStandardMaterial({ color: '#6b5a48', roughness: 0.7 }));
+    flurBoden.rotation.x = -Math.PI / 2;
+    flurBoden.position.set(zx, 0.005, zz + 1.6);
+    scene.add(flurBoden);
+    const flurLicht = new THREE.PointLight('#ffe2b8', 2, 4, 2);
+    flurLicht.position.set(zx, 2.3, zz + 1.6);
+    scene.add(flurLicht);
+  }
+
+  // ---------- Vertrag auf dem Couchtisch (erscheint, wenn der Chef ihn hinlegt) ----------
+  const vertrag = (() => {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 360;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fbfaf6';
+    g.fillRect(0, 0, 256, 360);
+    g.fillStyle = '#8e2b36';
+    g.font = '800 26px serif';
+    g.textAlign = 'center';
+    g.fillText('VERTRAG', 128, 50);
+    g.font = '600 15px sans-serif';
+    g.fillText('Team Blitz', 128, 74);
+    g.fillStyle = '#9a9a9a';
+    for (let y = 100; y < 300; y += 14) g.fillRect(28, y, 200 - ((y * 7) % 60), 3);
+    g.strokeStyle = '#333';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(140, 330);
+    g.lineTo(228, 330);
+    g.stroke();
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.297), new THREE.MeshStandardMaterial({ map: t, roughness: 0.8 }));
+    m.rotation.x = -Math.PI / 2;
+    m.rotation.z = Math.PI + 0.12; // Schrift zum Sofa hin lesbar
+    m.position.set(0.55, 0.462, -0.05);
+    m.visible = false;
+    scene.add(m);
+    const stift = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 8), new THREE.MeshStandardMaterial({ color: '#1a1a1e', metalness: 0.5, roughness: 0.3 }));
+    stift.rotation.set(0, 0.5, Math.PI / 2);
+    stift.position.set(0.74, 0.466, -0.02);
+    stift.visible = false;
+    scene.add(stift);
+    return { blatt: m, stift };
+  })();
+
   // Sockelleisten
   const leiste = new THREE.MeshStandardMaterial({ color: '#d8d3ca', roughness: 0.7 });
   box(0.03, 0.1, T, leiste, -B / 2 + 0.015, 0.05, 0);
@@ -387,6 +479,7 @@ export function buildWohnung(roadWorld) {
     sky,
     sun,
     raeder,
+    vertrag,
     cx: false,
     tt: false,
     length: 1,

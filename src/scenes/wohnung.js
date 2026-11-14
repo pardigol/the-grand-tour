@@ -15,6 +15,15 @@ const JONAS_SAGT = 'Da bist du ja! Willkommen in meiner Wohnung. Schau dich ruhi
 const CHEF_NAME = 'Chef von Team Blitz';
 const CHEF_SAGT = 'Schön, dass Sie gekommen sind. Setzen wir uns – wir haben Ihnen ein Angebot zu machen.';
 const DU_DENKST = 'Wahnsinn … überall Räder! Das rote Colnago, das grüne Canyon in Team-Lackierung …';
+const VERTRAG_SAGT =
+  'In dem Vertrag sind enthalten: eine Penthouse-Wohnung, ein Vollsponsoring, die Aufnahme in unser Team – und dass Sie sich aussuchen können, was Sie machen wollen: Kletterer, Sprinter oder Allrounder. Da aber nur die Nummer zwei.';
+const JONAS_RAD = 'Und du bekommst dein eigenes Rennrad: ein Colnago mit einer Shimano Dura-Ace!';
+const DU_UEBERLEGST = 'Penthouse, Vollsponsoring, ein eigenes Colnago … aber nur die Nummer zwei?';
+// ✏️ Sitzplätze auf dem Sofa (Becken) und wo der Chef am Tisch steht
+const SITZ_ICH = { x: -0.25, z: 1.2 };
+const SITZ_JONAS = { x: 1.25, z: 1.2 };
+const CHEF_TISCH = { x: 0.45, z: -1.05 };
+const COLNAGO = { x: -5.7, y: 1.45, z: -2.6 };
 const JONAS_LOOK = { jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' };
 
 const ZIEL = { x: -2.2, z: 0.8 }; // hier bleibst du stehen
@@ -97,6 +106,34 @@ export function createWohnungScene(app) {
     b.root.rotation.set(0, h, 0);
     b.update(dt, v, 0, 0);
   }
+  // Figur zum Sofa gehen lassen, umdrehen und hinsetzen (Becken genau über den Sitzplatz). Gibt true zurück, wenn sie sitzt.
+  function hinsetzen(bike, f, sitz, dt) {
+    const g = bike.gang;
+    if (!g?.sitzen) {
+      const zx = sitz.x - f.x;
+      const zz = sitz.z - 0.75 - f.z;
+      const d = Math.hypot(zx, zz);
+      if (d > 0.1) {
+        f.h = drehe(f.h, Math.atan2(zx, zz), 4, dt);
+        f.v = damp(f.v, TEMPO * Math.min(1, d * 1.5), 4, dt);
+        f.x += Math.sin(f.h) * f.v * dt;
+        f.z += Math.cos(f.h) * f.v * dt;
+      } else {
+        f.v = damp(f.v, 0, 8, dt);
+        // umdrehen: mit dem Rücken zum Sofa, Blick zum Fenster (-z)
+        f.h = drehe(f.h, Math.PI, 4, dt);
+        if (Math.abs(Math.sin(f.h)) < 0.08 && Math.cos(f.h) < 0 && g) g.sitzen = true;
+      }
+      figur(bike, f.x, f.z, f.h, f.v, dt);
+      return false;
+    }
+    f.v = 0;
+    figur(bike, f.x, f.z, f.h, 0, dt);
+    const becken = bike.pelvis.getWorldPosition(new THREE.Vector3());
+    f.x += (sitz.x - becken.x) * Math.min(1, dt * 4);
+    f.z += (sitz.z - becken.z) * Math.min(1, dt * 4);
+    return true;
+  }
   const drehe = (h, ziel, k, dt) => h + (((ziel - h + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * (1 - Math.exp(-k * dt));
   const kopf = (o) => o.getWorldPosition(new THREE.Vector3());
   const zuFuss = (b, an) => {
@@ -112,6 +149,9 @@ export function createWohnungScene(app) {
     const b = app.bike;
     if (gangDatei) b.gang ||= new Gang(gangDatei);
     zuFuss(b, true);
+    wohnung.vertrag.blatt.visible = false;
+    wohnung.vertrag.stift.visible = false;
+    if (jonas?.gang) jonas.gang.sitzen = false;
     if (b.gang) {
       b.gang.sitzen = false;
       b.gang.reden = false;
@@ -131,7 +171,7 @@ export function createWohnungScene(app) {
       Object.assign(chef, { x: CHEF_PLATZ.x, z: CHEF_PLATZ.z, h: Math.atan2(ZIEL.x - CHEF_PLATZ.x, ZIEL.z - CHEF_PLATZ.z) });
       chef.spiel('Idle', 0);
     }
-    Object.assign(st, { x: EINGANG.x, z: EINGANG.z, h: Math.PI, v: 0, jh: Math.atan2(EINGANG.x - JONAS_PLATZ.x, EINGANG.z - JONAS_PLATZ.z), text: null, weiter: false });
+    Object.assign(st, { jx: JONAS_PLATZ.x, jz: JONAS_PLATZ.z, jv: 0, x: EINGANG.x, z: EINGANG.z, h: Math.PI, v: 0, jh: Math.atan2(EINGANG.x - JONAS_PLATZ.x, EINGANG.z - JONAS_PLATZ.z), text: null, weiter: false });
     figur(b, st.x, st.z, st.h, 0, 0);
     figur(jonas, JONAS_PLATZ.x, JONAS_PLATZ.z, st.jh, 0, 0);
     cam.zielPos.set(st.x + 0.6, 1.75, st.z + 2.6);
@@ -157,6 +197,15 @@ export function createWohnungScene(app) {
         <div class="screen stadt-screen">
           <div class="stadt-ort">Parker Street 7 · ganz oben</div>
           <div class="stadt-laden show">Oben bei Jonas …</div>
+          <div class="vertrag-karte">
+            <div class="vertrag-titel">Vertrag · Team Blitz</div>
+            <ul>
+              <li>🏙️ Eine Penthouse-Wohnung</li>
+              <li>💶 Vollsponsoring</li>
+              <li>🚴 Aufnahme ins Team Blitz</li>
+              <li>🎯 Du wählst: Kletterer, Sprinter oder Allrounder<small>als Nummer zwei</small></li>
+            </ul>
+          </div>
           <div class="stadt-dialog">
             <div class="stadt-name"></div>
             <div class="stadt-text"></div>
@@ -194,11 +243,33 @@ export function createWohnungScene(app) {
       app.focus.set(st.x, 0, st.z);
       chef?.update(dt);
 
-      // Jonas schaut zu dir
-      st.jh = drehe(st.jh, Math.atan2(st.x - JONAS_PLATZ.x, st.z - JONAS_PLATZ.z), 2, dt);
-      if (jonas.gang) jonas.gang.reden = st.phase === 'jonas';
-      figur(jonas, JONAS_PLATZ.x, JONAS_PLATZ.z, st.jh, 0, dt);
-      if (chef) chef.h = drehe(chef.h, Math.atan2(st.x - chef.x, st.z - chef.z), 2, dt);
+      const sitzPhase = ['hinsetzen', 'vertragHin', 'vertrag', 'rad', 'ueberlegen', 'ende'].includes(st.phase);
+      // Jonas: erst schaut er zu dir, beim Hinsetzen geht er zum Sofa
+      if (jonas.gang) jonas.gang.reden = st.phase === 'jonas' || st.phase === 'rad';
+      if (!sitzPhase) {
+        st.jh = drehe(st.jh, Math.atan2(st.x - st.jx, st.z - st.jz), 2, dt);
+        figur(jonas, st.jx, st.jz, st.jh, 0, dt);
+        if (chef) chef.h = drehe(chef.h, Math.atan2(st.x - chef.x, st.z - chef.z), 2, dt);
+      } else {
+        const j = { x: st.jx, z: st.jz, h: st.jh, v: st.jv };
+        hinsetzen(jonas, j, SITZ_JONAS, dt);
+        Object.assign(st, { jx: j.x, jz: j.z, jh: j.h, jv: j.v });
+        // der Chef stellt sich auf die andere Seite des Couchtischs
+        if (chef) {
+          const zx = CHEF_TISCH.x - chef.x;
+          const zz = CHEF_TISCH.z - chef.z;
+          const d = Math.hypot(zx, zz);
+          if (d > 0.08) {
+            chef.h = drehe(chef.h, Math.atan2(zx, zz), 3, dt);
+            chef.x += Math.sin(chef.h) * Math.min(1.1, d * 1.5) * dt;
+            chef.z += Math.cos(chef.h) * Math.min(1.1, d * 1.5) * dt;
+            chef.spiel('Walk', 0.3);
+          } else {
+            chef.h = drehe(chef.h, 0, 3, dt);
+            if (chef.jetzt === chef.aktionen.Walk) chef.spiel('Idle', 0.4);
+          }
+        }
+      }
 
       switch (st.phase) {
         case 'rein': {
@@ -268,6 +339,71 @@ export function createWohnungScene(app) {
             kamera(dt, 0.9);
             if (ok && weiterGedrueckt()) {
               dialogZu();
+              phase('hinsetzen');
+            }
+          }
+          break;
+        }
+        case 'hinsetzen':
+        case 'vertragHin':
+        case 'vertrag':
+        case 'rad':
+        case 'ueberlegen': {
+          const ich = { x: st.x, z: st.z, h: st.h, v: st.v };
+          const sitzt = hinsetzen(b, ich, SITZ_ICH, dt);
+          Object.assign(st, { x: ich.x, z: ich.z, h: ich.h, v: ich.v });
+          if (st.phase === 'hinsetzen') {
+            // von der Fensterseite auf Sofa und Tisch
+            cam.zielPos.set(0.5, 1.8, -3.4);
+            cam.zielLook.set(0.5, 0.75, 0.9);
+            kamera(dt, 1.2);
+            if (sitzt && jonas.gang?.sitzen && st.t > 4) {
+              if (chef) chef.spiel('Interact', 0.3);
+              phase('vertragHin');
+            }
+          } else if (st.phase === 'vertragHin') {
+            cam.zielPos.set(0.5, 1.6, -2.6);
+            cam.zielLook.set(0.45, 0.5, -0.2);
+            kamera(dt, 1.5);
+            if (st.t > 0.7) {
+              wohnung.vertrag.blatt.visible = true;
+              wohnung.vertrag.stift.visible = true;
+            }
+            if (st.t > 1.8) {
+              if (chef) chef.spiel('Idle', 0.5);
+              $('.vertrag-karte').classList.add('show');
+              sag(CHEF_NAME, VERTRAG_SAGT);
+              phase('vertrag');
+            }
+          } else if (st.phase === 'vertrag') {
+            // über deine Schulter auf den Chef, der Vertrag liegt auf dem Tisch
+            const k = kopf(b.head);
+            cam.zielPos.set(k.x - 0.45, k.y + 0.35, k.z + 0.9);
+            cam.zielLook.copy(chef ? kopf(chef.kopf) : k).add(new THREE.Vector3(0, -0.4, 0));
+            kamera(dt, 1.3);
+            if (ok && weiterGedrueckt()) {
+              dialogZu();
+              $('.vertrag-karte').classList.remove('show');
+              sag('Jonas', JONAS_RAD);
+              phase('rad');
+            }
+          } else if (st.phase === 'rad') {
+            // Blick auf das rote Colnago an der Wand
+            cam.zielPos.set(COLNAGO.x + 2.2, 1.6, COLNAGO.z + 1.4);
+            cam.zielLook.set(COLNAGO.x, COLNAGO.y - 0.2, COLNAGO.z);
+            kamera(dt, 1.2);
+            if (ok && weiterGedrueckt()) {
+              dialogZu();
+              sag(char.name || 'Du', DU_UEBERLEGST, true);
+              phase('ueberlegen');
+            }
+          } else {
+            const k = kopf(b.head);
+            cam.zielPos.set(k.x + 0.25, k.y + 0.05, k.z - 0.9);
+            cam.zielLook.copy(k);
+            kamera(dt, 1.3);
+            if (ok && weiterGedrueckt()) {
+              dialogZu();
               app.audio.success();
               phase('ende');
             }
@@ -291,6 +427,8 @@ export function createWohnungScene(app) {
 
     exit() {
       const b = app.bike;
+      if (b.gang) b.gang.sitzen = false;
+      if (jonas?.gang) jonas.gang.sitzen = false;
       zuFuss(b, false);
       b.head.rotation.set(0.05, 0, 0);
       b.update(0, 0, 0, 0);
