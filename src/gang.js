@@ -8,6 +8,15 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 const URL = 'modelle/animation/UAL1_Standard.glb';
 const JOG_TEMPO = 2.6; // m/s beim Joggen ("Jog_Fwd_Loop")
+// Richtiges Joggen spielen wir NICHT mit "Jog_Fwd_Loop" ab (die hüpft viel zu hoch und macht zu lange Schritte),
+// sondern bauen es selbst nach echten Messwerten nach (bike.js, jogPose). Hier wird nur der Takt gezählt.
+// ✏️ ab diesem Tempo (m/s) beginnt das nachgebaute Joggen, voll ist es JOG_BREITE später.
+// Zügiges Gehen in der Stadt (1,6 m/s) bleibt darunter und sieht aus wie vorher.
+const JOG_AB = 1.8;
+const JOG_BREITE = 0.6;
+// ✏️ Schritte pro Minute beim Joggen: echte Läufer machen bei 2,8 m/s etwa 160–170 Schritte
+export const kadenz = (v) => THREE.MathUtils.clamp(140 + 9 * v, 150, 180);
+const WALK_KONTAKT = 0.04; // so weit (Anteil der Runde) sind "Walk_Loop"/"Jog_Fwd_Loop" bis der linke Fuß aufsetzt
 const GEH_TEMPO = 0.98; // m/s, so schnell läuft die Puppe in "Walk_Loop"
 const KNOCHEN = [
   'pelvis', 'spine_03', 'neck_01', 'Head',
@@ -44,6 +53,9 @@ export class Gang {
       a.setEffectiveWeight(0);
     }
     this.w = { walk: 0, idle: 1, talk: 0, jog: 0, sit: 0, sitTalk: 0 };
+    // Joggen: wie stark (0 = gehen, 1 = joggen) und wo im Laufschritt (0 = linker Fuß setzt auf, 0,5 = rechter)
+    this.jogW = 0;
+    this.jogPhase = 0;
     this.sitzen = false;
     this.bones = {};
     this.obj.traverse((o) => {
@@ -74,6 +86,22 @@ export class Gang {
       this[n].setEffectiveWeight(this.w[n]);
     }
     this.walk.timeScale = THREE.MathUtils.clamp(speed / GEH_TEMPO, 0.5, 2);
+    // Joggen: eigener Takt. Eine Runde = zwei Schritte (links + rechts)
+    const jz = THREE.MathUtils.smoothstep(speed, JOG_AB, JOG_AB + JOG_BREITE);
+    this.jogW += (gehen * jz - this.jogW) * k;
+    const dauer = this.walk.getClip().duration;
+    if (this.jogW > 0.01) {
+      this.jogPhase = (this.jogPhase + (dt * kadenz(Math.max(speed, 1))) / 120) % 1;
+      // Puppe im gleichen Takt mitlaufen lassen, damit das Überblenden nicht stolpert
+      const takt = (a) => {
+        a.time = ((this.jogPhase + WALK_KONTAKT) % 1) * a.getClip().duration;
+        a.timeScale = 0;
+      };
+      takt(this.walk);
+      takt(this.jog);
+    } else {
+      this.jogPhase = (((this.walk.time / dauer - WALK_KONTAKT) % 1) + 1) % 1;
+    }
     this.mixer.update(dt);
     this.obj.updateMatrixWorld(true);
   }

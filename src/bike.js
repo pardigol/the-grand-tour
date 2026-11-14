@@ -6,6 +6,7 @@ import { groupsetById } from './brands.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
+import { kadenz } from './gang.js';
 import { makeKitCanvas, drawTorso, drawSleeve, drawThigh, drawHelmet, HELM_SCHLITZE } from './kit.js';
 import { brandById, brandLabel, contrastColor, isMatte, DEFAULT_LOOK } from './brands.js';
 
@@ -179,6 +180,73 @@ function placeLimbFwd(obj, a, b, ref = VORNE) {
   _bz.normalize();
   _bx.crossVectors(_by, _bz);
   obj.quaternion.setFromRotationMatrix(_bm.makeBasis(_bx, _by, _bz));
+}
+
+// ---------- Joggen: Stellschrauben (Zahlen aus Messungen an Freizeitläufern) ----------
+const JOGGEN = {
+  aufsetzen: 0.2, // ✏️ Knöchel setzt so weit (m) vor der Hüfte auf – Mittelfuß fast unter dem Körper
+  knieAufsetzen: 18, // ✏️ Kniebeugung beim Aufsetzen (Grad), echt etwa 15–20
+  knieAbdruecken: 22, // ✏️ Kniebeugung beim Abdrücken (Grad)
+  abdrueckKippen: 0.85, // ✏️ wie steil der Fuß beim Abdrücken steht (rad), Ferse hoch
+  federn: 0.045, // ✏️ wie tief die Hüfte beim Abfedern einsinkt (m) – zusammen mit der Flugphase ~6 cm auf und ab
+  // Schwungbein nach dem Abdrücken, 4 Zwischenstellungen (Grad): Oberschenkel (+ = nach vorne) und Kniebeugung
+  oberschenkel: [-8, 10, 30, 38], // ✏️ höchster Kniehub vorne ~35°
+  knie: [62, 96, 100, 80], // ✏️ Fersenhub hinten: ~95° Knie = Ferse etwa auf Kniehöhe
+  spur: 0.075, // ✏️ Füße setzen fast auf einer Linie auf (m von der Mitte)
+  vorlage: 7, // ✏️ Oberkörper leicht nach vorne geneigt (Grad)
+  kopfVorne: 2, // Hals fast senkrecht – der Kopf bleibt ruhig
+  beckenDrehen: 5, // ✏️ Becken dreht sich mit dem Bein (Grad)
+  schulterDrehen: 1.3, // Schultern drehen dagegen (mal so viel wie das Becken)
+  armMitte: -16, // ✏️ Oberarm im Mittel etwas nach hinten (Grad)
+  armSchwung: 28, // ✏️ Oberarm schwingt so weit vor und zurück (Grad)
+  ellbogen: 92, // ✏️ Ellbogen etwa rechtwinklig gebeugt (Grad)
+  ellbogenSpiel: 18, // vorne etwas mehr gebeugt, hinten etwas offener
+  armAbspreizen: 9, // Ellbogen ein bisschen nach außen
+  handNachInnen: 0.45, // Hände schwingen leicht zur Mitte, aber nicht drüber
+};
+// weicher Übergang 0 → 1
+const glatt = (x) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+// Weiche Kurve durch gleichmäßig verteilte Werte (u von 0 bis 1)
+function kurve(w, u) {
+  const n = w.length - 1;
+  const f = Math.min(n - 1e-6, Math.max(0, u * n));
+  const i = Math.floor(f);
+  const t = f - i;
+  const p0 = w[Math.max(0, i - 1)];
+  const p1 = w[i];
+  const p2 = w[i + 1];
+  const p3 = w[Math.min(n, i + 2)];
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+// Knöchel liegt 9,5 cm über und 12 cm hinter dem Schuh-Mittelpunkt (Ballen); kippt mit dem Fuß
+const schuhVersatz = (tilt) => new THREE.Vector3(0, 0.095, -0.12).applyAxisAngle(_xAxis, tilt);
+const schuhVomKnoechel = (ankle, tilt) => ankle.clone().sub(schuhVersatz(tilt));
+// Zwei Haltungen mischen (Gehen ↔ Joggen); Längen von Arm und Bein bleiben dabei gleich
+function mischePose(a, b, w, L) {
+  const lerp = (p, q) => p.clone().lerp(q, w);
+  const fest = (von, nach, len) => von.clone().add(nach.clone().sub(von).normalize().multiplyScalar(len));
+  const beine = a.beine.map((x, i) => {
+    const y = b.beine[i];
+    const hip = lerp(x.hip, y.hip);
+    const knee = fest(hip, lerp(x.knee, y.knee), 0.44);
+    const ankle = fest(knee, lerp(x.ankle, y.ankle), 0.43);
+    const tilt = x.tilt + (y.tilt - x.tilt) * w;
+    return { hip, knee, ankle, tilt, shoe: schuhVomKnoechel(ankle, tilt) };
+  });
+  const becken = lerp(a.becken, b.becken);
+  const tDir = lerp(a.tDir, b.tDir).normalize();
+  const top = becken.clone().addScaledVector(tDir, L);
+  const arme = a.arme.map((x, i) => {
+    const y = b.arme[i];
+    const shp = lerp(x.shp, y.shp).add(top).sub(lerp(a.top, b.top));
+    const elbow = fest(shp, lerp(x.elbow, y.elbow), 0.27);
+    const hand = fest(elbow, lerp(x.hand, y.hand), 0.26);
+    return { shp, elbow, hand };
+  });
+  return { beine, becken, top, tDir, nDir: lerp(a.nDir, b.nDir).normalize(), arme };
 }
 
 // Bein-Formen: Wade hinten gewölbt, Schienbein vorne flacher; Oberschenkel vorne kräftiger, unten Hosenbund
@@ -1966,13 +2034,58 @@ export class Bike {
   }
 
   // Gehen neben dem Rad: Fahrer steht links vom Rad (+x) und hält mit der rechten Hand den Lenker
-  // Gehen mit echten Bewegungen (gang.js): Gelenke der Animations-Puppe ablesen und unsere Figur danach hinstellen
+  // Gehen mit echten Bewegungen (gang.js): Gelenke der Animations-Puppe ablesen und unsere Figur danach hinstellen.
+  // Beim Joggen bauen wir die Bewegung selbst nach echten Messwerten (jogPose) und blenden weich über.
   updateWalkAnim(dt, speed) {
     const g = this.gang;
     g.update(dt, speed);
     const off = (this.gehOffset ||= V(0.55, 0, 0.3));
     this.rider.rotation.set(0, 0, 0);
     this.rider.position.copy(off);
+    const L = (this._torsoL ||= this.hip.distanceTo(this.shoulder));
+    const jw = g.jogW;
+    let pose = jw < 0.999 ? this.gehPose(g, L) : null;
+    if (jw > 0.001) {
+      const jp = this.jogPose(g.jogPhase, Math.max(speed, 1.2), L);
+      pose = pose ? mischePose(pose, jp, jw, L) : jp;
+    }
+    // Beine
+    for (let i = 0; i < 2; i++) {
+      const l = this.legs[i];
+      const b = pose.beine[i];
+      l.shoe.position.copy(b.shoe);
+      l.shoe.rotation.set(b.tilt, 0, 0);
+      placeLimbFwd(l.thigh, b.hip, b.knee, VORNE_OBEN);
+      l.knee.position.copy(b.knee);
+      placeLimbFwd(l.shin, b.knee, b.ankle);
+      const d = b.ankle.clone().sub(b.knee).normalize();
+      placeLimb(l.sock, b.ankle.clone().addScaledVector(d, -0.16), b.ankle.clone().addScaledVector(d, 0.02));
+    }
+    // Becken, Oberkörper, Hals, Kopf
+    this.pelvis.position.copy(pose.becken);
+    placeLimb(this.torso, pose.becken, pose.top);
+    this.halsBasis.copy(pose.top).addScaledVector(pose.tDir, -0.03);
+    this.head.position.copy(pose.top).addScaledVector(pose.nDir, 0.145);
+    // Arme
+    for (let i = 0; i < 2; i++) {
+      const a = this.arms[i];
+      let { shp, elbow, hand } = pose.arme[i];
+      if (this.schieben && a.s < 0) {
+        // rechte Hand am linken Lenkergriff
+        hand = V(0.21, 0.94, 0.45).sub(off);
+        elbow = ik(shp, hand, 0.27, 0.26, _k.set(a.s * 0.15, -0.2, -1), new THREE.Vector3());
+      }
+      placeLimb(a.upper, shp, elbow);
+      placeLimb(a.lower, elbow, hand);
+      a.hand.position.copy(hand);
+      a.hand.quaternion.copy(a.lower.quaternion);
+      a.elbow.position.copy(elbow);
+      a.cap.position.copy(shp).add(_k.set(-a.s * 0.01, -0.012, 0));
+    }
+  }
+
+  // Haltung aus der Animations-Puppe (Gehen, Stehen, Sitzen)
+  gehPose(g, L) {
     const P = (n) => g.punkt(n, new THREE.Vector3());
     const dir = (a, b) => P(b).sub(P(a)).normalize();
     // Beine: Richtung der Knochen aus der Animation, Längen von unserer Figur
@@ -1984,58 +2097,139 @@ export class Bike {
       const fb = P('ball_' + sd).sub(P('foot_' + sd));
       // Fußknochen ist im Stand schon 0,54 rad geneigt – das ist bei uns "flach"
       const tilt = Math.atan2(-fb.y, Math.hypot(fb.x, fb.z)) - 0.54;
-      const shoe = ankle.clone().sub(_k.set(0, 0.095, -0.12).applyAxisAngle(_xAxis, tilt));
+      const shoe = schuhVomKnoechel(ankle, tilt);
       const ferse = shoe.clone().add(_k.set(0, 0, -0.185).applyAxisAngle(_xAxis, tilt));
-      return { l, hip, knee, ankle, tilt, shoe, tief: Math.min(shoe.y, ferse.y) };
+      return { hip, knee, ankle, tilt, shoe, tief: Math.min(shoe.y, ferse.y) };
     });
     // so weit absenken/anheben, dass der tiefere Fuß genau auf dem Boden steht
     const y0 = -Math.min(beine[0].tief, beine[1].tief);
     const hoch = (v) => v.setY(v.y + y0);
-    for (const b of beine) {
-      [b.hip, b.knee, b.ankle, b.shoe].forEach(hoch);
-      const l = b.l;
-      l.shoe.position.copy(b.shoe);
-      l.shoe.rotation.set(b.tilt, 0, 0);
-      placeLimbFwd(l.thigh, b.hip, b.knee, VORNE_OBEN);
-      l.knee.position.copy(b.knee);
-      placeLimbFwd(l.shin, b.knee, b.ankle);
-      const d = b.ankle.clone().sub(b.knee).normalize();
-      placeLimb(l.sock, b.ankle.clone().addScaledVector(d, -0.16), b.ankle.clone().addScaledVector(d, 0.02));
-    }
-    // Becken, Oberkörper, Hals, Kopf
-    const hip = hoch(P('pelvis'));
+    for (const b of beine) [b.hip, b.knee, b.ankle, b.shoe].forEach(hoch);
+    const becken = hoch(P('pelvis'));
     const shL = hoch(P('upperarm_l'));
     const shR = hoch(P('upperarm_r'));
     const oben = shL.clone().add(shR).multiplyScalar(0.5);
-    const tDir = oben.clone().sub(hip).normalize();
-    const top = hip.clone().addScaledVector(tDir, (this._torsoL ||= this.hip.distanceTo(this.shoulder)));
-    this.pelvis.position.copy(hip);
-    placeLimb(this.torso, hip, top);
-    const nDir = dir('neck_01', 'Head');
-    this.halsBasis.copy(top).addScaledVector(tDir, -0.03);
-    this.head.position.copy(top).addScaledVector(nDir, 0.145);
-    // Arme
+    const tDir = oben.clone().sub(becken).normalize();
+    const top = becken.clone().addScaledVector(tDir, L);
     const quer = shL.clone().sub(shR).normalize();
-    for (const a of this.arms) {
+    const arme = this.arms.map((a) => {
       const sd = a.s > 0 ? 'l' : 'r';
       const shp = top.clone().addScaledVector(quer, a.s * 0.19).add(_k.set(0, -0.03, 0));
-      let elbow;
-      let hand;
-      if (this.schieben && a.s < 0) {
-        // rechte Hand am linken Lenkergriff
-        hand = V(0.21, 0.94, 0.45).sub(off);
-        elbow = ik(shp, hand, 0.27, 0.26, _k.set(a.s * 0.15, -0.2, -1), new THREE.Vector3());
-      } else {
-        elbow = shp.clone().addScaledVector(dir('upperarm_' + sd, 'lowerarm_' + sd), 0.27);
-        hand = elbow.clone().addScaledVector(dir('lowerarm_' + sd, 'hand_' + sd), 0.26);
+      const elbow = shp.clone().addScaledVector(dir('upperarm_' + sd, 'lowerarm_' + sd), 0.27);
+      const hand = elbow.clone().addScaledVector(dir('lowerarm_' + sd, 'hand_' + sd), 0.26);
+      return { shp, elbow, hand };
+    });
+    return { beine, becken, top, tDir, nDir: dir('neck_01', 'Head'), arme };
+  }
+
+  // Joggen, nachgebaut nach Messungen an echten Freizeitläufern (ca. 2,5–3 m/s):
+  // ~165 Schritte/min, Bodenkontakt ~0,27 s, kurze Flugphase, Fuß setzt knapp vor der Hüfte mit dem Mittelfuß auf,
+  // Becken hebt und senkt sich ~6 cm, Ferse schwingt hinten bis etwa Kniehöhe, Arme im ~90°-Winkel locker vor-zurück.
+  // ph = wo im Laufschritt (0 = linker Fuß setzt auf), v = Tempo in m/s
+  jogPose(ph, v, L) {
+    const T = 120 / kadenz(v); // ✏️ Dauer von zwei Schritten (s), Kadenz steht in gang.js
+    const tc = THREE.MathUtils.clamp(0.38 - 0.047 * v, 0.2, 0.34); // ✏️ Bodenkontakt eines Fußes (s), schneller = kürzer
+    const beta = Math.min(0.45, tc / T); // Anteil der Runde, in dem der Fuß am Boden ist
+    const flug = Math.max(0, T / 2 - tc); // Flugphase pro Schritt (s): beide Füße in der Luft
+    const D2R = Math.PI / 180;
+    const J = JOGGEN;
+    const L1 = 0.44;
+    const L2 = 0.43;
+    const beinLang = (knick) => Math.sqrt(L1 * L1 + L2 * L2 + 2 * L1 * L2 * Math.cos(knick * D2R));
+    // Wo der Knöchel beim Aufsetzen und beim Abdrücken ist (vor/hinter der Hüfte)
+    const zIC = J.aufsetzen;
+    const ballIC = zIC + 0.12;
+    const ballTO = ballIC - v * tc; // so weit läuft der Körper über den stehenden Fuß hinweg → kein Rutschen
+    const knTO = schuhVersatz(J.abdrueckKippen);
+    const ankTO = { y: knTO.y, z: ballTO + knTO.z };
+    // Hüfthöhe beim Aufsetzen und Abdrücken: so, dass das Knie dort nur leicht gebeugt ist
+    const hIC = 0.095 + Math.sqrt(beinLang(J.knieAufsetzen) ** 2 - zIC * zIC);
+    const hTO = ankTO.y + Math.sqrt(Math.max(0.3, beinLang(J.knieAbdruecken) ** 2 - ankTO.z * ankTO.z));
+    const huefte = (c) => {
+      // c = Anteil eines Schritts (0 = Aufsetzen); erst federn (absinken), dann fliegen (Bogen nach oben)
+      const s = tc / (T / 2);
+      if (c < s) {
+        const u = c / s;
+        return hIC + (hTO - hIC) * u - J.federn * Math.sin(Math.PI * u);
       }
-      placeLimb(a.upper, shp, elbow);
-      placeLimb(a.lower, elbow, hand);
-      a.hand.position.copy(hand);
-      a.hand.quaternion.copy(a.lower.quaternion);
-      a.elbow.position.copy(elbow);
-      a.cap.position.copy(shp).add(_k.set(-a.s * 0.01, -0.012, 0));
-    }
+      const w = (c - s) / (1 - s);
+      return hTO + (hIC - hTO) * w + 4 * ((9.81 * flug * flug) / 8) * w * (1 - w);
+    };
+    const cL = ((ph % 1) + 1) % 1;
+    const yH = huefte((cL * 2) % 1);
+    // Becken dreht sich mit dem vorderen Bein mit, die Schultern drehen dagegen
+    const psi = -J.beckenDrehen * D2R * Math.cos(2 * Math.PI * cL);
+    const becken = V(0, yH - 0.02, 0);
+    const neig = J.vorlage * D2R;
+    const tDir = V(0, Math.cos(neig), Math.sin(neig));
+    const top = becken.clone().addScaledVector(tDir, L);
+    const quer = V(1, 0, 0).applyAxisAngle(UP, -psi * J.schulterDrehen);
+
+    const beine = this.legs.map((l) => {
+      const s = l.s;
+      const c = s > 0 ? cL : (cL + 0.5) % 1;
+      const hip = V(s * 0.09, 0, 0).applyAxisAngle(UP, psi).setY(yH);
+      const x = s * J.spur;
+      let knee;
+      let ankle;
+      let tilt;
+      if (c < beta) {
+        // Standbein: Fußballen fest am Boden, Körper läuft drüber; ab der Hälfte hebt sich die Ferse
+        const u = c / beta;
+        tilt = J.abdrueckKippen * glatt((u - 0.5) / 0.5);
+        const ball = V(x, 0, ballIC - v * u * tc);
+        ankle = ball.clone().add(schuhVersatz(tilt).setX(0));
+        knee = ik(hip, ankle, L1, L2, _k.set(s * 0.08, 0, 1), new THREE.Vector3());
+        ankle = knee.clone().addScaledVector(ankle.clone().sub(knee).normalize(), L2);
+      } else {
+        // Schwungbein: Winkel von Oberschenkel und Knie aus einer Messkurve, Anfang/Ende passend zum Standbein
+        const u = (c - beta) / (1 - beta);
+        const winkel = (hp, an) => {
+          const kn = ik(hp, an, L1, L2, _k.set(0, 0, 1), new THREE.Vector3());
+          const th = Math.atan2(kn.z - hp.z, hp.y - kn.y);
+          const sh = Math.atan2(an.z - kn.z, kn.y - an.y);
+          return [th, th - sh];
+        };
+        // Abdrücken (Hüfte dort, wo sie beim Abdrücken war)
+        const [thTO, kTO] = winkel(V(0, hTO, 0), V(0, ankTO.y, ankTO.z));
+        const [thIC, kIC] = winkel(V(0, hIC, 0), V(0, 0.095, zIC));
+        const th = kurve([thTO, J.oberschenkel[0] * D2R, J.oberschenkel[1] * D2R, J.oberschenkel[2] * D2R, J.oberschenkel[3] * D2R, thIC], u);
+        const kn = kurve([kTO, J.knie[0] * D2R, J.knie[1] * D2R, J.knie[2] * D2R, J.knie[3] * D2R, kIC], u);
+        const sh = th - kn; // Unterschenkel (von senkrecht, + = Fuß vor dem Knie)
+        // Fuß: Spitze anfangs nach unten gestreckt, vor dem Aufsetzen wieder flach
+        const pTO = J.abdrueckKippen + (thTO - kTO);
+        const pIC = 0 + (thIC - kIC);
+        const sh4 = (J.oberschenkel[3] - J.knie[3]) * D2R; // vor dem Aufsetzen: Fuß schon flach (Spitze minimal hoch)
+        tilt = kurve([pTO, 0.5, 0.35, 0.15, sh4 - 0.03, pIC], u) - sh;
+        knee = hip.clone().add(V(0, -Math.cos(th) * L1, Math.sin(th) * L1));
+        ankle = knee.clone().add(V(0, -Math.cos(sh) * L2, Math.sin(sh) * L2));
+        ankle.x = x;
+        knee.x = (hip.x + x) / 2 + s * 0.01;
+        // Fuß darf nicht durch den Boden schleifen: notfalls Knöchel anheben und Knie neu beugen
+        const sohle = Math.min(schuhVomKnoechel(ankle, tilt).y, ankle.y - 0.095 * Math.cos(tilt) + 0.065 * Math.sin(tilt)); // Ballen und Ferse
+        if (sohle < 0.005) {
+          ankle.y += 0.005 - sohle;
+          knee = ik(hip, ankle, L1, L2, _k.set(s * 0.05, 0, 1), new THREE.Vector3());
+        }
+      }
+      return { hip, knee, ankle, tilt, shoe: schuhVomKnoechel(ankle, tilt) };
+    });
+
+    // Arme: Oberarm schwingt gegen das Bein derselben Seite, Ellbogen etwa rechtwinklig
+    const arme = this.arms.map((a) => {
+      const c = a.s > 0 ? cL : (cL + 0.5) % 1;
+      const w = Math.cos(2 * Math.PI * (c - 0.52)); // +1 = Arm ganz vorne (wenn das andere Bein aufsetzt)
+      const al = (J.armMitte + J.armSchwung * w) * D2R;
+      const fl = (J.ellbogen + J.ellbogenSpiel * w) * D2R;
+      const shp = top.clone().addScaledVector(quer, a.s * 0.19).add(_k.set(0, -0.03, 0));
+      const ab = J.armAbspreizen * D2R;
+      const elbow = shp.clone().addScaledVector(V(a.s * Math.sin(ab), -Math.cos(al), Math.sin(al)).normalize(), 0.27);
+      const be = al + fl;
+      const hand = elbow.clone().addScaledVector(V(-a.s * J.handNachInnen, -Math.cos(be), Math.sin(be)).normalize(), 0.26);
+      return { shp, elbow, hand };
+    });
+    const nDir = V(0, Math.cos(J.kopfVorne * D2R), Math.sin(J.kopfVorne * D2R));
+    return { beine, becken, top, tDir, nDir, arme };
   }
 
   updateWalk(dt, speed) {
