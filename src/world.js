@@ -1837,7 +1837,7 @@ export class World {
   placeCastle() {
     const M = this.schlossModelle;
     const { group, radius } = buildCastle(M);
-    const sMitte = this.length - 2.4 - 1250;
+    const sMitte = this.length - 2.4 - 900; // etwa Mitte des Rennens (1800 m)
     const pose = {};
     let best = null;
     // Platz suchen: weit genug weg von allen Straßenstücken, gut zu sehen

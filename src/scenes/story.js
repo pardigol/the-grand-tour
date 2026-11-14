@@ -33,8 +33,14 @@ const FELD_TEAMS = [
 // ✏️ Deine Trikotfarbe im Game (Farbe vom Stoff Fabric019)
 const MEIN_TRIKOT = '#efeee9';
 const N_FELD = 44; // + 6 vom Team Blitz = 50 andere Fahrer
-const RENNEN = 2500; // Meter vom Start bis ins Ziel
-const ATTACKE_NACH = 600; // Meter: dann reißt Team Blitz aus
+const RENNEN = 1800; // Meter vom Start bis ins Ziel (früher 2500)
+const ATTACKE_NACH = 450; // Meter: dann reißt Team Blitz aus
+// Ereignisse der Flucht waren für 2500 m gebaut: Abstände zum Ziel passend verkürzen
+const LANG_VORHER = 2500 - 600 - 150 - 260;
+const ZIEL_ABST = (m) => SPRINT_AB_M + (m - SPRINT_AB_M) * ((RENNEN - ATTACKE_NACH - 150 - SPRINT_AB_M) / LANG_VORHER);
+const SPRINT_AB_M = 260;
+// ✏️ Das Feld zieht sich vor dem Angriff lang: ab so vielen Metern vor der Attacke
+const LANGZIEHEN_AB = 300;
 const SPRINT_AB = 260; // Meter vor dem Ziel: Schlusssprint
 const V_FELD = 11.5; // m/s ≈ 41 km/h
 const V_FELD_HINTEN = 10.8;
@@ -296,6 +302,8 @@ export function createStoryScene(app) {
       hPrev: null,
       konterT: 0,
       konterDone: false,
+      lang: 0,
+      langGemeldet: false,
       konterOk: false,
       zurueck: false,
       jagdT: 0,
@@ -368,13 +376,16 @@ export function createStoryScene(app) {
         r.v = 0;
       } else {
         // im Rennen: Platz im Feld halten, leicht hin und her
-        target = st.pf + r.dz + Math.sin(t * 0.37 + r.jit) * 0.7;
+        // vor dem Angriff zieht sich das Feld lang: Reihen weiter auseinander, versetzt, schmaler
+        const k = st.lang || 0;
+        const spalte = Math.round(r.lat / 1.3) + 2;
+        target = st.pf + r.dz * (1 + 1.6 * k) - k * spalte * 2.3 + Math.sin(t * 0.37 + r.jit) * 0.7;
         r.v = Math.max(0, st.vf + clamp((target - r.s) * 1.2, -2, 2));
         if (st.phase === 'auslaufen' && r.s > st.sZiel + 30) r.v = Math.max(0, r.v - 3);
         r.s += r.v * dt;
       }
       // dem Spieler ausweichen
-      let latT = r.lat + Math.sin(t * 0.21 + r.jit) * 0.25;
+      let latT = r.lat * (1 - 0.45 * (st.lang || 0)) + Math.sin(t * 0.21 + r.jit) * 0.25;
       if (Math.abs(r.s - st.s) < 2.2 && Math.abs(latT - st.lat) < 1.1) latT = st.lat + (latT >= st.lat ? 1.15 : -1.15);
       for (const tm of st.team) if (Math.abs(r.s - tm.s) < 2 && Math.abs(latT - tm.lat) < 1) latT = tm.lat + (latT >= tm.lat ? 1.1 : -1.1);
       r.latOff = damp(r.latOff, clamp(latT, -3, 3) - r.lat, 2.5, dt);
@@ -463,7 +474,10 @@ export function createStoryScene(app) {
       } else if (st.phase === 'aufstellen' || st.phase === 'countdown') {
         tm.v = 0;
       } else if (st.phase === 'feld') {
-        const target = st.pf + tm.dz;
+        // beim Langziehen fährt Team Blitz vorne in einer Reihe und macht das Tempo
+        const k = st.lang || 0;
+        const target = st.pf + tm.dz * (1 - k) + k * (2.5 - i * 2.3);
+        tm.latT = tm.latStart + (TEAM_LAT - tm.latStart) * k;
         tm.v = Math.max(0, st.vf + clamp((target - tm.s) * 1.2, -2, 2));
         tm.s += tm.v * dt;
       } else {
@@ -913,7 +927,15 @@ export function createStoryScene(app) {
         }
       } else if (st.phase === 'feld') {
         // Das Feld fährt mit dir: wer wegfahren will, wird sofort wieder eingeholt
-        const vFeld = Math.min(V_FELD, st.raceTime * 2.4);
+        // Feld zieht sich lang (Team Blitz macht vorne Tempo)
+        const vorAttacke = st.pf - st.sStart - (ATTACKE_NACH - LANGZIEHEN_AB);
+        const kZiel = clamp(vorAttacke / (LANGZIEHEN_AB - 60), 0, 1);
+        st.lang = damp(st.lang || 0, kZiel * kZiel * (3 - 2 * kZiel), 1.2, dt);
+        if (kZiel > 0 && !st.langGemeldet) {
+          st.langGemeldet = true;
+          banner('Das Tempo steigt!', 'Das Feld zieht sich lang');
+        }
+        const vFeld = Math.min(V_FELD, st.raceTime * 2.4) + 1.6 * st.lang;
         st.vf = vFeld + clamp((st.s - st.pf) * 0.9, -1.5, 3);
         st.pf += st.vf * dt;
         if (sprintKey) st.surge = 2;
@@ -939,6 +961,7 @@ export function createStoryScene(app) {
       } else if (st.phase === 'attacke' || st.phase === 'flucht' || st.phase === 'sprint') {
         // Das Feld wird langsamer, Team Blitz fährt davon
         st.vf = damp(st.vf, (st.jagdT > 0 ? 17 : V_FELD_HINTEN) * streckenTempo(st.pf), 0.6, dt);
+        st.lang = damp(st.lang || 0, 0.5, 0.4, dt); // das Feld bleibt noch eine Weile lang gezogen
         st.pf += st.vf * dt;
         const J = leader();
         const L = st.phase === 'sprint' ? J : kopf();
@@ -972,7 +995,7 @@ export function createStoryScene(app) {
           // --- Spannung: Ereignisse während der Flucht ---
           if (st.phase === 'flucht') {
             // 1) Team Blitz verschärft das Tempo: schnell reagieren!
-            if (!st.konterDone && (S ? kopf().s > S.sStart - 230 : restL < 1080)) {
+            if (!st.konterDone && (S ? kopf().s > S.sStart - 230 : restL < ZIEL_ABST(1080))) {
               st.konterDone = true;
               st.konterBoost = 2.8;
               st.konterT = 6;
@@ -1017,7 +1040,7 @@ export function createStoryScene(app) {
               $('.story-phase').textContent = 'Berg!';
             }
             // Jonas attackiert am Berg: nur Felix und Noah können folgen
-            if (!st.bergAttacke && (S ? kopf().s > S.sStart + (S.sTop - S.sStart) * 0.35 : restL < 1500)) {
+            if (!st.bergAttacke && (S ? kopf().s > S.sStart + (S.sTop - S.sStart) * 0.35 : restL < ZIEL_ABST(1500))) {
               st.bergAttacke = true;
               const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
               for (const t of st.team) t.weg = t !== J && !helfer.includes(t);
@@ -1032,7 +1055,7 @@ export function createStoryScene(app) {
               herz(4);
             }
             // Oben: Felix übernimmt die Führung, Jonas fährt an zweiter Stelle
-            if (st.bergAttacke && !st.bergOben && (S ? J.s > S.sTop + 30 : restL < 1250)) {
+            if (st.bergAttacke && !st.bergOben && (S ? J.s > S.sTop + 30 : restL < ZIEL_ABST(1250))) {
               st.bergOben = true;
               const helfer = BERG_HELFER.map((n) => st.team.find((t) => t.r.name === n));
               st.reihe = [helfer[0], J, helfer[1]];
@@ -1042,7 +1065,7 @@ export function createStoryScene(app) {
             // nie ganz abgehängt
             if (st.s < hinten - 30) vT = Math.max(vT, L.v + 0.8);
             // 2) Das Feld jagt die Ausreißer
-            if (!st.jagdDone && restL < 820) {
+            if (!st.jagdDone && restL < ZIEL_ABST(820)) {
               st.jagdDone = true;
               st.jagdT = 13;
               banner('Achtung!', 'Das Feld jagt euch!');
@@ -1052,15 +1075,15 @@ export function createStoryScene(app) {
             if (st.jagdT > 0) st.jagdT -= dt;
             $('.story-gap-box').classList.toggle('alarm', st.jagdT > 0 || (st.feldWeg && (st.s - st.pf) / Math.max(st.vf, 5) < 7));
             // 3) Team Blitz gibt nochmal alles
-            if (!st.allesGeben && restL < 600) {
+            if (!st.allesGeben && restL < ZIEL_ABST(600)) {
               st.allesGeben = true;
               banner(`${TEAM_NAME} gibt nochmal alles!`, 'Das Feld fällt wieder zurück');
               app.audio.whoosh(1.0);
             }
             // Noch 1 Kilometer
-            if (!st.einKm && st.sZiel - st.s < 1000) {
+            if (!st.einKm && st.sZiel - st.s < ZIEL_ABST(1000)) {
               st.einKm = true;
-              banner('Noch 1 Kilometer!', st.bergOben ? 'Gleich geht der Sprint los …' : 'Erst noch über den Berg …');
+              banner(`Noch ${Math.round((st.sZiel - st.s) / 100) * 100} Meter!`, st.bergOben ? 'Gleich geht der Sprint los …' : 'Erst noch über den Berg …');
               app.audio.tone(880, 0.15, { type: 'square', vol: 0.06 });
               app.audio.tone(880, 0.15, { type: 'square', vol: 0.06, when: 0.2 });
               herz(5);
