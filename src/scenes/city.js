@@ -37,6 +37,13 @@ const FAHRT_WEG = [
 const LINIE_Y = 4.2; // ✏️ Höhe der gelben Linie
 const FAHRT_START = { x: -180 + 2.5, z: 150, h: Math.PI }; // rechte Spur, Richtung Norden
 const ANGEKOMMEN = 'Parker Street 7 … hier wohnt Jonas. Mal sehen, was Team Blitz zu sagen hat!';
+// ✏️ Klingelschild an Jonas' Haustür: Name und was durch die Sprechanlage kommt
+const KLINGELN = [
+  { name: 'Witherspoon', sagt: 'Witherspoon? Nein, nein … hier gibt es nichts zu sehen. Falsche Klingel!' },
+  { name: 'Sir Timothy', sagt: 'Sir Timothy am Apparat. Ich erwarte heute keinen Besuch. Guten Tag!' },
+  { name: 'Miss Loney', sagt: 'Ja bitte? Hier ist Miss Loney. Ach, Sie wollen sicher zu Jonas – der wohnt ganz oben!' },
+  { name: 'Jonas', sagt: 'Da bist du ja! Komm hoch, ganz nach oben. Wir warten schon auf dich!', richtig: true },
+];
 
 export function createCityScene(app) {
   let root = null;
@@ -174,6 +181,20 @@ export function createCityScene(app) {
   const kopf = (bike) => bike.head.getWorldPosition(new THREE.Vector3());
   const person = (bike) => bike.rider.getWorldPosition(new THREE.Vector3());
 
+  // ---------- Klingel ----------
+  function klingelZeigen(an) {
+    $('.klingel').classList.toggle('show', an);
+    root.querySelectorAll('.klingel-knopf').forEach((b, i) => b.classList.toggle('selected', i === st.klingelI && app.control !== 'touch'));
+  }
+  function klingeln() {
+    klingelZeigen(false);
+    root.querySelectorAll('.klingel-knopf')[st.klingelI]?.classList.add('gedrueckt');
+    // Ding-Dong
+    app.audio.tone(988, 0.35, { type: 'sine', vol: 0.08 });
+    app.audio.tone(784, 0.5, { type: 'sine', vol: 0.08, when: 0.32 });
+    phase('klingelt');
+  }
+
   function start() {
     app.setWorld(city);
     if (!jonas) {
@@ -259,9 +280,22 @@ export function createCityScene(app) {
             <div class="stadt-weiter">${app.control === 'touch' ? 'Tippen' : app.control === 'keys' ? '<b>Enter</b>' : btn('A')} ▶</div>
           </div>
           <div class="stadt-zwinker">😉</div>
+          <div class="klingel">
+            <div class="klingel-titel">Parker Street 7</div>
+            ${KLINGELN.map((k, i) => `<button class="klingel-knopf" data-i="${i}"><span>${k.name}</span><i></i></button>`).join('')}
+            <div class="klingel-tipp">${app.control === 'touch' ? 'Antippen zum Klingeln' : app.control === 'keys' ? '<b>↑</b> <b>↓</b> wählen · <b>Enter</b> klingeln' : `${btn('A')} klingeln`}</div>
+          </div>
           <div class="stadt-skip">${app.control === 'touch' ? '' : app.control === 'keys' ? '<b>Esc</b> überspringen' : `${btn('B')} überspringen`}</div>
         </div>`);
       $('.stadt-dialog').addEventListener('click', () => app.input.inject('confirm'));
+      root.querySelectorAll('.klingel-knopf').forEach((b) =>
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (st.phase !== 'klingel') return;
+          st.klingelI = Number(b.dataset.i);
+          klingeln();
+        }),
+      );
       app.ui.append(root);
       app.audio.setMusicLevel(0.3);
       app.stadt = st; // zum Ausprobieren in der Konsole
@@ -287,6 +321,7 @@ export function createCityScene(app) {
       st.t += dt;
       inp.touchRide = st.phase === 'laufen' || st.phase === 'fahren';
       const ok = inp.pressed('confirm') || inp.pressed('x');
+      if (st.phase === 'klingel') inp.touchRide = false;
       if (st.zuJonas && (inp.pressed('back') || inp.pressed('start')) && st.phase !== 'fahrtEnde') {
         dialogZu();
         tipp('');
@@ -307,7 +342,7 @@ export function createCityScene(app) {
       app.bike.head.rotation.y = damp(app.bike.head.rotation.y, reden ? -0.12 : hoch ? 0.5 : 0, 3, dt);
 
       // ---------- Am nächsten Tag: mit dem Rad zu Jonas ----------
-      if (st.phase === 'fahren' || st.phase === 'angekommen' || st.phase === 'fahrtEnde') {
+      if (['fahren', 'angekommen', 'zurTuer', 'klingel', 'klingelt', 'sprechanlage', 'fahrtEnde'].includes(st.phase)) {
         app.fx.uFade.value = damp(app.fx.uFade.value, st.phase === 'fahrtEnde' ? 1.05 : 0, 2, dt);
         if (st.t > 2.8 && st.phase === 'fahren') $('.stadt-ort').classList.remove('show');
         const ziel = FAHRT_WEG[FAHRT_WEG.length - 1];
@@ -348,8 +383,59 @@ export function createCityScene(app) {
           }
           if (st.gesagt && ok && weiterGedrueckt()) {
             dialogZu();
-            app.audio.success();
-            phase('fahrtEnde');
+            // absteigen und das Rad zur Haustür schieben
+            app.bike.walk = true;
+            app.bike.schieben = true;
+            app.bike.ohneBrille = true;
+            if (gangDatei) app.bike.gang ||= new Gang(gangDatei);
+            st.klingelI = KLINGELN.length - 1;
+            $('.stadt-ort').classList.remove('show');
+            phase('zurTuer');
+          }
+        } else if (st.phase === 'zurTuer') {
+          // Ziel: du stehst vor der Tür (die Figur geht neben dem Rad)
+          const zx = TUER.x + 0.55 - st.x;
+          const zz = TUER.z + 1.75 - st.z;
+          const d = Math.hypot(zx, zz);
+          if (d > 0.12) {
+            st.h = drehe(st.h, Math.atan2(zx, zz), 4, dt);
+            st.v = damp(st.v, TEMPO * Math.min(1, d), 4, dt);
+            st.x += Math.sin(st.h) * st.v * dt;
+            st.z += Math.cos(st.h) * st.v * dt;
+          } else {
+            st.v = damp(st.v, 0, 8, dt);
+            st.h = drehe(st.h, Math.PI, 4, dt);
+            if (st.t > 1.5 && Math.abs(Math.sin(st.h)) < 0.08) {
+              klingelZeigen(true);
+              phase('klingel');
+            }
+          }
+        } else if (st.phase === 'klingel') {
+          const n = KLINGELN.length;
+          if (inp.pressed('up') || inp.pressed('left')) st.klingelI = (st.klingelI + n - 1) % n;
+          else if (inp.pressed('down') || inp.pressed('right')) st.klingelI = (st.klingelI + 1) % n;
+          else if (ok) klingeln();
+          if (st.phase === 'klingel') klingelZeigen(true);
+          if (inp.pressed('up') || inp.pressed('down') || inp.pressed('left') || inp.pressed('right')) app.audio.nav();
+        } else if (st.phase === 'klingelt') {
+          if (st.t > 1.3) {
+            const k = KLINGELN[st.klingelI];
+            sag(`Sprechanlage · ${k.name}`, k.sagt);
+            phase('sprechanlage');
+          }
+        } else if (st.phase === 'sprechanlage') {
+          if (ok && weiterGedrueckt()) {
+            dialogZu();
+            root.querySelectorAll('.klingel-knopf').forEach((b) => b.classList.remove('gedrueckt'));
+            if (KLINGELN[st.klingelI].richtig) {
+              // Türsummer – die Tür geht auf
+              app.audio.tone(140, 0.9, { type: 'sawtooth', vol: 0.05 });
+              app.audio.success();
+              phase('fahrtEnde');
+            } else {
+              klingelZeigen(true);
+              phase('klingel');
+            }
           }
         } else if (st.phase === 'fahrtEnde' && app.fx.uFade.value > 0.98 && !st.weiter) {
           st.weiter = true;
@@ -358,8 +444,13 @@ export function createCityScene(app) {
           l.classList.add('show');
           setTimeout(() => root && app.go('mode', { minigame: true }), 2500);
         }
-        stell(app.bike, st.x, st.z, st.h, st.v, dt, st.v / WHEEL_R / 3.6);
-        if (st.phase === 'angekommen' && st.gesagt) {
+        stell(app.bike, st.x, st.z, st.h, st.v, dt, app.bike.walk ? 0 : st.v / WHEEL_R / 3.6);
+        if (['zurTuer', 'klingel', 'klingelt', 'sprechanlage'].includes(st.phase) || (st.phase === 'fahrtEnde' && app.bike.walk)) {
+          // über die Schulter auf die Haustür
+          cam.zielPos.set(TUER.x + 1.6, 1.75, TUER.z + 4.6);
+          cam.zielLook.set(TUER.x, 1.35, TUER.z);
+          kamera(dt, st.phase === 'zurTuer' ? 1.4 : 2);
+        } else if (st.phase === 'angekommen' && st.gesagt) {
           // Blick am Haus hoch zum Penthouse
           cam.zielPos.set(st.x - 3, 1.8, st.z + 6);
           cam.zielLook.set(TUER.x, 6, TUER.z);
