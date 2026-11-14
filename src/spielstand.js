@@ -49,3 +49,12 @@ export function rennenFreischalten(n) {
   o[pin].zuletzt = Date.now();
   schreiben(o);
 }
+
+// Rolle im Team (aus dem Vertrag): 'sprinter' | 'kletterer' | 'allrounder'
+export function rolleSetzen(r) {
+  if (!pin) return;
+  const o = alle();
+  if (!o[pin]) o[pin] = { rennen: 1, angelegt: Date.now() };
+  o[pin].rolle = r;
+  schreiben(o);
+}

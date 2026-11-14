@@ -38,6 +38,7 @@ function isPlayStation(id = '') {
   return /054c|dualsense|dualshock|playstation|wireless controller/i.test(id);
 }
 const STICK_ON = 0.55;
+const btn17 = (b) => !!(b[17] && b[17].pressed);
 
 export class Input {
   constructor() {
@@ -55,6 +56,7 @@ export class Input {
     this.lookX = 0;
     this.lookY = 0;
     this.throttle = 0;
+    this.stickL = { x: 0, y: 0 };
     this.brake = 0;
     this.pad = null;
     this.usingPad = false;
@@ -223,6 +225,11 @@ export class Input {
       }
       const ax = pad.axes[0] || 0;
       const ay = pad.axes[1] || 0;
+      // roher linker Stick (z. B. zum Unterschreiben durch Kritzeln)
+      this.stickL = { x: Math.abs(ax) > 0.08 ? ax : 0, y: Math.abs(ay) > 0.08 ? ay : 0 };
+      // Touchpad des PS-Controllers drücken (Knopf 17)
+      if (btn17(b) && !this._tp) this.frame.add('touchpad');
+      this._tp = btn17(b);
       if (Math.abs(ax) > Math.abs(ay)) {
         held.left = ax < -STICK_ON;
         held.right = ax > STICK_ON;

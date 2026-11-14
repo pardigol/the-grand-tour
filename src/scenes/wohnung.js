@@ -2,12 +2,12 @@
 // an den Wänden hängen überall Rennräder (rotes Colnago, grünes Canyon in Team-Lackierung …).
 import * as THREE from 'three';
 import { el, btn } from './common.js';
-import { damp } from '../noise.js';
+import { clamp, damp } from '../noise.js';
 import { Bike } from '../bike.js';
 import { buildWohnung, EINGANG } from '../wohnung.js';
 import { loadGang, Gang } from '../gang.js';
 import { loadChef, makeChef } from '../chef.js';
-import { rennenFreischalten } from '../spielstand.js';
+import { rennenFreischalten, rolleSetzen } from '../spielstand.js';
 import { loadCharacters } from '../storage.js';
 
 // ✏️ Was gesagt wird
@@ -18,11 +18,17 @@ const DU_DENKST = 'Wahnsinn … überall Räder! Das rote Colnago, das grüne Ca
 const VERTRAG_SAGT =
   'In dem Vertrag sind enthalten: eine Penthouse-Wohnung, ein Vollsponsoring, die Aufnahme in unser Team – und dass Sie sich aussuchen können, was Sie machen wollen: Kletterer, Sprinter oder Allrounder. Da aber nur die Nummer zwei.';
 const JONAS_RAD = 'Und du bekommst dein eigenes Rennrad: ein Colnago mit einer Shimano Dura-Ace!';
-const DU_UEBERLEGST = 'Penthouse, Vollsponsoring, ein eigenes Colnago … aber nur die Nummer zwei?';
+const DU_UEBERLEGST = 'Penthouse, Vollsponsoring, ein eigenes Colnago … und ich bin jetzt bei Team Blitz!';
 // ✏️ Sitzplätze auf dem Sofa (Becken) und wo der Chef am Tisch steht
 const SITZ_ICH = { x: -0.25, z: 1.2 };
 const SITZ_JONAS = { x: 1.25, z: 1.2 };
 const CHEF_TISCH = { x: 0.45, z: -1.05 };
+// ✏️ Rollen, die man im Vertrag wählen kann
+const ROLLEN = [
+  { id: 'sprinter', name: 'Sprinter', icon: '⚡', text: 'Schnell auf den letzten Metern' },
+  { id: 'kletterer', name: 'Kletterer', icon: '⛰️', text: 'Stark am Berg' },
+  { id: 'allrounder', name: 'Allrounder', icon: '🚴', text: 'Gut auf jedem Gelände' },
+];
 const COLNAGO = { x: -5.7, y: 1.45, z: -2.6 };
 const JONAS_LOOK = { jersey: '#8e2b36', frame: '#16161b', helmet: '#16161b', kit: 'stripes', brand: 'cervelo', bar: '#8e2b36' };
 
@@ -144,6 +150,51 @@ export function createWohnungScene(app) {
     b.setOhneHelm(an);
   };
 
+  // ---------- Vertrag: Rolle wählen und unterschreiben ----------
+  function rollenZeigen() {
+    root.querySelectorAll('.rolle-knopf').forEach((k, i) => {
+      k.classList.toggle('selected', i === st.rolleI);
+      k.classList.toggle('gewaehlt', st.rolle === ROLLEN[i].id);
+    });
+  }
+  function rolleWaehlen() {
+    const r = ROLLEN[st.rolleI];
+    st.rolle = r.id;
+    rolleSetzen(r.id);
+    app.audio.select();
+    rollenZeigen();
+    $('.vertrag-gross').classList.add('unterschreiben');
+    const cv = $('.unterschrift canvas');
+    cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+    st.tinte = 0;
+    st.minX = Infinity;
+    st.maxX = -Infinity;
+    st.stift = { x: 40, y: 85 };
+    $('.vertrag-tipp').innerHTML =
+      app.control === 'touch'
+        ? 'Unterschreib mit dem Finger im Feld!'
+        : app.control === 'keys'
+          ? 'Unterschreib mit der Maus im Feld!'
+          : 'Kritzle mit dem <b>linken Stick</b> im Zickzack deine Unterschrift!';
+    phase('unterschrift');
+  }
+  // ein Stück Unterschrift zeichnen (blaue Tinte)
+  function linie(a, b) {
+    const g = $('.unterschrift canvas').getContext('2d');
+    g.strokeStyle = '#1b3a8a';
+    g.lineWidth = 4;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.stroke();
+    st.tinte += Math.hypot(b.x - a.x, b.y - a.y);
+    st.minX = Math.min(st.minX, a.x, b.x);
+    st.maxX = Math.max(st.maxX, a.x, b.x);
+    if (Math.hypot(b.x - a.x, b.y - a.y) > 2 && Math.random() < 0.25) app.audio.tone(1800 + Math.random() * 600, 0.02, { type: 'triangle', vol: 0.015 });
+  }
+
   function start() {
     app.setWorld(wohnung);
     const b = app.bike;
@@ -206,6 +257,24 @@ export function createWohnungScene(app) {
               <li>🎯 Du wählst: Kletterer, Sprinter oder Allrounder<small>als Nummer zwei</small></li>
             </ul>
           </div>
+          <div class="vertrag-gross">
+            <div class="vertrag-titel">Vertrag · Team Blitz</div>
+            <ul>
+              <li>🏙️ Eine Penthouse-Wohnung</li>
+              <li>💶 Vollsponsoring</li>
+              <li>🚴 Aufnahme ins Team Blitz (als Nummer zwei)</li>
+            </ul>
+            <div class="vertrag-frage">Was willst du sein?</div>
+            <div class="rollen">
+              ${ROLLEN.map((r, i) => `<button class="rolle-knopf" data-i="${i}"><span>${r.icon}</span><b>${r.name}</b><small>${r.text}</small></button>`).join('')}
+            </div>
+            <div class="unterschrift">
+              <canvas width="520" height="150"></canvas>
+              <div class="unterschrift-linie">Unterschrift</div>
+              <div class="unterschrift-stempel">Unterschrieben ✓</div>
+            </div>
+            <div class="vertrag-tipp"></div>
+          </div>
           <div class="stadt-dialog">
             <div class="stadt-name"></div>
             <div class="stadt-text"></div>
@@ -213,6 +282,36 @@ export function createWohnungScene(app) {
           </div>
         </div>`);
       $('.stadt-dialog').addEventListener('click', () => app.input.inject('confirm'));
+      root.querySelectorAll('.rolle-knopf').forEach((k) =>
+        k.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (st.phase !== 'wahl') return;
+          st.rolleI = Number(k.dataset.i);
+          rolleWaehlen();
+        }),
+      );
+      // Unterschreiben mit Finger oder Maus
+      const cv = $('.unterschrift canvas');
+      const punkt = (e) => {
+        const r = cv.getBoundingClientRect();
+        return { x: ((e.clientX - r.left) / r.width) * cv.width, y: ((e.clientY - r.top) / r.height) * cv.height };
+      };
+      cv.addEventListener('pointerdown', (e) => {
+        if (st.phase !== 'unterschrift') return;
+        e.preventDefault();
+        cv.setPointerCapture(e.pointerId);
+        st.stift = punkt(e);
+        st.zeichnet = true;
+      });
+      cv.addEventListener('pointermove', (e) => {
+        if (!st.zeichnet || st.phase !== 'unterschrift') return;
+        const p = punkt(e);
+        linie(st.stift, p);
+        st.stift = p;
+      });
+      const hoch = () => (st.zeichnet = false);
+      cv.addEventListener('pointerup', hoch);
+      cv.addEventListener('pointercancel', hoch);
       app.ui.append(root);
       app.audio.setMusicLevel(0.3);
       app.wohnung = st; // zum Ausprobieren in der Konsole
@@ -243,7 +342,7 @@ export function createWohnungScene(app) {
       app.focus.set(st.x, 0, st.z);
       chef?.update(dt);
 
-      const sitzPhase = ['hinsetzen', 'vertragHin', 'vertrag', 'rad', 'ueberlegen', 'ende'].includes(st.phase);
+      const sitzPhase = ['hinsetzen', 'vertragHin', 'vertrag', 'wahl', 'unterschrift', 'unterschrieben', 'rad', 'ueberlegen', 'ende'].includes(st.phase);
       // Jonas: erst schaut er zu dir, beim Hinsetzen geht er zum Sofa
       if (jonas.gang) jonas.gang.reden = st.phase === 'jonas' || st.phase === 'rad';
       if (!sitzPhase) {
@@ -347,6 +446,9 @@ export function createWohnungScene(app) {
         case 'hinsetzen':
         case 'vertragHin':
         case 'vertrag':
+        case 'wahl':
+        case 'unterschrift':
+        case 'unterschrieben':
         case 'rad':
         case 'ueberlegen': {
           const ich = { x: st.x, z: st.z, h: st.h, v: st.v };
@@ -384,6 +486,48 @@ export function createWohnungScene(app) {
             if (ok && weiterGedrueckt()) {
               dialogZu();
               $('.vertrag-karte').classList.remove('show');
+              // Vertrag groß anzeigen: Rolle wählen
+              st.rolleI = 0;
+              st.rolle = null;
+              $('.vertrag-gross').classList.remove('unterschreiben', 'fertig');
+              $('.vertrag-gross').classList.add('show');
+              $('.vertrag-tipp').innerHTML = app.control === 'touch' ? 'Tippe an, was du sein willst.' : '◀ ▶ wählen · bestätigen mit ' + (app.control === 'keys' ? '<b>Enter</b>' : '✕ / A');
+              rollenZeigen();
+              phase('wahl');
+            }
+          } else if (st.phase === 'wahl' || st.phase === 'unterschrift' || st.phase === 'unterschrieben') {
+            cam.zielPos.set(0.5, 1.4, -1.0);
+            cam.zielLook.set(0.55, 0.45, -0.05);
+            kamera(dt, 1.2);
+            if (st.phase === 'wahl') {
+              const n = ROLLEN.length;
+              if (inp.pressed('left') || inp.pressed('up')) st.rolleI = (st.rolleI + n - 1) % n;
+              else if (inp.pressed('right') || inp.pressed('down')) st.rolleI = (st.rolleI + 1) % n;
+              else if (inp.pressed('confirm')) {
+                rolleWaehlen();
+                return;
+              } else return;
+              app.audio.nav();
+              rollenZeigen();
+            } else if (st.phase === 'unterschrift') {
+              // Stick: Stift bewegt sich mit, zeichnet beim Bewegen
+              const sx = inp.stickL?.x || 0;
+              const sy = inp.stickL?.y || 0;
+              if (Math.abs(sx) + Math.abs(sy) > 0.1) {
+                const cv = $('.unterschrift canvas');
+                const p = { x: clamp(st.stift.x + sx * 520 * dt, 10, cv.width - 10), y: clamp(st.stift.y + sy * 360 * dt, 10, cv.height - 10) };
+                linie(st.stift, p);
+                st.stift = p;
+              }
+              // genug gekritzelt (lang genug und breit genug)? Dann ist unterschrieben
+              if (st.tinte > 1100 && st.maxX - st.minX > 260) {
+                $('.vertrag-gross').classList.add('fertig');
+                app.audio.success();
+                app.input.rumble?.(0.6, 200);
+                phase('unterschrieben');
+              }
+            } else if (st.t > 2) {
+              $('.vertrag-gross').classList.remove('show');
               sag('Jonas', JONAS_RAD);
               phase('rad');
             }
