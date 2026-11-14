@@ -147,10 +147,10 @@ export function createCityScene(app) {
         : `${btn('A')} halten = gehen · ${btn('LT')}${btn('RT')} lenken`;
 
   // ---------- Figuren (beide gehen und schieben ihr Rad) ----------
-  function stell(bike, x, z, heading, speed, dt, kurbel = 0) {
+  function stell(bike, x, z, heading, speed, dt, kurbel = 0, lenk = 0) {
     bike.root.position.set(x, city.hoehe(x, z), z);
     bike.root.rotation.set(0, heading, 0);
-    bike.update(dt, speed, kurbel, 0);
+    bike.update(dt, speed, kurbel, lenk);
   }
   // Ich: Position, Richtung, Tempo
   function ichStellen(dt) {
@@ -440,7 +440,9 @@ export function createCityScene(app) {
           // bei Jonas geklingelt: oben in seiner Wohnung geht es weiter
           setTimeout(() => root && (st.zuWohnung ? app.go('wohnung', { character: char }) : app.go('mode', { minigame: true })), st.zuWohnung ? 1400 : 2500);
         }
-        stell(app.bike, st.x, st.z, st.h, st.v, dt, app.bike.walk ? 0 : st.v / WHEEL_R / 3.6);
+        // Vorderrad lenkt sichtbar mit
+        st.lenk = damp(st.lenk || 0, st.phase === 'fahren' ? inp.steer : 0, 10, dt);
+        stell(app.bike, st.x, st.z, st.h, st.v, dt, app.bike.walk ? 0 : st.v / WHEEL_R / 3.6, app.bike.walk ? 0 : st.lenk);
         if (['zurTuer', 'klingel', 'klingelt', 'sprechanlage'].includes(st.phase) || (st.phase === 'fahrtEnde' && app.bike.walk)) {
           // über die Schulter auf die Haustür
           cam.zielPos.set(TUER.x + 1.6, 1.75, TUER.z + 4.6);

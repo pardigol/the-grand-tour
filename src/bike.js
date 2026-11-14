@@ -1942,7 +1942,7 @@ export class Bike {
     this.frontWheel.rotation.x = this.wheelAngle;
     this.crankAngle += crankRate * dt;
     this.crank.rotation.x = this.crankAngle;
-    this.steer.rotation.y = -steer * 0.35;
+    this.steer.rotation.y = -steer * 0.5; // ✏️ wie weit das Vorderrad beim Lenken einschlägt (0,5 ≈ 29°)
 
     this.updateGesicht();
     // Absteigen und gehen (this.walk = true): der Fahrer läuft neben dem Rad und schiebt es
