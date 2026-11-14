@@ -219,16 +219,28 @@ async function boot() {
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000);
+    // Echte vergangene Zeit. Ist ein Gerät langsam (weniger als 20 Bilder pro Sekunde), wird in mehreren
+    // kleinen Schritten nachgerechnet – so läuft die Spielzeit auf jedem Gerät gleich schnell wie die echte Uhr
+    // (wichtig für Online-Rennen: sonst ist die Uhr auf dem langsameren Gerät hinterher).
+    const echt = Math.min(0.25, Math.max(0, (now - last) / 1000));
     last = now;
-    app.time += dt;
-    app.input.update(dt);
+    const schritte = Math.max(1, Math.ceil(echt / 0.05));
+    const dt = echt / schritte;
+    app.input.update(echt);
     if (app.input.pressed('any')) {
       app.audio.unlock();
       app.audio.startMusic();
     }
-    app.current.update(dt);
-    app.world.update(dt, app.focus, camera, app.time);
+    for (let k = 0; k < schritte; k++) {
+      // Tastendrücke zählen nur im ersten Schritt (sonst würde z. B. „Pause“ doppelt ausgelöst)
+      if (k > 0) {
+        app.input.frame.clear();
+        app.input.chars = [];
+      }
+      app.time += dt;
+      app.current.update(dt);
+      app.world.update(dt, app.focus, camera, app.time);
+    }
     fxPass.uniforms.uTime.value = app.time;
     // Nicht rendern, solange das Fenster keine Größe hat (z. B. minimiert)
     if (window.innerWidth && window.innerHeight) composer.render(dt);

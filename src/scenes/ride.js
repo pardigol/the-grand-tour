@@ -199,6 +199,8 @@ export function createRideScene(app) {
     const r = onlineRivals?.list[0];
     if (msg.t === 's' && r) {
       r.net = { ...msg, at: performance.now() };
+    } else if (msg.t === 'bereit') {
+      st.partnerBereit = true;
     } else if (msg.t === 'start') {
       // Der andere hat „Nochmal fahren“ gewählt
       restarting = true;
@@ -407,8 +409,12 @@ export function createRideScene(app) {
         cruise: false,
         sprint: 'ready', // 'ready' | 'active' | 'charging'
         sprintT: 0,
-        phase: 'countdown',
+        // Online: erst warten, bis beide Geräte bereit sind – dann startet der Countdown auf beiden gleichzeitig
+        phase: online ? 'warten' : 'countdown',
         countdown: 3,
+        partnerBereit: false,
+        bereitSenden: 0,
+        bereitNachlauf: 0,
         lastCount: 4,
         raceTime: 0,
         place: 0,
@@ -500,8 +506,36 @@ export function createRideScene(app) {
         return;
       }
 
-      // Countdown 3 – 2 – 1 – LOS!
-      if (st.phase === 'countdown') {
+      // Online: auf den anderen warten (alle halbe Sekunde „bereit“ schicken)
+      if (st.phase === 'warten') {
+        st.bereitSenden -= dt;
+        if (st.bereitSenden <= 0) {
+          st.bereitSenden = 0.5;
+          app.online.send({ t: 'bereit' });
+        }
+        const cd = $('.countdown');
+        if (cd.dataset.warten !== '1') {
+          cd.dataset.warten = '1';
+          cd.textContent = 'Warte …';
+          cd.classList.remove('go');
+          cd.classList.add('show');
+        }
+        if (st.partnerBereit) {
+          // beide bereit: jetzt gemeinsam los (noch kurz weiter „bereit“ senden, falls eine Nachricht verloren ging)
+          app.online.send({ t: 'bereit' });
+          st.bereitNachlauf = 2;
+          delete cd.dataset.warten;
+          st.phase = 'countdown';
+        }
+      } else if (st.phase === 'countdown') {
+        if (st.bereitNachlauf > 0) {
+          st.bereitNachlauf -= dt;
+          st.bereitSenden -= dt;
+          if (st.bereitSenden <= 0) {
+            st.bereitSenden = 0.4;
+            app.online.send({ t: 'bereit' });
+          }
+        }
         st.countdown -= dt;
         const n = Math.ceil(st.countdown);
         if (n !== st.lastCount) {
@@ -582,7 +616,7 @@ export function createRideScene(app) {
       // Beim Bremsen wird nicht getreten, Dauertreten und Sprint laufen danach weiter
       let throttle = inp.brake > 0.1 ? 0 : st.cruise || sprinting ? 1 : inp.throttle;
       let brake = inp.brake;
-      if (st.phase === 'countdown' || crashed) throttle = 0;
+      if (st.phase === 'countdown' || st.phase === 'warten' || crashed) throttle = 0;
       // Nach dem Ziel rollt man langsam aus
       if (st.phase === 'finished') {
         throttle = 0;
@@ -879,13 +913,13 @@ export function createRideScene(app) {
       // Gegner fahren lassen
       rivals.update(
         dt,
-        st.phase !== 'countdown',
+        st.phase !== 'countdown' && st.phase !== 'warten',
         { progress: playerProgress(), lateral: nr.found ? nr.lateral : 99 },
         RACE_LAPS * w.length,
         st.raceTime,
       );
 
-      $('.place').textContent = st.phase === 'countdown' ? '–' : `${currentPlace()}/${rivals.list.length + 1}`;
+      $('.place').textContent = st.phase === 'countdown' || st.phase === 'warten' ? '–' : `${currentPlace()}/${rivals.list.length + 1}`;
       $('.lap').textContent = st.lap ? `${Math.min(st.lap, RACE_LAPS)}/${RACE_LAPS}` : '–';
       $('.time').textContent = st.phase === 'finished' ? formatTime(st.finishTime) : formatTime(st.raceTime);
       minimap.draw(st.x, st.z, st.heading, st.lap && st.phase !== 'finished' ? st.lastS : null, rivals.list);
