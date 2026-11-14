@@ -226,6 +226,7 @@ export function createCityScene(app) {
     city.penthouseLicht.intensity = 0;
     st.weiter = false;
     st.gesagt = false;
+    st.zuWohnung = false;
     if (st.zuJonas) {
       // mit dem Rad auf der Straße, Jonas ist schon oben
       jonas.root.visible = false;
@@ -431,6 +432,7 @@ export function createCityScene(app) {
               // Türsummer – die Tür geht auf
               app.audio.tone(140, 0.9, { type: 'sawtooth', vol: 0.05 });
               app.audio.success();
+              st.zuWohnung = true;
               phase('fahrtEnde');
             } else {
               klingelZeigen(true);
@@ -440,9 +442,10 @@ export function createCityScene(app) {
         } else if (st.phase === 'fahrtEnde' && app.fx.uFade.value > 0.98 && !st.weiter) {
           st.weiter = true;
           const l = $('.stadt-laden');
-          l.textContent = 'Fortsetzung folgt …';
+          l.textContent = st.zuWohnung ? 'Ab nach oben …' : 'Fortsetzung folgt …';
           l.classList.add('show');
-          setTimeout(() => root && app.go('mode', { minigame: true }), 2500);
+          // bei Jonas geklingelt: oben in seiner Wohnung geht es weiter
+          setTimeout(() => root && (st.zuWohnung ? app.go('wohnung', { character: char }) : app.go('mode', { minigame: true })), st.zuWohnung ? 1400 : 2500);
         }
         stell(app.bike, st.x, st.z, st.h, st.v, dt, app.bike.walk ? 0 : st.v / WHEEL_R / 3.6);
         if (['zurTuer', 'klingel', 'klingelt', 'sprechanlage'].includes(st.phase) || (st.phase === 'fahrtEnde' && app.bike.walk)) {

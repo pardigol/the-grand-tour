@@ -75,7 +75,8 @@ export function createModeScene(app) {
     app.audio.select();
     app.input.rumble(0.35, 80);
     const n = stand().rennen || 1;
-    if (n >= 3) app.go('park'); // nach Rennen 2: Park mit dem Chef von Team Blitz
+    if (n >= 4) app.go('wohnung'); // bei Jonas in der Wohnung
+    else if (n >= 3) app.go('park'); // nach Rennen 2: Park mit dem Chef von Team Blitz
     else if (n >= 2) starteRennen(2);
     else app.go('story');
   }
@@ -132,7 +133,7 @@ export function createModeScene(app) {
             ).join('')}
               <div class="mode-card mode-card-game" data-i="${MODES.length}">
                 <div class="mode-name">🎮 Game</div>
-                <div class="control-sub">${aktuellePin() ? `Spielstand ${esc(aktuellePin())} · ${(stand().rennen || 1) >= 3 ? 'Nach Rennen 2' : 'Rennen ' + (stand().rennen || 1)}` : 'Das große Rennen'}</div>
+                <div class="control-sub">${aktuellePin() ? `Spielstand ${esc(aktuellePin())} · ${(stand().rennen || 1) >= 4 ? 'Bei Jonas' : (stand().rennen || 1) >= 3 ? 'Nach Rennen 2' : 'Rennen ' + (stand().rennen || 1)}` : 'Das große Rennen'}</div>
                 <div class="game-knoepfe">
                   <button class="game-knopf game-weiter">${btn('X')}Weiterspielen</button>
                   <button class="game-knopf game-stand">${btn('A')}Spielstand wählen</button>
