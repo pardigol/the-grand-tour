@@ -24,6 +24,25 @@ export const WHEEL_R = 0.34;
 const BB = V(0, 0.27, -0.08);
 const CRANK = 0.17;
 
+// Zahnrad (Kettenblatt oder Ritzel) als flache Scheibe mit Zähnen; innen = Lochradius
+function zahnrad(r, zaehne, dicke, innen = r * 0.55) {
+  const sh = new THREE.Shape();
+  for (let i = 0; i < zaehne; i++) {
+    const a0 = (i / zaehne) * Math.PI * 2;
+    const da = (Math.PI * 2) / zaehne;
+    for (const [f, rr] of [[0, r - 0.004], [0.3, r + 0.002], [0.7, r + 0.002]]) {
+      const a = a0 + f * da;
+      i === 0 && f === 0 ? sh.moveTo(Math.cos(a) * rr, Math.sin(a) * rr) : sh.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+  }
+  const loch = new THREE.Path();
+  loch.absarc(0, 0, innen, 0, Math.PI * 2, true);
+  sh.holes.push(loch);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: dicke, bevelEnabled: false, curveSegments: 4 });
+  g.translate(0, 0, -dicke / 2);
+  return g;
+}
+
 function tube(a, b, r, mat, r2 = r, seg = 10) {
   const len = a.distanceTo(b);
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r, len, seg), mat);
@@ -438,18 +457,39 @@ export class Bike {
     this.tubes.top.scale.z = 1.4;
     this.tubes.head.scale.z = 1.3;
     f.add(this.tubes.down, this.tubes.top, this.tubes.head);
-    this.tubes.seat = tube(BB, ST, 0.018, m.frame);
+    this.tubes.seat = tube(BB, ST, 0.019, m.frame, 0.017);
+    this.tubes.seat.scale.z = 1.5; // Aero-Sitzrohr
     f.add(this.tubes.seat);
+    // Tretlagergehäuse
+    const tretlager = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.085, 16), m.frame);
+    tretlager.rotation.z = Math.PI / 2;
+    tretlager.position.copy(BB);
+    f.add(tretlager);
+    this.frameParts = [tretlager];
     for (const s of [-1, 1]) {
-      f.add(tube(V(s * 0.012, BB.y, BB.z), V(s * 0.06, R.y, R.z), 0.01, m.frame));
+      // Kettenstreben: vorne kräftig, hinten schlanker
+      const ks = tube(V(s * 0.03, BB.y, BB.z - 0.01), V(s * 0.062, R.y, R.z + 0.02), 0.013, m.frame, 0.008);
+      ks.scale.z = 1.4;
       // tief angesetzte Sitzstreben wie bei modernen Aero-Rädern
-      f.add(tube(V(s * 0.012, 0.62, -0.19), V(s * 0.06, R.y, R.z), 0.009, m.frame));
+      const ss = tube(V(s * 0.014, 0.63, -0.2), V(s * 0.062, R.y + 0.01, R.z + 0.015), 0.011, m.frame, 0.007);
+      ss.scale.z = 1.5;
+      // Ausfallende
+      const af = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.05, 0.05), m.frame);
+      af.position.set(s * 0.062, R.y, R.z + 0.012);
+      f.add(ks, ss, af);
+      this.frameParts.push(ks, ss, af);
     }
     // Zierstreifen auf dem Oberrohr
     this.stripe = tube(V(0, 0.812, -0.15), V(0, 0.845, 0.2), 0.0175, m.accent, 0.0175);
     f.add(this.stripe);
     // Sattelstütze und Sattel
-    f.add(tube(ST, V(0, 0.88, -0.265), 0.0135, m.black));
+    const stuetze = tube(ST, V(0, 0.88, -0.265), 0.0135, m.black);
+    stuetze.scale.z = 1.6; // Aero-Sattelstütze
+    f.add(stuetze);
+    // Sattelklemme
+    const klemme = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.016, 12), m.black);
+    klemme.position.copy(ST).add(V(0, 0.006, -0.002));
+    f.add(klemme);
     // Rotes Rücklicht an der Sattelstütze
     const licht = new THREE.Mesh(
       new THREE.BoxGeometry(0.03, 0.045, 0.02),
@@ -457,18 +497,49 @@ export class Bike {
     );
     licht.position.set(0, 0.83, -0.285);
     f.add(licht);
-    const saddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.18, 4, 8), m.black);
-    saddle.rotation.x = Math.PI / 2 + 0.06;
-    saddle.scale.set(1.2, 1, 0.35);
-    saddle.position.set(0, 0.895, -0.25);
+    // Sattel: vorne schmale Nase, hinten breit, mit Aussparung in der Mitte und Streben darunter
+    const form = new THREE.Shape();
+    const umriss = [
+      [0, 0.135], [0.018, 0.13], [0.022, 0.08], [0.03, 0.02], [0.055, -0.05], [0.07, -0.1], [0.066, -0.125], [0.04, -0.135], [0, -0.128],
+    ];
+    form.moveTo(0, umriss[0][1]);
+    for (const [x, y] of umriss.slice(1)) form.lineTo(x, y);
+    for (const [x, y] of umriss.slice(0, -1).reverse()) form.lineTo(-x, y);
+    const loch = new THREE.Path();
+    loch.absellipse(0, -0.045, 0.012, 0.05, 0, Math.PI * 2);
+    form.holes.push(loch);
+    const sg = new THREE.ExtrudeGeometry(form, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.008, bevelSegments: 3, curveSegments: 10 });
+    sg.rotateX(Math.PI / 2);
+    const saddle = new THREE.Mesh(sg, new THREE.MeshPhysicalMaterial({ color: '#16161a', roughness: 0.55, clearcoat: 0.3 }));
+    saddle.rotation.x = -0.05;
+    saddle.position.set(0, 0.918, -0.235);
     saddle.castShadow = true;
     f.add(saddle);
+    for (const sd of [-1, 1]) {
+      const strebe = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(sd * 0.012, 0.9, -0.12), V(sd * 0.022, 0.888, -0.2), V(sd * 0.03, 0.888, -0.3), V(sd * 0.045, 0.9, -0.355)]), 10, 0.0035, 6),
+        m.alu,
+      );
+      f.add(strebe);
+    }
     // Trinkflasche am Sitzrohr, damit der Schriftzug auf dem Unterrohr frei bleibt
     this.bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 12), m.accent);
     this.bottle.position.copy(BB).lerp(ST, 0.5);
     this.bottle.position.z += 0.06;
     this.bottle.quaternion.setFromUnitVectors(UP, _d.copy(ST).sub(BB).normalize());
     f.add(this.bottle);
+    // Deckel und Flaschenhalter
+    const deckel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.03, 0.03, 12), m.black);
+    deckel.position.y = 0.115;
+    this.bottle.add(deckel);
+    for (const sd of [-1, 1]) {
+      const halter = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.003, 4, 16, Math.PI * 0.7), m.black);
+      halter.rotation.y = Math.PI / 2;
+      halter.rotation.z = sd > 0 ? -Math.PI * 0.35 : Math.PI * 0.65;
+      halter.position.y = sd * 0.05;
+      halter.rotation.x = Math.PI / 2;
+      this.bottle.add(halter);
+    }
   }
 
   makeWheel(m, rimMat) {
@@ -577,31 +648,75 @@ export class Bike {
     this.forkTubes = [-1, 1].map((s) => tube(V(s * 0.045, 0.7, -0.05), V(s * 0.05, WHEEL_R, 0.05), 0.014, m.frame, 0.018));
     this.forkCrown = tube(V(0, 0.7, -0.05), V(0, 0.72, -0.05), 0.03, m.frame);
     this.steer.add(...this.forkTubes, this.forkCrown);
-    // Kassette
-    const cas = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16), m.alu);
-    cas.rotation.z = Math.PI / 2;
-    cas.position.set(-0.04, WHEEL_R, -0.5);
+    // Kassette: 11 Ritzel, außen klein, innen groß
+    const ritzel = [];
+    for (let k = 0; k < 11; k++) {
+      const r = 0.026 + k * 0.0024;
+      const g = zahnrad(r, Math.round(r * 400), 0.0025);
+      g.rotateY(Math.PI / 2);
+      g.translate(-0.062 + k * 0.0034, 0, 0);
+      ritzel.push(g);
+    }
+    const cas = new THREE.Mesh(mergeGeometries(ritzel), m.alu);
+    cas.position.set(0, WHEEL_R, -0.5);
     this.root.add(cas);
+    // Scheibenbremsen: Bremsscheiben drehen sich mit, die Sättel sitzen am Rahmen und an der Gabel
+    const scheibe = new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 1, roughness: 0.3, side: THREE.DoubleSide });
+    for (const w of [this.rearWheel, this.frontWheel]) {
+      const d = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.08, 32, 1), scheibe);
+      d.rotation.y = Math.PI / 2;
+      d.position.x = 0.045;
+      w.add(d);
+      const stern = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 6), m.black);
+      stern.rotation.z = Math.PI / 2;
+      stern.position.x = 0.045;
+      w.add(stern);
+    }
+    const sattel = () => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.055), m.black);
+      b.castShadow = true;
+      return b;
+    };
+    const hs = sattel();
+    hs.position.set(0.052, WHEEL_R - 0.058, -0.445);
+    hs.rotation.x = -0.75;
+    this.root.add(hs);
+    const vs = sattel();
+    vs.position.set(0.052, WHEEL_R - 0.06, -0.008);
+    vs.rotation.x = 0.8;
+    this.steer.add(vs);
   }
 
   buildDrivetrain(m) {
     this.crank = new THREE.Group();
     this.crank.position.copy(BB);
     this.root.add(this.crank);
-    // Kettenblatt mit Zähnen
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.006, 40), m.ring);
-    ring.rotation.z = Math.PI / 2;
-    ring.position.x = -0.065;
-    this.crank.add(ring);
-    const spider = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 5), m.crankArm);
-    spider.rotation.z = Math.PI / 2;
-    spider.position.x = -0.07;
-    this.crank.add(spider);
+    // Zwei Kettenblätter mit echten Zähnen (53 und 39)
+    for (const [r, n, x] of [[0.105, 53, -0.066], [0.078, 39, -0.059]]) {
+      const g = zahnrad(r, n, 0.004, r - 0.02);
+      g.rotateY(Math.PI / 2);
+      const ring = new THREE.Mesh(g, m.ring);
+      ring.position.x = x;
+      ring.castShadow = true;
+      this.crank.add(ring);
+    }
+    // Spinne: vier Arme zu den Kettenblättern
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.075, 0.016), m.crankArm);
+      sp.position.set(-0.07, Math.cos(a) * 0.045, Math.sin(a) * 0.045);
+      sp.rotation.x = a;
+      this.crank.add(sp);
+    }
+    // Kurbelarme: am Tretlager breit, zum Pedal schmaler, runde Enden
     for (const s of [-1, 1]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, CRANK, 0.03), m.crankArm);
-      arm.position.set(s * -0.085, (-s * CRANK) / 2, 0);
-      arm.castShadow = true;
+      const arm = tube(V(s * -0.085, 0, 0), V(s * -0.088, -s * CRANK, 0), 0.016, m.crankArm, 0.011, 12);
+      arm.scale.z = 1.6; // von der Seite breit, von vorne schmal
       this.crank.add(arm);
+      const ende = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 12), m.crankArm);
+      ende.rotation.z = Math.PI / 2;
+      ende.position.set(s * -0.088, -s * CRANK, 0);
+      this.crank.add(ende);
     }
     const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.19, 10), m.black);
     axle.rotation.z = Math.PI / 2;
@@ -629,10 +744,32 @@ export class Bike {
       rd.add(pulley);
     }
     this.root.add(rd);
-    // Kette
-    for (const y of [0.105, -0.105]) {
-      this.root.add(tube(V(-0.065, BB.y + y, BB.z), V(-0.04, WHEEL_R + y * 0.45, -0.5), 0.004, m.alu));
-    }
+    // Kette: oben vom großen Blatt zum Ritzel, hinten um das Schaltwerk und unten zurück
+    const kx = -0.062;
+    const RP = V(kx, WHEEL_R, -0.5);
+    const kette = new THREE.CatmullRomCurve3(
+      [
+        V(kx, BB.y + 0.106, BB.z),
+        V(kx, RP.y + 0.04, RP.z + 0.01),
+        V(kx, RP.y + 0.02, RP.z - 0.038),
+        V(kx, RP.y - 0.035, RP.z - 0.03),
+        V(kx, WHEEL_R - 0.085, -0.468),
+        V(kx, WHEEL_R - 0.165, -0.455),
+        V(kx, WHEEL_R - 0.15, -0.43),
+        V(kx, BB.y - 0.106, BB.z),
+        V(kx, BB.y - 0.075, BB.z + 0.075),
+        V(kx, BB.y, BB.z + 0.107),
+        V(kx, BB.y + 0.075, BB.z + 0.075),
+      ],
+      true,
+      'centripetal',
+    );
+    const ketteMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(kette, 160, 0.0032, 5, true),
+      new THREE.MeshStandardMaterial({ color: '#7d8087', metalness: 0.9, roughness: 0.45 }),
+    );
+    ketteMesh.scale.set(1, 1, 1);
+    this.root.add(ketteMesh);
     // Pedale (bleiben waagerecht)
     this.pedals = [-1, 1].map((s) => {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.018, 0.07), m.black);
@@ -657,11 +794,21 @@ export class Bike {
       const drop = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.013, 8), m.tape);
       drop.castShadow = true;
       road.add(drop);
-      // Schalt-/Bremsgriffe
-      const hood = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.07, 0.05), m.black);
-      hood.position.set(x, 0.925, 0.1);
-      hood.rotation.x = -0.4;
+      // Schalt-/Bremsgriffe: runder Griffkörper mit Hörnchen vorne und Bremshebel nach unten
+      const hood = new THREE.Mesh(new THREE.CapsuleGeometry(0.017, 0.055, 4, 10), m.black);
+      hood.position.set(x, 0.925, 0.105);
+      hood.rotation.x = -1.15;
+      hood.scale.set(0.9, 1, 1.15);
+      hood.castShadow = true;
       road.add(hood);
+      const horn = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), m.black);
+      horn.position.set(x, 0.945, 0.135);
+      road.add(horn);
+      const hebel = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(x, 0.93, 0.13), V(x, 0.89, 0.15), V(x, 0.84, 0.14), V(x, 0.81, 0.12)]), 10, 0.0075, 6),
+        m.black,
+      );
+      road.add(hebel);
     }
     // Fahrradklingel auf dem Vorbau (nur am Rennlenker sichtbar)
     const klingel = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), m.accent);
