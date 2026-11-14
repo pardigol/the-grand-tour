@@ -61,6 +61,7 @@ export async function buildCity(roadWorld) {
   };
   // alles andere wird gesammelt und am Ende gemeinsam gezeichnet (InstancedMesh: schnell auch auf dem iPad)
   const plaetze = new Map();
+  let zebra = null;
   const _m = new THREE.Matrix4();
   const _q = new THREE.Quaternion();
   const _y = new THREE.Vector3(0, 1, 0);
@@ -75,9 +76,9 @@ export async function buildCity(roadWorld) {
   const KREUZ = 12.33;
   const QZ = 78;
   const QX = 90;
-  const WEIT = 190;
-  const XS = [-QX, 0, QX];
-  const ZS = [-QZ, 0, QZ];
+  const WEIT = 280; // ✏️ so weit reicht die Stadt in jede Richtung
+  const XS = [-2 * QX, -QX, 0, QX, 2 * QX];
+  const ZS = [-2 * QZ, -QZ, 0, QZ, 2 * QZ];
   for (const x of XS) for (const z of ZS) setze('Street_4WayIntersection', x, z);
   for (const z of ZS)
     for (let x = -WEIT; x <= WEIT; x += 6) if (!liste(x)) setze('Street_4Lane', x, z);
@@ -87,12 +88,38 @@ export async function buildCity(roadWorld) {
   for (const x of XS)
     for (let z = -WEIT; z <= WEIT; z += 6) if (!ZS.some((k) => Math.abs(z - k) < KREUZ + 2.9)) setze('Street_4Lane', x, z, Math.PI / 2);
   // Boden zwischen den Blöcken
-  const boden = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 0.95 }));
+  const boden = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 0.95 }));
   boden.rotation.x = -Math.PI / 2;
   boden.position.y = -0.2;
   boden.receiveShadow = true;
   boden.userData.boden = true;
   scene.add(boden);
+
+  // ---------- Zebrastreifen an allen Kreuzungen ----------
+  // Je Kreuzung vier Überwege, direkt vor der Kreuzung quer über die Fahrbahn
+  const streifen = [];
+  const FAHRBAHN = 6.2; // halbe Fahrbahnbreite (ohne Gehweg)
+  for (const kx of XS)
+    for (const kz of ZS)
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const mx = kx + dx * (KREUZ + 2.2);
+        const mz = kz + dz * (KREUZ + 2.2);
+        // Streifen liegen in Fahrtrichtung, nebeneinander quer über die Straße
+        for (let q = -FAHRBAHN + 0.5; q <= FAHRBAHN - 0.4; q += 1.1) {
+          if (dx) streifen.push([mx, mz + q, 0]);
+          else streifen.push([mx + q, mz, Math.PI / 2]);
+        }
+      }
+  {
+    const g = new THREE.PlaneGeometry(3.2, 0.55);
+    g.rotateX(-Math.PI / 2);
+    const im = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: '#f2f2ee', roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4 }), streifen.length);
+    const q = new THREE.Quaternion();
+    streifen.forEach(([x, z, r], k) => im.setMatrixAt(k, new THREE.Matrix4().compose(new THREE.Vector3(x, 0.035, z), q.setFromAxisAngle(_y, r), _one)));
+    im.receiveShadow = true;
+    im.computeBoundingSphere();
+    zebra = im;
+  }
 
   // ---------- Häuserreihen ----------
   // Breite der Häuser entlang der Front (aus den Modellen gemessen)
@@ -211,6 +238,8 @@ export async function buildCity(roadWorld) {
     });
   }
 
+  scene.add(zebra);
+
   // ---------- Penthouse: die Fenster im obersten Stock leuchten warm, wenn Jonas oben ankommt ----------
   const glow = { value: 0 };
   pent.traverse((o) => {
@@ -273,6 +302,13 @@ export async function buildCity(roadWorld) {
   return {
     kind: 'stadt',
     scene,
+    // Straßennetz: zum Fahren (nur auf Straßen, nicht durch Häuser)
+    strassen: { XS, ZS, WEIT, halb: 8.2 },
+    aufStrasse(x, z, r = 0) {
+      const h = 8.2 - r;
+      if (Math.abs(x) > WEIT || Math.abs(z) > WEIT) return false;
+      return ZS.some((k) => Math.abs(z - k) < h) || XS.some((k) => Math.abs(x - k) < h);
+    },
     sky,
     sun,
     pent,

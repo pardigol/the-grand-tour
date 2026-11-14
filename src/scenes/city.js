@@ -25,7 +25,17 @@ const ABSTAND = 2.7; // so nah kommt ihr euch beim Reden
 
 const TIPP_ZEIT = 0.028; // Sekunden pro Buchstabe
 // ✏️ Am Tag nach dem Park: mit dem Rad zu Jonas (Parker Street 7 = sein Hochhaus)
-const FAHRT_START = { x: -170, z: 3.2 };
+// ✏️ Der Weg zu Jonas: von weit draußen durch die Straßen, an den Kreuzungen abbiegen
+const FAHRT_WEG = [
+  [-180, 150],
+  [-180, 78],
+  [-90, 78],
+  [-90, 0],
+  [PENTHOUSE.x + 1 - 1.5, 0],
+  [PENTHOUSE.x + 1 - 1.5, -5.2],
+];
+const LINIE_Y = 4.2; // ✏️ Höhe der gelben Linie
+const FAHRT_START = { x: -180 + 2.5, z: 150, h: Math.PI }; // rechte Spur, Richtung Norden
 const ANGEKOMMEN = 'Parker Street 7 … hier wohnt Jonas. Mal sehen, was Team Blitz zu sagen hat!';
 
 export function createCityScene(app) {
@@ -35,6 +45,30 @@ export function createCityScene(app) {
   let jonas = null;
   let char = null;
   let gangDatei = null; // Animationen zum Gehen (gang.js)
+  let linie = null;
+  // Halb durchsichtige gelbe Linie in 4,2 m Höhe (über der Kamera) entlang FAHRT_WEG, mit runden Ecken
+  function gelbeLinie() {
+    const pts = [];
+    for (let i = 0; i < FAHRT_WEG.length; i++) {
+      const [x, z] = FAHRT_WEG[i];
+      const vor = FAHRT_WEG[i - 1];
+      const nach = FAHRT_WEG[i + 1];
+      if (vor && nach) {
+        // an jeder Ecke zwei Punkte, damit die Kurve rund, aber eng bleibt
+        const r = 7;
+        const a = new THREE.Vector2(vor[0] - x, vor[1] - z).normalize().multiplyScalar(r);
+        const b = new THREE.Vector2(nach[0] - x, nach[1] - z).normalize().multiplyScalar(r);
+        pts.push(new THREE.Vector3(x + a.x, LINIE_Y, z + a.y), new THREE.Vector3(x + (a.x + b.x) * 0.3, LINIE_Y, z + (a.y + b.y) * 0.3), new THREE.Vector3(x + b.x, LINIE_Y, z + b.y));
+      } else pts.push(new THREE.Vector3(x, LINIE_Y, z));
+    }
+    const kurve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const mesh = new THREE.Mesh(
+      new THREE.TubeGeometry(kurve, 600, 0.13, 10, false),
+      new THREE.MeshBasicMaterial({ color: '#ffd400', transparent: true, opacity: 0.5, depthWrite: false }),
+    );
+    mesh.renderOrder = 5;
+    return mesh;
+  }
   const st = {};
   const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), zielPos: new THREE.Vector3(), zielLook: new THREE.Vector3() };
   const $ = (s) => root.querySelector(s);
@@ -177,7 +211,10 @@ export function createCityScene(app) {
       app.bike.walk = false;
       app.bike.schieben = false;
       app.bike.ohneBrille = false;
-      Object.assign(st, { x: FAHRT_START.x, z: FAHRT_START.z, h: Math.PI / 2, v: 0, jx: 999, jz: 0, jh: 0, jv: 0, text: null });
+      Object.assign(st, { x: FAHRT_START.x, z: FAHRT_START.z, h: FAHRT_START.h, v: 0, jx: 999, jz: 0, jh: 0, jv: 0, text: null });
+      // gelbe Linie in der Luft, die zu Jonas führt
+      linie ||= gelbeLinie();
+      city.scene.add(linie);
       ichStellen(0);
       folgeKamera();
       cam.pos.copy(cam.zielPos);
@@ -273,29 +310,39 @@ export function createCityScene(app) {
       if (st.phase === 'fahren' || st.phase === 'angekommen' || st.phase === 'fahrtEnde') {
         app.fx.uFade.value = damp(app.fx.uFade.value, st.phase === 'fahrtEnde' ? 1.05 : 0, 2, dt);
         if (st.t > 2.8 && st.phase === 'fahren') $('.stadt-ort').classList.remove('show');
-        const zielX = TUER.x - 1.5;
+        const ziel = FAHRT_WEG[FAHRT_WEG.length - 1];
+        const rest = Math.hypot(ziel[0] - st.x, ziel[1] - st.z);
         if (st.phase === 'fahren') {
-          if (st.t > 1.2) tipp(st.x < zielX - 25 ? `${fahrText()}<br><small>Zu Jonas: Parker Street 7 – das hohe Haus rechts an der Hauptstraße</small>` : '');
+          if (st.t > 1.2) tipp(rest > 25 ? `${fahrText()}<br><small>Folge der gelben Linie zu Jonas (Parker Street 7)</small>` : '');
           st.v = damp(st.v, 9 * inp.throttle, 1.5, dt);
-          if (st.v > 0.5) st.h -= inp.steer * 1.2 * dt;
-          st.h = clamp(st.h, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5);
-          // ohne Lenken bleibt das Rad auf seiner Spur
-          if (Math.abs(inp.steer) < 0.1) st.h = drehe(st.h, Math.PI / 2, 1.5, dt);
-          st.x += Math.sin(st.h) * st.v * dt;
-          st.z += Math.cos(st.h) * st.v * dt;
-          st.z = clamp(st.z, -5.6, 5.6);
-          if (st.x > zielX - 12) {
+          // selbst lenken: bei wenig Tempo enger, bei viel Tempo weiter
+          st.h -= inp.steer * (1.9 - st.v * 0.08) * Math.min(1, st.v / 2) * dt;
+          // nur auf den Straßen fahren, an Häusern entlangrutschen
+          const nx = st.x + Math.sin(st.h) * st.v * dt;
+          const nz = st.z + Math.cos(st.h) * st.v * dt;
+          if (city.aufStrasse(nx, nz, 0.7)) {
+            st.x = nx;
+            st.z = nz;
+          } else if (city.aufStrasse(nx, st.z, 0.7)) {
+            st.x = nx;
+            st.v *= 1 - 2 * dt;
+          } else if (city.aufStrasse(st.x, nz, 0.7)) {
+            st.z = nz;
+            st.v *= 1 - 2 * dt;
+          } else st.v *= 1 - 6 * dt;
+          if (rest < 7) {
             tipp('');
             phase('angekommen');
           }
         } else if (st.phase === 'angekommen') {
-          // an den Bordstein vor Jonas' Haus rollen und anhalten
-          const rest = zielX - st.x;
-          st.v = damp(st.v, Math.max(0, Math.min(st.v, rest * 0.8)), 3, dt);
-          st.h = drehe(st.h, Math.PI / 2 + (st.z > -4.6 ? 0.25 : 0), 2, dt);
-          st.x += Math.sin(st.h) * st.v * dt;
-          st.z = clamp(st.z + Math.cos(st.h) * st.v * dt, -5.4, 5.6);
-          if (rest < 0.3 && !st.text && !st.gesagt) {
+          // zum Bordstein vor Jonas' Haus rollen und anhalten
+          st.h = drehe(st.h, Math.atan2(ziel[0] - st.x, ziel[1] - st.z), 2.5, dt);
+          st.v = damp(st.v, Math.min(3, rest * 0.9), 3, dt);
+          if (rest > 0.4) {
+            st.x += Math.sin(st.h) * st.v * dt;
+            st.z += Math.cos(st.h) * st.v * dt;
+          } else st.v = damp(st.v, 0, 6, dt);
+          if (rest < 0.5 && !st.text && !st.gesagt) {
             st.gesagt = true;
             sag(char.name || 'Du', ANGEKOMMEN, true);
           }
@@ -318,8 +365,12 @@ export function createCityScene(app) {
           cam.zielLook.set(TUER.x, 6, TUER.z);
           kamera(dt, 1.2);
         } else {
-          folgeKamera();
-          kamera(dt, 3);
+          // hinter dem Rad, etwas höher
+          const sx = Math.sin(st.h);
+          const sz = Math.cos(st.h);
+          cam.zielPos.set(st.x - sx * 5.2, 2.5, st.z - sz * 5.2);
+          cam.zielLook.set(st.x + sx * 4, 1.2, st.z + sz * 4);
+          kamera(dt, 3.5);
         }
         return;
       }
@@ -477,6 +528,7 @@ export function createCityScene(app) {
     },
 
     exit() {
+      if (linie) city?.scene.remove(linie);
       if (jonas) {
         city?.scene.remove(jonas.root);
         jonas.walk = false;
