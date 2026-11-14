@@ -60,11 +60,13 @@ function patchGeometry(t0, t1, a0, a1, lift = 0.0025, nt = 10, na = 16) {
 // Oberschuh als „Loft“: Querschnitte (abgerundete Rechtecke) nacheinander verbinden, Enden zugespitzt
 function upperGeometry() {
   const pos = [];
+  const uv = [];
   const idx = [];
   const ring = (t, scale) => {
     const { w, h, lift } = shape(t);
     const z = t * LEN - BALL;
     for (let k = 0; k < AROUND; k++) {
+      uv.push(t, k / AROUND);
       const a = (k / AROUND) * Math.PI * 2;
       const c = Math.cos(a);
       const s = Math.sin(a);
@@ -99,6 +101,7 @@ function upperGeometry() {
       cz += pos[(r * AROUND + k) * 3 + 2];
     }
     pos.push(cx / AROUND, cy / AROUND, cz / AROUND);
+    uv.push(r === 0 ? 0 : 1, 0.25);
     for (let k = 0; k < AROUND; k++) {
       const a = r * AROUND + k;
       const b = r * AROUND + ((k + 1) % AROUND);
@@ -110,9 +113,64 @@ function upperGeometry() {
   cap(ts.length - 1, true);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
+}
+
+// Obermaterial: Nähte und feine Lüftungslöcher an den Seiten (weiß, wird mit der Schuhfarbe eingefärbt)
+let oberTex = null;
+function oberTextur() {
+  if (oberTex) return oberTex;
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 512, 256);
+  // u (x) = Ferse → Spitze, v (y) = rund um den Schuh: 0 außen, 0,25 oben, 0,5 innen
+  // Löcher vorne an beiden Seiten
+  g.fillStyle = 'rgba(30,30,36,0.75)';
+  for (const [v0, v1] of [[0.05, 0.19], [0.31, 0.45]])
+    for (let x = 0.5 * 512; x < 0.9 * 512; x += 12)
+      for (let y = v0 * 256, r = 0; y < v1 * 256; y += 9, r++) {
+        g.beginPath();
+        g.arc(x + (r % 2) * 6, y, 2.6, 0, Math.PI * 2);
+        g.fill();
+      }
+  // Nähte: Abgrenzung der Fersen- und Vorfußteile
+  g.strokeStyle = 'rgba(60,60,66,0.5)';
+  g.lineWidth = 2;
+  g.setLineDash([5, 4]);
+  for (const x of [0.2, 0.52, 0.88]) {
+    g.beginPath();
+    g.moveTo(x * 512, 0);
+    g.lineTo((x + 0.04) * 512, 256);
+    g.stroke();
+  }
+  g.beginPath();
+  g.moveTo(0.2 * 512, 0.22 * 256);
+  g.lineTo(0.88 * 512, 0.2 * 256);
+  g.moveTo(0.2 * 512, 0.3 * 256);
+  g.lineTo(0.88 * 512, 0.3 * 256);
+  g.stroke();
+  oberTex = new THREE.CanvasTexture(c);
+  oberTex.colorSpace = THREE.SRGBColorSpace;
+  oberTex.anisotropy = 4;
+  oberTex.flipY = false; // Zeichnung oben = v 0 (Außenseite unten)
+  return oberTex;
+}
+
+// Drahtschnürung vom Drehverschluss: im Zickzack über den Rist
+function drahtGeometry() {
+  const pts = [];
+  for (let i = 0; i <= 6; i++) {
+    const t = 0.36 + i * 0.045;
+    const a = i % 2 ? Math.PI * 0.22 : Math.PI * 0.78;
+    pts.push(new THREE.Vector3(...surf(t, a, 0.004)));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.0017, 5, false);
 }
 
 // Sohle: flache, etwas breitere Platte mit Fersenstopper
@@ -145,7 +203,10 @@ function geos() {
     cleat: new THREE.BoxGeometry(0.05, 0.008, 0.06),
     heel: new THREE.BoxGeometry(0.03, 0.006, 0.022),
     // zwei Klettriemen quer über den Vorfuß
-    strap1: patchGeometry(0.6, 0.66, Math.PI * 0.1, Math.PI * 0.9, 0.003),
+    draht: drahtGeometry(),
+    // Zunge/Laschenabdeckung unter der Drahtschnürung
+    lasche: patchGeometry(0.35, 0.66, Math.PI * 0.28, Math.PI * 0.72, 0.0022, 12, 8),
+    fuehrung: new THREE.BoxGeometry(0.005, 0.0025, 0.007),
     strap2: patchGeometry(0.69, 0.74, Math.PI * 0.12, Math.PI * 0.88, 0.003),
     // Fersenkappe hinten, Zehenkappe vorne (beide dunkel)
     heelCup: patchGeometry(0.0, 0.17, -Math.PI * 0.08, Math.PI * 1.08, 0.002, 12, 22),
@@ -176,7 +237,15 @@ export function buildShoe(mats) {
   add(G.cleat, mats.cleat || mats.sole, 0, 0.002, 0.0);
   add(G.heel, mats.sole, 0, 0.002, -BALL + 0.02);
   // Riemen und Streifen in Trikotfarbe, Fersen- und Zehenkappe dunkel
-  add(G.strap1, mats.accent, 0, 0, 0);
+  add(G.lasche, mats.accent, 0, 0, 0);
+  add(G.draht, (mats.draht ||= new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.9, roughness: 0.3 })), 0, 0, 0);
+  // kleine Drahtführungen links und rechts
+  for (let i = 0; i <= 6; i++) {
+    const t = 0.36 + i * 0.045;
+    const a = i % 2 ? Math.PI * 0.2 : Math.PI * 0.8;
+    const p = surf(t, a, 0.004);
+    add(G.fuehrung, mats.dial, p[0], p[1], p[2]);
+  }
   add(G.strap2, mats.accent, 0, 0, 0);
   add(G.stripeOut, mats.accent, 0, 0, 0);
   add(G.stripeIn, mats.accent, 0, 0, 0);
@@ -194,7 +263,7 @@ export function buildShoe(mats) {
 
 export function shoeMaterials() {
   return {
-    upper: new THREE.MeshPhysicalMaterial({ color: '#f4f4f1', roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.25 }),
+    upper: new THREE.MeshPhysicalMaterial({ color: '#f4f4f1', map: oberTextur(), roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.3 }),
     sole: new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.45, metalness: 0.2 }),
     cleat: new THREE.MeshStandardMaterial({ color: '#c8352c', roughness: 0.6 }),
     dial: new THREE.MeshStandardMaterial({ color: '#1a1a1e', roughness: 0.3, metalness: 0.4 }),

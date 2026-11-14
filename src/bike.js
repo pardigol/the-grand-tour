@@ -6,7 +6,7 @@ import { groupsetById } from './brands.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawPlate } from './plate.js';
 import { CONFIG } from './config.js';
-import { makeKitCanvas, drawTorso, drawSleeve, drawThigh, drawHelmet } from './kit.js';
+import { makeKitCanvas, drawTorso, drawSleeve, drawThigh, drawHelmet, HELM_SCHLITZE } from './kit.js';
 import { brandById, brandLabel, contrastColor, isMatte, DEFAULT_LOOK } from './brands.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -266,8 +266,8 @@ const rainbowCache = {};
 // ---------- Helm ----------
 // Schale als Folge von Bögen von vorne (t = 0) nach hinten (t = 1). Jeder Bogen geht vom linken
 // Rand über den Scheitel zum rechten Rand. UV: u = vorne → hinten, v = links → rechts (für die Schlitze).
-const HELM_RINGE = 30;
-const HELM_UM = 24;
+const HELM_RINGE = 64;
+const HELM_UM = 56;
 const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -289,6 +289,18 @@ function helmPunkt(t, a, out) {
   const c = Math.cos(a);
   return out.set(f.w * Math.sin(a), f.unten + f.h * Math.sign(c) * Math.abs(c) ** 0.75, f.z);
 }
+// Wie tief liegt der Helm an Stelle (t = vorne→hinten, v = links→rechts) in einem Schlitz? (Textur 256 × 128)
+function schlitzTiefe(t, v) {
+  let best = 0;
+  for (const [y, x0, x1, d] of HELM_SCHLITZE) {
+    const px = Math.min(Math.max(t, x0), x1);
+    const dist = Math.hypot((t - px) * 256, (v - y) * 128);
+    const r = (d * 128) / 2;
+    const k = 1 - smooth(r * 0.7, r * 1.25, dist);
+    best = Math.max(best, k);
+  }
+  return best * 0.007;
+}
 function helmetGeometry() {
   const pos = [];
   const uv = [];
@@ -299,6 +311,13 @@ function helmetGeometry() {
     for (let k = 0; k <= HELM_UM; k++) {
       const v = k / HELM_UM;
       helmPunkt(t, (v - 0.5) * Math.PI, p);
+      // Lüftungsschlitze richtig eingetieft (gleiche Lage wie in der Textur, kit.js)
+      const tief = schlitzTiefe(t, v);
+      if (tief > 0) {
+        const f = helmForm(t);
+        _k.set(p.x, p.y - f.unten, 0).normalize();
+        p.addScaledVector(_k, -tief);
+      }
       pos.push(p.x, p.y, p.z);
       uv.push(t, v);
     }
@@ -960,6 +979,15 @@ export class Bike {
     helmet.add(innen);
     const rand = new THREE.Mesh(helmetRimGeometry(), m.glassFrame);
     helmet.add(rand);
+    // Verstellrad hinten am Hinterkopf (wie bei echten Helmen)
+    const rad = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.01, 14), m.glassFrame);
+    rad.rotation.x = Math.PI / 2 - 0.4;
+    rad.position.set(0, -0.045, -0.15);
+    helmet.add(rad);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.003, 4, 24, Math.PI * 0.9), m.glassFrame);
+    band.rotation.set(Math.PI / 2 + 0.35, 0, Math.PI * 0.05 + Math.PI);
+    band.position.set(0, -0.035, -0.08);
+    helmet.add(band);
     // Gebogene Sportbrille, die um den Kopf herumgeht
     const arc = 2.3;
     const lens = new THREE.Mesh(new THREE.TorusGeometry(0.104, 0.021, 6, 24, arc), m.glasses);
